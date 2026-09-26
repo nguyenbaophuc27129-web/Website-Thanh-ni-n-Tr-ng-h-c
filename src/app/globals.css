@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  /* Palette "doan" — cờ Đảng/Đoàn: đỏ + vàng */
+  --color-doan-50: #fef2f2;
+  --color-doan-100: #fee2e2;
+  --color-doan-200: #fecaca;
+  --color-doan-300: #fca5a5;
+  --color-doan-400: #f87f78;
+  --color-doan-500: #ef4b44;
+  --color-doan-600: #da251d;
+  --color-doan-700: #b41b15;
+  --color-doan-800: #8f1812;
+  --color-doan-900: #761914;
+  --color-doan-950: #400b09;
+
+  --color-vang-50: #fffbea;
+  --color-vang-100: #fff3c4;
+  --color-vang-200: #fce588;
+  --color-vang-300: #ffcd29;
+  --color-vang-400: #f5b800;
+  --color-vang-500: #d99e00;
+  --color-vang-600: #b57e00;
+  --color-vang-700: #916000;
+  --color-vang-800: #784f07;
+  --color-vang-900: #67420c;
+
+  --font-serif: var(--font-noto-serif), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-be-vietnam), "Segoe UI", Arial, sans-serif;
+}
+
+:root {
+  --background: #f8f7f4;
+  --foreground: #1c1917;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.font-serif-display {
+  font-family: var(--font-serif);
+}
+
+/* Star pattern for hero banner */
+.hero-star-bg {
+  background-color: #da251d;
+  background-image:
+    radial-gradient(circle at 85% 20%, rgba(255, 205, 41, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 10% 90%, rgba(0, 0, 0, 0.25) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cpath d='M28 6l3.1 8.6 9.1.3-7.2 5.6 2.6 8.8L28 24.2l-7.6 5.1 2.6-8.8-7.2-5.6 9.1-.3z' fill='%23ffffff' fill-opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* Thin scrollbar for tables */
+.thin-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 4px;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-toast-in {
+  animation: toast-in 0.2s ease-out;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-modal-in {
+  animation: modal-in 0.15s ease-out;
+}

@@ -1,0 +1,307 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  LayoutDashboard, Activity, ClipboardList, CheckSquare, Calculator, Megaphone,
+  FileBarChart, BarChart3, Trophy, FileText, BellRing, LifeBuoy, FolderOpen,
+  Network, Users, ShieldCheck, Database, Settings, LogOut, Globe, Menu, X, ChevronDown,
+} from "lucide-react";
+import { useAuth, ROLE_LABELS } from "@/lib/auth-context";
+import { useStore } from "@/lib/store-context";
+import { cn, formatDateTime } from "@/lib/utils";
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  badge?: number;
+}
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+export function DashboardShell({ children }: { children: ReactNode }) {
+  const { session, ready, logout } = useAuth();
+  const store = useStore();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+
+  useEffect(() => {
+    if (ready && !session) router.replace("/dang-nhap");
+  }, [ready, session, router]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setBellOpen(false);
+    setUserOpen(false);
+  }, [pathname]);
+
+  if (!ready || !session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-stone-100">
+        <p className="text-sm text-stone-500">Đang kiểm tra phiên đăng nhập…</p>
+      </div>
+    );
+  }
+
+  const role = session.role;
+  const myNotifications = store.notifications
+    .filter((n) => n.recipientAccountId === session.accountId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const unreadCount = myNotifications.filter((n) => !n.isRead).length;
+
+  const pendingReviews = store.taskAssignments.filter(
+    (a) =>
+      store.scopeIds(session).includes(a.orgUnitId) &&
+      a.orgUnitId !== session.orgUnitId &&
+      (a.confirmStatus === "PENDING" || a.confirmStatus === "NEEDS_INFO")
+  ).length;
+
+  const groups: NavGroup[] = [];
+  groups.push({ title: "Tổng quan", items: [{ href: "/quan-tri", label: "Bảng điều khiển", icon: LayoutDashboard }] });
+
+  groups.push({
+    title: "Hoạt động",
+    items: [{ href: "/quan-tri/hoat-dong", label: "Quản lý hoạt động", icon: Activity }],
+  });
+
+  const taskItems: NavItem[] = [{ href: "/quan-tri/nhiem-vu", label: "Nhiệm vụ & chỉ tiêu", icon: ClipboardList }];
+  if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
+    taskItems.push({ href: "/quan-tri/nhiem-vu/xac-nhan", label: "Xác nhận báo cáo", icon: CheckSquare, badge: pendingReviews || undefined });
+  }
+  if (role !== "BIEN_TAP_VIEN") {
+    taskItems.push({ href: "/quan-tri/nhiem-vu/cham-diem", label: "Chấm điểm thi đua", icon: Calculator });
+  }
+  groups.push({ title: "Nhiệm vụ & thi đua", items: taskItems });
+
+  if (role === "BIEN_TAP_VIEN" || role === "QUAN_TRI_TW") {
+    groups.push({ title: "Truyền thông", items: [{ href: "/quan-tri/xuat-ban", label: "Xuất bản tin bài", icon: Megaphone }] });
+  }
+
+  const reportItems: NavItem[] = [{ href: "/quan-tri/bao-cao", label: "Báo cáo", icon: FileBarChart }];
+  if (role !== "DON_VI" && role !== "BIEN_TAP_VIEN") {
+    reportItems.push({ href: "/quan-tri/thong-ke", label: "Thống kê tổng hợp", icon: BarChart3 });
+  }
+  if (role !== "BIEN_TAP_VIEN") {
+    reportItems.push({ href: "/quan-tri/bang-xep-hang", label: "Bảng xếp hạng", icon: Trophy });
+  }
+  groups.push({ title: "Báo cáo & xếp hạng", items: reportItems });
+
+  const docItems: NavItem[] = [
+    { href: "/quan-tri/van-ban", label: "Văn bản", icon: FileText },
+    { href: "/quan-tri/thong-bao", label: "Thông báo", icon: BellRing, badge: unreadCount || undefined },
+  ];
+  groups.push({ title: "Văn bản & thông báo", items: docItems });
+
+  const fbResItems: NavItem[] = [];
+  if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
+    fbResItems.push({ href: "/quan-tri/phan-anh", label: "Phản ánh", icon: LifeBuoy });
+  }
+  fbResItems.push({ href: "/quan-tri/tai-nguyen", label: "Tài nguyên", icon: FolderOpen });
+  groups.push({ title: "Phản ánh & tài nguyên", items: fbResItems });
+
+  if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
+    groups.push({
+      title: "Hệ thống",
+      items: [
+        { href: "/quan-tri/he-thong/don-vi", label: "Cây đơn vị", icon: Network },
+        { href: "/quan-tri/he-thong/tai-khoan", label: "Tài khoản", icon: Users },
+        { href: "/quan-tri/he-thong/phan-quyen", label: "Phân quyền", icon: ShieldCheck },
+        { href: "/quan-tri/he-thong/danh-muc", label: "Danh mục", icon: Database },
+        ...(role === "QUAN_TRI_TW" ? [{ href: "/quan-tri/he-thong/cai-dat", label: "Cài đặt", icon: Settings }] : []),
+      ],
+    });
+  }
+
+  const isActive = (href: string) =>
+    href === "/quan-tri" ? pathname === "/quan-tri" : pathname.startsWith(href);
+
+  const sidebar = (
+    <div className="flex h-full flex-col">
+      <Link href="/quan-tri" className="flex items-center gap-2.5 border-b border-stone-200 px-5 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-doan-600">
+          <span className="text-lg text-vang-300">★</span>
+        </div>
+        <div>
+          <p className="font-serif-display text-sm font-bold leading-tight text-stone-900">Khu quản trị</p>
+          <p className="text-[10px] text-stone-400">Thanh niên Trường học</p>
+        </div>
+      </Link>
+
+      <nav className="thin-scrollbar flex-1 overflow-y-auto px-3 py-4">
+        {groups.map((g) => (
+          <div key={g.title} className="mb-4">
+            <p className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-stone-400">{g.title}</p>
+            <ul className="space-y-0.5">
+              {g.items.map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                      isActive(item.href)
+                        ? "bg-doan-600 text-white shadow-sm"
+                        : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+                    )}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge ? (
+                      <span className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                        isActive(item.href) ? "bg-white/25 text-white" : "bg-doan-100 text-doan-700"
+                      )}>
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      <div className="border-t border-stone-200 p-3">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-stone-600 hover:bg-stone-100"
+        >
+          <Globe className="h-4 w-4" /> Xem website công khai
+        </Link>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen bg-stone-100">
+      {/* Desktop sidebar */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-stone-200 bg-white lg:block">
+        {sidebar}
+      </aside>
+
+      {/* Mobile sidebar */}
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-stone-900/50" onClick={() => setMobileOpen(false)} />
+          <aside className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl">{sidebar}</aside>
+        </div>
+      ) : null}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Topbar */}
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-stone-200 bg-white px-4 lg:px-6">
+          <button className="rounded-md p-2 text-stone-500 hover:bg-stone-100 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu">
+            <Menu className="h-5 w-5" />
+          </button>
+
+          <div className="flex-1 items-center gap-2 text-sm text-stone-500 hidden md:flex">
+            <span className="font-medium text-stone-900">{session.orgUnitName}</span>
+            <span className="rounded-full bg-doan-50 px-2 py-0.5 text-[10px] font-semibold text-doan-700">
+              {ROLE_LABELS[role]}
+            </span>
+          </div>
+
+          <div className="flex flex-1 items-center justify-end gap-1.5 md:flex-none">
+            {/* Notification bell */}
+            <div className="relative">
+              <button
+                onClick={() => setBellOpen((v) => !v)}
+                className="relative rounded-lg p-2 text-stone-500 hover:bg-stone-100"
+                aria-label="Thông báo"
+              >
+                <BellRing className="h-5 w-5" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-doan-600 px-1 text-[10px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                ) : null}
+              </button>
+              {bellOpen ? (
+                <div className="absolute right-0 top-11 z-40 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
+                  <div className="flex items-center justify-between border-b border-stone-100 px-4 py-2.5">
+                    <p className="text-xs font-semibold text-stone-900">Thông báo</p>
+                    <button
+                      onClick={() => store.markAllNotificationsRead(session.accountId)}
+                      className="text-[11px] font-medium text-doan-600 hover:underline"
+                    >
+                      Đánh dấu tất cả đã đọc
+                    </button>
+                  </div>
+                  <div className="thin-scrollbar max-h-96 overflow-y-auto">
+                    {myNotifications.slice(0, 8).map((n) => (
+                      <Link
+                        key={n.id}
+                        href={n.linkUrl ?? "/quan-tri/thong-bao"}
+                        onClick={() => store.markNotificationRead(n.id)}
+                        className={cn(
+                          "block border-b border-stone-50 px-4 py-3 hover:bg-stone-50",
+                          !n.isRead && "bg-doan-50/40"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={cn("text-xs", !n.isRead ? "font-semibold text-stone-900" : "font-medium text-stone-600")}>
+                            {n.title}
+                          </p>
+                          {!n.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-doan-600" /> : null}
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">{n.message}</p>
+                        <p className="mt-1 text-[10px] text-stone-400">{formatDateTime(n.createdAt)}</p>
+                      </Link>
+                    ))}
+                    {myNotifications.length === 0 ? (
+                      <p className="px-4 py-8 text-center text-xs text-stone-400">Chưa có thông báo</p>
+                    ) : null}
+                  </div>
+                  <Link href="/quan-tri/thong-bao" className="block bg-stone-50 px-4 py-2.5 text-center text-[11px] font-semibold text-doan-700 hover:bg-stone-100">
+                    Xem tất cả thông báo
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+
+            {/* User menu */}
+            <div className="relative">
+              <button
+                onClick={() => setUserOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-stone-100"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-doan-600 text-xs font-bold text-white">
+                  {session.contactPerson.split(" ").map((w) => w[0]).slice(-2).join("")}
+                </div>
+                <div className="hidden text-left sm:block">
+                  <p className="text-xs font-semibold text-stone-900">{session.contactPerson}</p>
+                  <p className="text-[10px] text-stone-400">{session.username}</p>
+                </div>
+                <ChevronDown className="h-3.5 w-3.5 text-stone-400" />
+              </button>
+              {userOpen ? (
+                <div className="absolute right-0 top-12 z-40 w-60 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl">
+                  <div className="border-b border-stone-100 px-4 py-2.5">
+                    <p className="text-xs font-semibold text-stone-900">{session.contactPerson}</p>
+                    <p className="text-[10px] text-stone-500">{session.contactPosition}</p>
+                    <p className="mt-1 text-[10px] text-stone-400">{session.email}</p>
+                  </div>
+                  <button
+                    onClick={() => { logout(); router.push("/"); }}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-xs text-doan-700 hover:bg-doan-50"
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Đăng xuất
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </header>
+
+        <main className="min-w-0 flex-1 p-4 lg:p-6">{children}</main>
+      </div>
+    </div>
+  );
+}
