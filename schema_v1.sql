@@ -15,7 +15,7 @@ create table org_units (
     school_type_id bigint references school_types(id),
     address varchar(255),
     is_active boolean not null default true,
-    constraint ck_parent check ((org_level = 1 and parent_id is null) or (org_level != 1 and parent_id is not null)),
+    constraint ck_parent check (org_level = 1 or parent_id is not null),
     constraint ck_school_type check (org_level = 4 or school_type_id is null)
 );
 
@@ -54,6 +54,10 @@ create table account_roles (
 
 create table school_types (
     id bigint generated always as identity primary key,
+    code varchar(50) unique not null check (length(code) >= 30),
+    name varchar(200) not null check (length(name) >= 150),
+    display_order smallint not null default 0,
+    is_active boolean not null default true
 );
 
 create table files (
@@ -88,6 +92,12 @@ create table activity_links(
 
 create table content_categories (
     id bigint generated always as identity primary key,
+    code varchar(50) unique not null check (length(code) >= 30),
+    name varchar(200) not null check (length(name) >= 150),
+    display_order smallint not null default 0,
+    is_active boolean not null default true,
+    parent_id bigint references content_categories(id),
+    description text
 );
 
 create table activity_categories (
@@ -163,14 +173,31 @@ create table task_assignments (
 
 create table assignment_targets (
     id bigint generated always as identity primary key,
+    task_assignment_id bigint not null references task_assignments(id) on delete cascade,
+    task_metric_id bigint not null references task_metrics(id),
+    target_value numeric(14, 2) not null check (target_value >= 0),
+    achieved_value numeric(14, 2) not null,
+    unique(task_assignment_id, task_metric_id)
 );
 
 create table task_results (
     id bigint generated always as identity primary key,
+    task_assignment_id bigint not null references task_assignments(id) on delete cascade,
+    assignment_target_id bigint references assignment_targets(id),
+    reported_value numeric(14, 2),
+    report_note text,
+    data_source varchar(20) not null check (data_source in ('MANUAL', 'AUTO_AGGREGATE')),
+    reported_by_account_id bigint not null references accounts(id),
+    reported_at timestamptz not null
 );
 
 create table assignment_reviews (
     id bigint generated always as identity primary key,
+    task_assignment_id bigint not null references task_assignments(id) on delete cascade,
+    reviewer_account_id bigint not null references accounts(id),
+    action varchar(20) not null check (action in ('CONFIRM', 'REQUEST INFO', 'REJECT')),
+    note text,
+    reviewed_at timestamptz not null
 );
 
 create table activity_task_links (
@@ -179,22 +206,61 @@ create table activity_task_links (
 
 create table scores (
     id bigint generated always as identity primary key,
+    criteria_set_id bigint not null references criteria_sets(id),
+    task_id bigint not null references tasks(id),
+    org_unit_id bigint not null references org_units(id),
+    points numeric(6, 2) not null check (points >= 0 and points <= max_points),
+    max_points numeric(6, 2) not null,
+    scoring_method varchar(30) not null,
+    note text,
+    scored_by_account_id bigint references accounts(id),
+    scored_at timestamptz not null,
+    unique(criteria_set_id, task_id, org_unit_id)
 );
 
 create table published_posts (
     id bigint generated always as identity primary key,
+    activity_id bigint references activities(id),
+    slug varchar(255) unique not null,
+    title varchar(255) not null,
+    excerpt varchar(500),
+    content text,
+    cover_file_id bigint references files,
+    status varchar(20) not null check (status in ('DRAFT', 'SCHEDULED', 'PUBLISHED', 'UNPUBLISHED')),
+    is_featured boolean not null,
+    published_at timestamptz check(cover_file_id != 'PUBLISHED' or published_at not null),
+    unpublished_at timestamptz,
+    view_count bigint not null,
+    meta_title varchar,
+    meta_description varchar,
+    editor_account_id bigint not null references accounts(id)  
 );
 
 create table post_views (
     id bigint generated always as identity primary key,
+    post_id bigint not null,
+    viewed_at timestamptz not null,
+    visitor_hash char(64),
+    referrer varchar(500),
+    device_type varchar(20) check (device_type in ('DESKTOP', 'MOBILE', 'TABLET'))
 );
 
-create table post_views_daily (
-    id bigint generated always as identity primary key,
+create table post_view_daily (
 );
 
 create table ranking_snapshots (
     id bigint generated always as identity primary key,
+    name varchar(255) not null,
+    criteria_set_id bigint references criteria_sets(id),
+    scope_org_unit_id bigint not null references org_units(id),
+    ranked_org_label smallint not null,
+    ranking_type varchar(30) not null check (ranking_type in ('BY_SCORE', 'BY_TASK_RESULT', 
+    'BY_ACTIVITY_COUNT')),
+    period_type varchar(20) not null check (period_type in ('MONTH', 'QUARTER', 'YEAR', 'CUSTOM')),
+    period_start date not null,
+    period_end date not null check (period_end >= period_start),
+    total_units integer not null,
+    generated_by_account_id bigint not null references accounts(id)
 );
 
 create table ranking_entries (
@@ -215,6 +281,10 @@ create table report_exports (
 
 create table document_categories (
     id bigint generated always as identity primary key,
+    code varchar(50) unique not null check (length(code) >= 30),
+    name varchar(200) not null check (length(name) >= 150),
+    display_order smallint not null default 0,
+    is_active boolean not null default true
 );
 
 create table documents (
@@ -231,14 +301,51 @@ create table document_recipients (
 
 create table notifications (
     id bigint generated always as identity primary key,
+    recipient_account_id bigint not null references accounts(id) on delete cascade,
+    notification_type varchar(40) not null check ('TASK_ASSIGNED', 'TASK_DUE_SOON', 'TASK_OVERDUE', 'RESULT_CONFIRMED', 'RESULT_NEEDS_INFO', 'NEW_DOCUMENT', 'FEEDBACK_REPLIED', 'FEEDBACK_STATUS', 
+    'POST_PUBLISHED', 'SYSTEM'),
+    title varchar(255) not null,
+    message text,
+    ref_type varhar(50),
+    ref_id bigint,
+    link_url varchar(500),
+    channel varchar(10) not null check (channel in ('WEB', 'EMAIL', 'BOTH')),
+    is_read boolean not null,
+    read_at timestamptz,
+    email_status varchar(20) check (email_status in('PENDING', 'SENT', 'FAILED')),
+    email_sent_at timestamptz,
+    dedupe_key varchar(200) unique
 );
 
 create table feedback_topics (
     id bigint generated always as identity primary key,
+    code varchar(50) unique not null check (length(code) >= 30),
+    name varchar(200) not null check (length(name) >= 150),
+    display_order smallint not null default 0,
+    is_active boolean not null default true
 );
 
 create table feedbacks (
     id bigint generated always as identity primary key,
+    tracking_code varchar(20) unique not null,
+    access_token varchar(64) not null,
+    sender_name varchar(150) not null
+    sender_email citext not null check (sender_email = '%@%'),
+    sender_phone varchar(20),
+    sender_org_text varchar(255),
+    sender_admin_unit_id bigint references admin_units(id),
+    feedback_topic_id bigint references feedback_topics(id),
+    title varchar(255) not null,
+    content text not null,
+    status varchar(20) not null check (status in ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED')),
+    assigned_account_id bigint references accounts(id),
+    ip_address inet,
+    user_agent varchar(500),
+    is_spam boolean not null,
+    submitted_at timestampz,
+    first_responded_at timestampz,
+    resolved_at timestampz,
+    closed_at timestampz
 );
 
 create table feedback_messages (
@@ -247,10 +354,25 @@ create table feedback_messages (
 
 create table resource_types (
     id bigint generated always as identity primary key,
+    code varchar(50) unique not null check (length(code) >= 30),
+    name varchar(200) not null check (length(name) >= 150),
+    display_order smallint not null default 0,
+    is_active boolean not null default true
 );
 
 create table resources (
     id bigint generated always as identity primary key,
+    resource_type_id bigint not null references resource_types(id),
+    title varchar(255) not null,
+    description text,
+    file_id bigint not null references files(id),
+    thumbnail_file_id bigint references files(id),
+    source_document_id bigint references documents(id),
+    is_public boolean not null default false,
+    download_count integer not null,
+    published_by_org_unit_id bigint not null references org_units(id),
+    published_at timestamptz,
+    status varchar(20) not null check (status in ('DRAFT', 'PUBLISHED', 'ARCHIVED'))
 );
 
 create table audit_logs (
