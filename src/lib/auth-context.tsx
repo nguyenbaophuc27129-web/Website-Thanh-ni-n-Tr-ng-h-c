@@ -15,7 +15,8 @@ export type Role =
   | "QUAN_TRI_TINH"
   | "QUAN_TRI_CAP3"
   | "DON_VI"
-  | "BIEN_TAP_VIEN";
+  | "BIEN_TAP_VIEN"
+  | "DOAN_VIEN";
 
 export const ROLE_LABELS: Record<Role, string> = {
   QUAN_TRI_TW: "Quản trị Trung ương",
@@ -23,6 +24,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   QUAN_TRI_CAP3: "Quản trị cấp 3",
   DON_VI: "Đơn vị cơ sở",
   BIEN_TAP_VIEN: "Biên tập viên",
+  DOAN_VIEN: "Đoàn viên",
 };
 
 export interface DemoAccount {
@@ -98,6 +100,18 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     email: "bientap@tnth.vn",
     contactPerson: "Võ Ngọc Lan",
     contactPosition: "Phóng viên biên tập",
+  },
+  {
+    id: 6,
+    username: "dv.demo",
+    password: "demo123",
+    displayName: "dv.demo",
+    orgUnitId: 31,
+    orgUnitName: "Đoàn Trường THPT Chánh Phú Hưng",
+    role: "DOAN_VIEN",
+    email: "doanvien@thptchanhphu.edu.vn",
+    contactPerson: "dv.demo",
+    contactPosition: "Học sinh lớp 12A1",
   },
 ];
 

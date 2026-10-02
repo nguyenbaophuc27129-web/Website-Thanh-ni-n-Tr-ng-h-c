@@ -89,6 +89,7 @@ export const roleList = [
   { id: 3, code: "QUAN_TRI_CAP3" as const, name: "Quản trị cấp Phường/Xã", description: "Quản lý trường thuộc địa bàn phường/xã" },
   { id: 4, code: "DON_VI" as const, name: "Đơn vị cơ sở", description: "Cập nhật hoạt động, báo cáo kết quả" },
   { id: 5, code: "BIEN_TAP_VIEN" as const, name: "Biên tập viên", description: "Biên tập, xuất bản tin bài" },
+  { id: 6, code: "DOAN_VIEN" as const, name: "Đoàn viên", description: "Tham gia Diễn đàn ẩn danh (đăng bài, bình luận, cảm xúc)" },
 ];
 
 export const permissionsList = [

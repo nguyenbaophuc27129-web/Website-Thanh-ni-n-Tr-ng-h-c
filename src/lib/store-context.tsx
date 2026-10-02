@@ -11,7 +11,8 @@ import {
 } from "react";
 import type {
   Activity, Account, AssignmentReview, AssignmentTarget, Attendance, Certificate, CriteriaSet,
-  DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, LiveEvent, Notification,
+  DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, ForumComment, ForumThread,
+  LiveEvent, ModerationResult, Notification,
   PublishedPost, RankingEntry, RankingSnapshot, Report, Resource, Score,
   SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult,
 } from "@/types";
@@ -31,6 +32,8 @@ import { feedbacks as seedFeedbacks, feedbackMessages as seedMessages } from "@/
 import { certificates as seedCertificates } from "@/data/certificates";
 import { liveEvents as seedLiveEvents } from "@/data/live-events";
 import { resources as seedResources, systemSettings as seedSettings } from "@/data/resources";
+import { FORUM_THREADS as seedForumThreads, FORUM_COMMENTS as seedForumComments } from "@/data/forum";
+import { generateUniqueAlias } from "@/lib/forum-alias";
 import type { Session } from "@/lib/auth-context";
 import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
 
@@ -214,6 +217,14 @@ interface StoreValue {
     orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
     contactPosition: string; role: Account["role"]; status?: Account["status"]; password?: string;
   }) => { ok: boolean; error?: string };
+
+  /* forum ẩn danh */
+  forumThreads: ForumThread[];
+  forumComments: ForumComment[];
+  createForumThread: (session: Session, input: { title: string; content: string; topic?: string }, mod: ModerationResult) => number;
+  createForumComment: (session: Session, input: { threadId: number; content: string }, mod: ModerationResult) => number;
+  toggleForumLike: (session: Session, kind: "THREAD" | "COMMENT", id: number) => void;
+  moderateForumItem: (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => void;
 }
 
 const StoreCtx = createContext<StoreValue | null>(null);
@@ -253,6 +264,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [liveEnabled, setLiveEnabled] = useState(false);
   const [resources, setResources] = useState(seedResources);
   const [settings, setSettings] = useState(seedSettings);
+  const [forumThreads, setForumThreads] = useState<ForumThread[]>(seedForumThreads);
+  const [forumComments, setForumComments] = useState<ForumComment[]>(seedForumComments);
 
   // Khôi phục tài khoản đã tạo từ localStorage (để khớp với đăng nhập)
   useEffect(() => {
@@ -975,6 +988,127 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [accounts, orgName]
   );
 
+  /* ============ Forum ẩn danh ============ */
+
+  const createForumThread = useCallback(
+    (session: Session, input: { title: string; content: string; topic?: string }, mod: ModerationResult) => {
+      const alias = generateUniqueAlias([
+        ...forumThreads.map((t) => t.alias),
+        ...forumComments.map((c) => c.alias),
+      ]);
+      const id = nextId();
+      const thread: ForumThread = {
+        id,
+        alias,
+        authorAccountId: session.accountId,
+        title: input.title.trim(),
+        content: input.content.trim(),
+        topic: input.topic?.trim() || undefined,
+        status: mod.verdict === "CLEAN" ? "PUBLISHED" : "HIDDEN",
+        likedByAccountIds: [],
+        aiVerdict: mod.verdict,
+        aiReason: mod.reason,
+        aiModel: mod.model,
+        createdAt: nowISO(),
+      };
+      setForumThreads((prev) => [thread, ...prev]);
+      if (mod.verdict === "FLAGGED") {
+        addNotification({
+          recipientAccountId: 1,
+          notificationType: "FORUM_FLAGGED",
+          title: "Diễn đàn: bài viết chờ kiểm duyệt",
+          message: `Bài "${thread.title}" của ${alias} bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
+          refType: "FORUM_THREAD",
+          refId: id,
+          linkUrl: "/quan-tri/dien-dan",
+        });
+      }
+      return id;
+    },
+    [forumThreads, forumComments, addNotification]
+  );
+
+  const createForumComment = useCallback(
+    (session: Session, input: { threadId: number; content: string }, mod: ModerationResult) => {
+      const alias = generateUniqueAlias([
+        ...forumThreads.map((t) => t.alias),
+        ...forumComments.map((c) => c.alias),
+      ]);
+      const id = nextId();
+      const comment: ForumComment = {
+        id,
+        threadId: input.threadId,
+        alias,
+        authorAccountId: session.accountId,
+        content: input.content.trim(),
+        status: mod.verdict === "CLEAN" ? "PUBLISHED" : "PENDING_REVIEW",
+        likedByAccountIds: [],
+        aiVerdict: mod.verdict,
+        aiReason: mod.reason,
+        aiModel: mod.model,
+        createdAt: nowISO(),
+      };
+      setForumComments((prev) => [...prev, comment]);
+      if (mod.verdict === "FLAGGED") {
+        addNotification({
+          recipientAccountId: 1,
+          notificationType: "FORUM_FLAGGED",
+          title: "Diễn đàn: bình luận chờ kiểm duyệt",
+          message: `Bình luận của ${alias} trong bài #${input.threadId} bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
+          refType: "FORUM_COMMENT",
+          refId: id,
+          linkUrl: "/quan-tri/dien-dan",
+        });
+      }
+      return id;
+    },
+    [forumThreads, forumComments, addNotification]
+  );
+
+  const toggleForumLike = useCallback((session: Session, kind: "THREAD" | "COMMENT", id: number) => {
+    const accountId = session.accountId;
+    const flip = (ids: number[]) =>
+      ids.includes(accountId) ? ids.filter((x) => x !== accountId) : [...ids, accountId];
+    if (kind === "THREAD") {
+      setForumThreads((prev) => prev.map((t) => (t.id === id ? { ...t, likedByAccountIds: flip(t.likedByAccountIds) } : t)));
+    } else {
+      setForumComments((prev) => prev.map((c) => (c.id === id ? { ...c, likedByAccountIds: flip(c.likedByAccountIds) } : c)));
+    }
+  }, []);
+
+  const moderateForumItem = useCallback(
+    (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => {
+      const stamp = { moderatedByAccountId: session.accountId, moderatedAt: nowISO() };
+      if (kind === "THREAD") {
+        setForumThreads((prev) =>
+          prev.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  ...stamp,
+                  status: action === "APPROVE" ? "PUBLISHED" : "HIDDEN",
+                  rejectionReason: action === "REJECT" ? (reason ?? "Không phù hợp với quy tắc diễn đàn") : undefined,
+                }
+              : t
+          )
+        );
+      } else {
+        setForumComments((prev) =>
+          prev.map((c) =>
+            c.id === id
+              ? {
+                  ...c,
+                  ...stamp,
+                  status: action === "APPROVE" ? "PUBLISHED" : "REJECTED",
+                }
+              : c
+          )
+        );
+      }
+    },
+    []
+  );
+
   const value: StoreValue = useMemo(
     () => ({
       orgUnits, accounts, contentCategories, documentCategories, resourceTypes, feedbackTopics,
@@ -996,8 +1130,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleAttendance, addAttendance,
       saveResource, downloadResource,
       updateSetting, updateAccountStatus, createAccount,
+      forumThreads, forumComments, createForumThread, createForumComment, toggleForumLike, moderateForumItem,
     }),
     [
+      forumThreads, forumComments,
+      createForumThread, createForumComment, toggleForumLike, moderateForumItem,
       orgUnits, accounts, activities, publishedPosts, criteriaSets, tasks, taskMetrics,
       taskAssignments, assignmentTargets, taskResults, assignmentReviews, scores,
       rankingSnapshots, rankingEntries, reports, documents, documentRecipients,

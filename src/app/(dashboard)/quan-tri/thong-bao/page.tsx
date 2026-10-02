@@ -22,6 +22,7 @@ const TYPE_META: Record<NotificationType, { label: string; cls: string }> = {
   FEEDBACK_STATUS: { label: "Trạng thái phản ánh", cls: "bg-stone-200 text-stone-700" },
   POST_PUBLISHED: { label: "Tin bài mới", cls: "bg-pink-100 text-pink-700" },
   SYSTEM: { label: "Hệ thống", cls: "bg-stone-100 text-stone-600" },
+  FORUM_FLAGGED: { label: "Kiểm duyệt diễn đàn", cls: "bg-orange-100 text-orange-700" },
 };
 
 export default function ThongBaoPage() {

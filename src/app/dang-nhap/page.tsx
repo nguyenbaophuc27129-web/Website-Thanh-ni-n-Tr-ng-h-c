@@ -15,6 +15,7 @@ import {
   Network,
   Trophy,
   Globe2,
+  Users,
 } from "lucide-react";
 import { useAuth, DEMO_ACCOUNTS, ROLE_LABELS, type DemoAccount } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -26,6 +27,7 @@ const roleIcons: Record<string, typeof ShieldCheck> = {
   QUAN_TRI_CAP3: Building2,
   DON_VI: School,
   BIEN_TAP_VIEN: Newspaper,
+  DOAN_VIEN: Users,
 };
 
 const roleTints: Record<string, string> = {
@@ -34,7 +36,11 @@ const roleTints: Record<string, string> = {
   QUAN_TRI_CAP3: "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-500",
   DON_VI: "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500",
   BIEN_TAP_VIEN: "bg-violet-50 text-violet-600 group-hover:bg-violet-500",
+  DOAN_VIEN: "bg-teal-50 text-teal-600 group-hover:bg-teal-500",
 };
+
+/** Đoàn viên chỉ tương tác diễn đàn — còn lại vào trang quản trị */
+const destFor = (role: string) => (role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri");
 
 const fadeUp = {
   hidden: { opacity: 0, y: 18 },
@@ -50,7 +56,7 @@ export default function DangNhapPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (ready && session) router.replace("/quan-tri");
+    if (ready && session) router.replace(destFor(session.role));
   }, [ready, session, router]);
 
   const handleLogin = (e?: React.FormEvent) => {
@@ -64,7 +70,7 @@ export default function DangNhapPage() {
   const quickLogin = (acc: DemoAccount) => {
     loginAs(acc);
     toast(`Đã đăng nhập với tư cách ${ROLE_LABELS[acc.role]} — ${acc.orgUnitName}`);
-    router.push("/quan-tri");
+    router.push(destFor(acc.role));
   };
 
   return (
@@ -213,6 +219,13 @@ export default function DangNhapPage() {
               <LogIn className="h-4 w-4" /> Đăng nhập
             </button>
           </form>
+
+          <p className="mt-4 text-center text-xs text-slate-500">
+            Chưa có tài khoản?{" "}
+            <Link href="/dang-ky" className="font-semibold text-blue-600 hover:underline">
+              Đăng ký Đoàn viên
+            </Link>
+          </p>
 
           <div className="my-7 flex items-center gap-3">
             <div className="h-px flex-1 bg-slate-100" />

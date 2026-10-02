@@ -59,6 +59,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   BIEN_TAP_VIEN: [
     "activity.view", "post.manage", "post.publish", "document.view", "resource.manage",
   ],
+  DOAN_VIEN: ["forum.interact"],
 };
 
 export interface Account {
@@ -319,7 +320,8 @@ export interface DocumentRecipient {
 export type NotificationType =
   | "TASK_ASSIGNED" | "TASK_DUE_SOON" | "TASK_OVERDUE"
   | "RESULT_CONFIRMED" | "RESULT_NEEDS_INFO" | "NEW_DOCUMENT"
-  | "FEEDBACK_REPLIED" | "FEEDBACK_STATUS" | "POST_PUBLISHED" | "SYSTEM";
+  | "FEEDBACK_REPLIED" | "FEEDBACK_STATUS" | "POST_PUBLISHED" | "SYSTEM"
+  | "FORUM_FLAGGED";
 
 export interface Notification {
   id: number;
@@ -467,4 +469,47 @@ export interface DocumentCategory {
   id: number;
   code: string;
   name: string;
+}
+
+/* ============ 3.9. Diễn đàn ẩn danh ============ */
+
+/** Kết quả kiểm duyệt AI (API /api/ai/kiem-duyet hoặc fallback quy tắc cục bộ) */
+export interface ModerationResult {
+  verdict: "CLEAN" | "FLAGGED";
+  reason?: string;
+  model?: string;
+}
+
+export interface ForumThread {
+  id: number;
+  alias: string; // "Bằng Lăng Tim Xanh #2481" — sinh cứng lúc tạo, KHÔNG random lúc render
+  authorAccountId: number; // RIÊNG TƯ — không bao giờ hiển thị công khai
+  title: string;
+  content: string;
+  topic?: string;
+  status: "PUBLISHED" | "HIDDEN"; // chờ duyệt = FLAGGED && !moderatedByAccountId
+  likedByAccountIds: number[];
+  aiVerdict: "CLEAN" | "FLAGGED";
+  aiReason?: string;
+  aiModel?: string;
+  moderatedByAccountId?: number;
+  moderatedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export interface ForumComment {
+  id: number;
+  threadId: number;
+  alias: string;
+  authorAccountId: number;
+  content: string;
+  status: "PUBLISHED" | "PENDING_REVIEW" | "REJECTED";
+  likedByAccountIds: number[];
+  aiVerdict: "CLEAN" | "FLAGGED";
+  aiReason?: string;
+  aiModel?: string;
+  moderatedByAccountId?: number;
+  moderatedAt?: string;
+  createdAt: string;
 }

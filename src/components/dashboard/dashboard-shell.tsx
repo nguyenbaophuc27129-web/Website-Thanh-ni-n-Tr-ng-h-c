@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Activity, ClipboardList, CheckSquare, Calculator, Megaphone,
   FileBarChart, BarChart3, Trophy, FileText, BellRing, LifeBuoy, FolderOpen,
   Network, Users, ShieldCheck, Database, Settings, LogOut, Globe, Menu, X, ChevronDown,
-  Radio, Sparkles, Flag,
+  Radio, Sparkles, Flag, MessagesSquare,
 } from "lucide-react";
 import { useAuth, ROLE_LABELS } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
@@ -55,6 +55,37 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     );
   }
 
+  // Đoàn viên không vào khu quản trị — chỉ tương tác diễn đàn công khai
+  if (session.role === "DOAN_VIEN") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-5">
+        <div className="w-full max-w-md rounded-3xl bg-white p-9 text-center shadow-[0_24px_80px_rgb(15,23,42,0.10)]">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+            <Users className="h-6 w-6" strokeWidth={1.75} />
+          </span>
+          <h1 className="mt-4 text-xl font-bold text-slate-900">Khu quản trị dành cho cán bộ Đoàn</h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            Tài khoản Đoàn viên của bạn dùng để tham gia Diễn đàn ẩn danh. Nhấn bên dưới để vào diễn đàn nhé!
+          </p>
+          <div className="mt-6 flex flex-col gap-2">
+            <Link
+              href="/dien-dan"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all hover:brightness-110"
+            >
+              <MessagesSquare className="h-4 w-4" /> Vào Diễn đàn
+            </Link>
+            <button
+              onClick={() => { logout(); router.push("/"); }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              <LogOut className="h-4 w-4" /> Đăng xuất
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const role = session.role;
   const myNotifications = store.notifications
     .filter((n) => n.recipientAccountId === session.accountId)
@@ -67,6 +98,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       a.orgUnitId !== session.orgUnitId &&
       (a.confirmStatus === "PENDING" || a.confirmStatus === "NEEDS_INFO")
   ).length;
+
+  // Diễn đàn: bình luận chờ duyệt + bài bị AI gắn cờ chưa xử lý
+  const pendingForum =
+    store.forumComments.filter((c) => c.status === "PENDING_REVIEW").length +
+    store.forumThreads.filter((t) => t.aiVerdict === "FLAGGED" && !t.moderatedByAccountId).length;
 
   const groups: NavGroup[] = [];
   const overviewItems: NavItem[] = [
@@ -117,6 +153,15 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   }
   fbResItems.push({ href: "/quan-tri/tai-nguyen", label: "Tài nguyên", icon: FolderOpen });
   groups.push({ title: "Phản ánh & tài nguyên", items: fbResItems });
+
+  if (role === "QUAN_TRI_TW") {
+    groups.push({
+      title: "Cộng đồng",
+      items: [
+        { href: "/quan-tri/dien-dan", label: "Kiểm duyệt Diễn đàn", icon: MessagesSquare, badge: pendingForum || undefined },
+      ],
+    });
+  }
 
   if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
     groups.push({

@@ -12,6 +12,7 @@ import {
   Award,
   SearchCheck,
   BookOpen,
+  MessagesSquare,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/", label: "Trang chủ" },
   { href: "/tin-tuc", label: "Tin tức" },
+  { href: "/dien-dan", label: "Diễn đàn" },
   { href: "/van-ban", label: "Văn bản" },
   { href: "/bang-xep-hang", label: "Xếp hạng" },
   { href: "/tai-nguyen", label: "Tài nguyên" },
@@ -131,11 +133,11 @@ export function SiteHeader() {
             <span className="mx-1.5 h-5 w-px bg-slate-200" />
           </div>
           <Link
-            href={session ? "/quan-tri" : "/dang-nhap"}
+            href={session ? (session.role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri") : "/dang-nhap"}
             className="hidden items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:brightness-110 sm:inline-flex"
           >
-            {session ? <LayoutDashboard className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
-            {session ? "Khu quản trị" : "Đăng nhập"}
+            {session ? (session.role === "DOAN_VIEN" ? <MessagesSquare className="h-4 w-4" /> : <LayoutDashboard className="h-4 w-4" />) : <LogIn className="h-4 w-4" />}
+            {session ? (session.role === "DOAN_VIEN" ? "Diễn đàn" : "Khu quản trị") : "Đăng nhập"}
           </Link>
           <button
             className="rounded-full p-2 text-slate-600 transition-colors hover:bg-slate-900/5 lg:hidden"
@@ -189,11 +191,11 @@ export function SiteHeader() {
               ))}
             </div>
             <Link
-              href={session ? "/quan-tri" : "/dang-nhap"}
+              href={session ? (session.role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri") : "/dang-nhap"}
               onClick={() => setOpen(false)}
               className="mt-2 block rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3 py-2.5 text-center text-sm font-semibold text-white shadow-lg shadow-cyan-500/25"
             >
-              {session ? "Khu quản trị" : "Đăng nhập"}
+              {session ? (session.role === "DOAN_VIEN" ? "Vào Diễn đàn" : "Khu quản trị") : "Đăng nhập"}
             </Link>
           </motion.nav>
         ) : null}

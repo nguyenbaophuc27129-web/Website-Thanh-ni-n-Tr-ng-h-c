@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ClipboardList, Activity, Megaphone, Award, Users, CheckSquare,
   FileBarChart, FileText, FolderOpen, ArrowRight, Rocket, QrCode, Flag,
+  UserPlus, PenLine, Heart, ShieldCheck,
 } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -46,6 +47,12 @@ const ROLE_STEPS: Record<Role, Step[]> = {
   BIEN_TAP_VIEN: [
     { icon: Megaphone, title: "Xuất bản tin bài", desc: "Biên tập tin từ hoạt động của đơn vị, chọn chuyên mục, hẹn giờ hoặc xuất bản ngay.", href: "/quan-tri/xuat-ban" },
     { icon: FolderOpen, title: "Quản lý tài nguyên", desc: "Đăng tài liệu, biểu mẫu, sản phẩm truyền thông dùng chung cho toàn hệ thống.", href: "/quan-tri/tai-nguyen" },
+  ],
+  DOAN_VIEN: [
+    { icon: UserPlus, title: "Đăng ký tài khoản Đoàn viên", desc: "Điền họ tên, lớp và trường — tài khoản chỉ dùng để tham gia diễn đàn, không vào khu quản trị.", href: "/dang-ky" },
+    { icon: PenLine, title: "Đăng bài ẩn danh", desc: "Chia sẻ câu chuyện, góp ý thẳng thắn. Hệ thống tự sinh bí danh ngẫu nhiên, không ai biết bạn là ai.", href: "/dien-dan" },
+    { icon: Heart, title: "Bình luận & thả cảm xúc", desc: "Thảo luận trong các bài viết, thả trái tim cho nội dung bạn thích — mỗi tài khoản thả được một lần.", href: "/dien-dan" },
+    { icon: ShieldCheck, title: "AI kiểm duyệt tự động", desc: "Nội dung thô tục, spam, lừa đảo hoặc kèm thông tin cá nhân sẽ bị gắn cờ và chờ Ban biên tập duyệt trước khi hiện công khai.", href: "/dien-dan" },
   ],
 };
 
