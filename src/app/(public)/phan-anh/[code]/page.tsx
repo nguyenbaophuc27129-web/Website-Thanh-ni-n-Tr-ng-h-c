@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
-import { ArrowLeft, SearchCheck, MessageSquare } from "lucide-react";
+import { ArrowLeft, SearchCheck, MessageSquare, MailCheck } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge, type Tone } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ const STATUS_META: Record<string, { label: string; tone: Tone }> = {
 
 export default function PhanAnhChiTietPage() {
   const params = useParams<{ code: string }>();
-  const { feedbacks, feedbackMessages, feedbackTopics } = useStore();
+  const { feedbacks, feedbackMessages, feedbackTopics, emailLogs } = useStore();
 
   const fb = useMemo(
     () => feedbacks.find((f) => f.trackingCode.toLowerCase() === params.code.toLowerCase()),
@@ -66,12 +66,45 @@ export default function PhanAnhChiTietPage() {
         />
         <CardBody>
           <p className="text-sm leading-relaxed text-stone-700">{fb.content}</p>
+          {fb.senderCommuneUnion || fb.senderProvinceUnion || (fb.evidenceNames && fb.evidenceNames.length > 0) ? (
+            <div className="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-[11px] text-stone-400">
+              {fb.senderCommuneUnion ? <p>Đoàn xã/phường: {fb.senderCommuneUnion}</p> : null}
+              {fb.senderProvinceUnion ? <p>Đoàn tỉnh/thành phố: {fb.senderProvinceUnion}</p> : null}
+              {fb.evidenceNames && fb.evidenceNames.length > 0 ? (
+                <p>Minh chứng đính kèm: {fb.evidenceNames.join(", ")}</p>
+              ) : null}
+            </div>
+          ) : null}
         </CardBody>
       </Card>
 
       <h2 className="mt-8 flex items-center gap-2 font-serif-display text-lg font-bold text-stone-900">
         <MessageSquare className="h-4.5 w-4.5 text-doan-600" /> Lịch sử trao đổi
       </h2>
+
+      {(() => {
+        const emails = emailLogs
+          .filter((l) => l.feedbackId === fb.id)
+          .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+        if (emails.length === 0) return null;
+        return (
+          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-xs text-emerald-800">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <MailCheck className="h-3.5 w-3.5" />
+              Hệ thống đã gửi {emails.length} email thông báo tới {fb.senderEmail}
+              {fb.status === "RESOLVED" ? " (bao gồm kết quả xử lý)" : ""}
+            </p>
+            <ul className="mt-1.5 space-y-0.5 text-[11px] text-emerald-700">
+              {emails.map((l) => (
+                <li key={l.id}>
+                  - {l.kind === "RESULT" ? "Email kết quả xử lý" : "Email phản hồi"}: {l.subject} · {formatDateTime(l.sentAt)}
+                  {l.delivery === "SENT" ? " · Đã gửi thật" : l.delivery === "FAILED" ? " · Gửi thất bại" : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
 
       <div className="mt-4 space-y-4">
         {messages.length === 0 ? (

@@ -176,13 +176,11 @@ export default function PhanCongChiTietPage() {
         <CardBody className="p-0">
           <TableWrap>
             <THead>
-              <tr>
                 <Th>Chỉ tiêu</Th>
                 <Th>Đơn vị tính</Th>
                 <Th>Chỉ tiêu giao</Th>
                 <Th>Đã đạt</Th>
                 <Th className="w-40">Tiến độ</Th>
-              </tr>
             </THead>
             <tbody>
               {targets.map((t) => {
@@ -291,14 +289,12 @@ export default function PhanCongChiTietPage() {
             {children.length > 0 ? (
               <TableWrap>
                 <THead>
-                  <tr>
                     <Th>Đơn vị nhận</Th>
                     <Th>Chỉ tiêu</Th>
                     <Th>Hạn</Th>
                     <Th>Tiến độ</Th>
                     <Th>Xác nhận</Th>
                     <Th />
-                  </tr>
                 </THead>
                 <tbody>
                   {children.map((c) => (
@@ -416,7 +412,7 @@ export default function PhanCongChiTietPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Hạn riêng" hint="Có thể sớm hơn hạn gốc.">
+          <Field label="Hạn riêng" hint="Có thể sớm hơn hạn gốc. Quá hạn sẽ thành đèn đỏ ở bảng Trực tiếp.">
             <Input type="date" value={childDue} onChange={(e) => setChildDue(e.target.value)} />
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">

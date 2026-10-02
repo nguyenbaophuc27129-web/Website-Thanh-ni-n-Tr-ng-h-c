@@ -95,6 +95,18 @@ export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Thời gian tương đối: "vừa xong" / "5 phút trước" / "3 giờ trước" / "2 ngày trước" */
+export function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (isNaN(diff) || diff < 0) return "vừa xong";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "vừa xong";
+  if (mins < 60) return `${mins} phút trước`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  return `${Math.floor(hours / 24)} ngày trước`;
+}
+
 export function addDaysISO(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);

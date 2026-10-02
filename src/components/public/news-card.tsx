@@ -13,6 +13,7 @@ export function NewsCard({ post, compact }: { post: PublishedPost; compact?: boo
       <div className="relative">
         <PhotoPlaceholder
           seed={post.coverSeed}
+          src={post.coverDataUrl}
           className="h-40 w-full"
         />
         {post.isFeatured ? (

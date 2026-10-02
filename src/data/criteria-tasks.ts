@@ -1,4 +1,5 @@
 import type { CriteriaSet, Task, TaskMetric } from "@/types";
+import { criteriaSet2027, tasks2027, taskMetrics2027 } from "./tieuchi-2027";
 
 export const criteriaSets: CriteriaSet[] = [
   {
@@ -11,6 +12,7 @@ export const criteriaSets: CriteriaSet[] = [
     year: 2025, ownerOrgUnitId: 1, targetOrgLevel: 4, totalPoints: 100,
     status: "ARCHIVED",
   },
+  criteriaSet2027,
 ];
 
 export const tasks: Task[] = [
@@ -26,6 +28,7 @@ export const tasks: Task[] = [
   { id: 30, criteriaSetId: 1, parentTaskId: null, code: "III", title: "III. Nhiệm vụ đột xuất theo chỉ đạo", taskKind: "TASK", maxPoints: 25, scoringMethod: "OTHER", displayOrder: 3, status: "PUBLISHED" },
   { id: 31, criteriaSetId: 1, parentTaskId: 30, code: "III.1", title: "III.1. Chương trình bảo vệ môi trường, thích ứng biến đổi khí hậu", taskKind: "CRITERION", maxPoints: 15, requirement: "Tổ chức ít nhất 1 chương trình môi trường/học kỳ.", scoringMethod: "MANUAL_CONFIRM", dueDate: "2026-10-31", displayOrder: 1, status: "PUBLISHED" },
   { id: 32, criteriaSetId: 1, parentTaskId: 30, code: "III.2", title: "III.2. Tham gia Hội trại, hội thi do cấp trên tổ chức", taskKind: "CRITERION", maxPoints: 10, scoringMethod: "MANUAL_CONFIRM", dueDate: "2026-11-15", displayOrder: 2, status: "PUBLISHED" },
+  ...tasks2027,
 ];
 
 export const taskMetrics: TaskMetric[] = [
@@ -34,4 +37,5 @@ export const taskMetrics: TaskMetric[] = [
   { id: 3, taskId: 12, code: "SO_NHAT_KY", name: "Số nhật ký trải nghiệm", unitOfMeasure: "bài", aggregationType: "SUM" },
   { id: 4, taskId: 21, code: "SO_BAI_XB", name: "Số tin bài được xuất bản", unitOfMeasure: "bài", aggregationType: "SUM" },
   { id: 5, taskId: 31, code: "SO_CHUONG_TRINH", name: "Số chương trình môi trường", unitOfMeasure: "chương trình", aggregationType: "SUM" },
+  ...taskMetrics2027,
 ];

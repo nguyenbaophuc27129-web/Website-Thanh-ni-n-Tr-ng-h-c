@@ -43,12 +43,10 @@ export default function DanhMucPage() {
         <CardBody className="p-0">
           <TableWrap>
             <THead>
-              <tr>
                 <Th className="w-16">ID</Th>
                 <Th>Mã</Th>
                 <Th>Tên danh mục</Th>
                 <Th className="w-40">Số bản ghi sử dụng</Th>
-              </tr>
             </THead>
             <tbody>
               {tab === "content"

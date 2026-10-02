@@ -137,13 +137,11 @@ export default function BangXepHangAdminPage() {
             <CardBody className="p-0">
               <TableWrap>
                 <THead>
-                  <tr>
                     <Th className="w-16">Hạng</Th>
                     <Th>Đơn vị</Th>
                     <Th className="w-28">Điểm</Th>
                     <Th className="w-44">Tiến độ nhiệm vụ</Th>
                     <Th className="w-28">Hoạt động</Th>
-                  </tr>
                 </THead>
                 <tbody>
                   {entries.map((e) => (

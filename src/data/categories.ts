@@ -35,7 +35,53 @@ export const feedbackTopics: FeedbackTopic[] = [
   { id: 1, code: "HOAT_DONG", name: "Hoạt động, phong trào" },
   { id: 2, code: "NHIEM_VU", name: "Nhiệm vụ, chỉ tiêu thi đua" },
   { id: 3, code: "XEP_HANG", name: "Xếp hạng, chấm điểm" },
-  { id: 4, code: "CONG_KENH", name: "Cổng thông tin, kỹ thuật" },
+  { id: 4, code: "CONG_KENH", name: "Lỗi kỹ thuật trang web" },
   { id: 5, code: "TAI_KHOAN", name: "Tài khoản, quyền truy cập" },
+  {
+    id: 7, code: "APP_QLD", name: "Lỗi kỹ thuật app Thanh niên Việt Nam & web Quản lý Đoàn",
+    description: "Cán bộ Đoàn, sinh hoạt Đoàn, sổ Đoàn, Đoàn phí…",
+  },
   { id: 6, code: "KHAC", name: "Nội dung khác" },
+];
+
+/**
+ * Từ khóa sự kiện cố định — đơn vị chọn khi đăng bài thay vì tự gõ,
+ * thống nhất làm thẻ (#) và trạm lọc trên trang tin tức công khai.
+ */
+export const EVENT_KEYWORDS: string[] = [
+  "Năm học mới",
+  "Tuần lễ học đường",
+  "Học sinh 3 tốt",
+  "Thi đua chào cờ",
+  "Mùa hè xanh",
+  "Tiếp sức mùa thi",
+  "Bảo vệ môi trường",
+  "An toàn giao thông",
+  "Áo ấm mùa đông",
+  "Kỹ năng số",
+  "Nhật ký trải nghiệm nghề nghiệp",
+  "Kỷ niệm 26/3",
+];
+
+/**
+ * Chuyên mục trang chủ — bài đăng gắn tag này TỰ ĐỘNG xuất hiện ở khu vực tương ứng:
+ * - "Mỗi tuần một câu chuyện đẹp" → carousel "Dòng truyện ánh sáng" trên trang chủ.
+ * - "Bản tin nghiên cứu khoa học" → banner Panorama "Nghiên cứu khoa học".
+ */
+export const SECTION_TAGS: string[] = [
+  "Mỗi tuần một câu chuyện đẹp",
+  "Bản tin nghiên cứu khoa học",
+];
+
+/**
+ * Hệ thống nút chuyên mục đặc biệt trên trang chủ — mỗi nút lọc trang tin tức theo tag.
+ * Các giai đoạn sau sẽ nâng từng chuyên mục thành trang riêng của nó.
+ */
+export const SPECIAL_CATEGORIES: { name: string; href: string }[] = [
+  { name: "Gương mặt Học sinh 3 tốt", href: "/tin-tuc?q=Gương mặt Học sinh 3 tốt" },
+  { name: "Mỗi ngày một tin tốt, mỗi tuần một câu chuyện đẹp", href: "/tin-tuc?q=Mỗi tuần một câu chuyện đẹp" },
+  { name: "Hành trình khoa học trẻ", href: "/tin-tuc?q=Hành trình khoa học trẻ" },
+  { name: "Học sinh THPT — Công dân toàn cầu", href: "/tin-tuc?q=Công dân toàn cầu" },
+  { name: "Câu chuyện \"Tôi là Đảng viên trẻ\"", href: "/tin-tuc?q=Đảng viên trẻ" },
+  { name: "Tin tức hoạt động Đoàn", href: "/tin-tuc" },
 ];

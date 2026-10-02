@@ -4,35 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bot, Send, X, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ruleReply } from "@/lib/ai-chat";
 
 interface ChatMessage {
   from: "bot" | "user";
   text: string;
   link?: { href: string; label: string };
-}
-
-/** Quy tắc trả lời giả lập AI (không gọi máy chủ) */
-function botReply(input: string): ChatMessage {
-  const q = input.toLowerCase();
-  if (/(chào|hello|hi|xin chao)/.test(q))
-    return { from: "bot", text: "Chào bạn! Mình là trợ lý ảo của Cổng Thanh niên Trường học. Bạn muốn tìm hiểu về tin tức, văn bản, bảng xếp hạng hay gửi phản ánh?" };
-  if (/(nhiệm vụ|chỉ tiêu|deadline|hạn)/.test(q))
-    return { from: "bot", text: "Nhiệm vụ thi đua được cấp trên giao kèm chỉ tiêu và hạn cuối. Đơn vị nhận nhiệm vụ sẽ thấy nhắc deadline D-7 và D-3 trong khu quản trị. Xem chi tiết trong khu quản trị mục 'Nhiệm vụ & chỉ tiêu'.", link: { href: "/dang-nhap", label: "Đăng nhập khu quản trị" } };
-  if (/(xếp hạng|thi đua|điểm)/.test(q))
-    return { from: "bot", text: "Bảng xếp hạng thi đua được chốt theo tháng/quý và công bố công khai, xếp theo tổng điểm bộ tiêu chí.", link: { href: "/bang-xep-hang", label: "Xem bảng xếp hạng" } };
-  if (/(phản ánh|góp ý|khiếu nại|tra cứu)/.test(q))
-    return { from: "bot", text: "Bạn có thể gửi phản ánh không cần đăng nhập. Sau khi gửi, hệ thống cấp mã tra cứu dạng PA-2026-XXXXX để theo dõi tiến độ xử lý.", link: { href: "/phan-anh", label: "Gửi phản ánh" } };
-  if (/(văn bản|chỉ thị|nghị quyết|kế hoạch)/.test(q))
-    return { from: "bot", text: "Kho văn bản gồm chỉ thị, kế hoạch, hướng dẫn do các cấp ban hành và công khai trên cổng.", link: { href: "/van-ban", label: "Xem văn bản" } };
-  if (/(tài nguyên|biểu mẫu|tài liệu|tải)/.test(q))
-    return { from: "bot", text: "Kho tài nguyên có tài liệu hướng dẫn, biểu mẫu và sản phẩm truyền thông, tải miễn phí.", link: { href: "/tai-nguyen", label: "Vào kho tài nguyên" } };
-  if (/(tài khoản|đăng nhập|mật khẩu)/.test(q))
-    return { from: "bot", text: "Mỗi đơn vị Đoàn có 1 tài khoản. Bản demo có 5 tài khoản mẫu: tw.admin, bd.province, hc.hiepthanh, thpt.chanhphu, btv.tw (mật khẩu demo123).", link: { href: "/dang-nhap", label: "Trang đăng nhập" } };
-  if (/(tin|hoạt động|news)/.test(q))
-    return { from: "bot", text: "Tin tức hoạt động từ các Đoàn trường, Đoàn phường được cập nhật liên tục.", link: { href: "/tin-tuc", label: "Xem tin tức" } };
-  if (/(cảm ơn|thanks)/.test(q))
-    return { from: "bot", text: "Rất vui được giúp bạn! Cần hỗ trợ thêm cứ nhắn mình nhé." };
-  return { from: "bot", text: "Mình chưa hiểu rõ câu hỏi của bạn (đây là trợ lý giả lập bản demo). Bạn thử hỏi về: tin tức, nhiệm vụ thi đua, bảng xếp hạng, văn bản, phản ánh hoặc tài nguyên nhé!" };
 }
 
 export function AiChatWidget() {
@@ -48,16 +25,40 @@ export function AiChatWidget() {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
   }, [messages, typing, open]);
 
-  const send = () => {
+  const send = async () => {
     const text = input.trim();
     if (!text || typing) return;
     setMessages((m) => [...m, { from: "user", text }]);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
-      setTyping(false);
-      setMessages((m) => [...m, botReply(text)]);
-    }, 700);
+    const started = Date.now();
+    let reply: ChatMessage;
+    try {
+      // Gọi API trợ lý ảo — mặc định là quy tắc từ khoá trên máy chủ,
+      // nối AI thật bằng cách sửa 1 hàm trong src/app/api/ai/chat/route.ts
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; reply?: string; error?: string }
+        | null;
+      if (!res.ok || !data?.ok || !data.reply) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      // API có thể trả đường dẫn "/..." gắn cuối câu → tách thành nút bấm
+      const linkMatch = data.reply.match(/(?:^|\s)(\/[a-z0-9\-/]+)\s*\.?\s*$/i);
+      reply = linkMatch
+        ? { from: "bot", text: data.reply.replace(linkMatch[1], "").trim(), link: { href: linkMatch[1], label: "Mở trang liên quan" } }
+        : { from: "bot", text: data.reply };
+    } catch {
+      // API không gọi được → fallback quy tắc cục bộ để chat không gãy
+      reply = { from: "bot", ...ruleReply(text) };
+    }
+    // Giữ cảm giác "đang gõ" tối thiểu 600ms (AI thật sẽ chậm hơn sẵn)
+    const elapsed = Date.now() - started;
+    if (elapsed < 600) await new Promise((r) => setTimeout(r, 600 - elapsed));
+    setTyping(false);
+    setMessages((m) => [...m, reply]);
   };
 
   return (
@@ -80,7 +81,7 @@ export function AiChatWidget() {
             </div>
             <div>
               <p className="text-sm font-semibold">Trợ lý ảo TNTH</p>
-              <p className="text-[10px] text-white/70">Bản giả lập — demo không kết nối AI thật</p>
+              <p className="text-[10px] text-white/70">Trợ lý demo — nối AI thật tại /api/ai/chat</p>
             </div>
           </div>
 

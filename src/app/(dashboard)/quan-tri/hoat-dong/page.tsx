@@ -91,7 +91,6 @@ export default function HoatDongListPage() {
         <CardBody className="p-0">
           <TableWrap>
             <THead>
-              <tr>
                 <Th className="w-14">Ảnh</Th>
                 <Th>Hoạt động</Th>
                 <Th>Đơn vị</Th>
@@ -100,7 +99,6 @@ export default function HoatDongListPage() {
                 <Th>Trạng thái</Th>
                 <Th>Xác nhận</Th>
                 <Th className="w-24" />
-              </tr>
             </THead>
             <tbody>
               {list.map((a) => (

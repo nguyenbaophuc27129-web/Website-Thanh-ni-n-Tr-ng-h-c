@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { ArrowLeft, Pencil, ExternalLink, CheckCircle2, Undo2, XCircle, Megaphone } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Pencil, ExternalLink, CheckCircle2, Undo2, XCircle, Megaphone, Play, Square, Users } from "lucide-react";
+import QRCode from "react-qr-code";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -24,10 +25,22 @@ export default function ChiTietHoatDongPage() {
   const [editing, setEditing] = useState(false);
   const [reviewModal, setReviewModal] = useState<"CONFIRM" | "NEEDS_INFO" | "REJECT" | null>(null);
   const [note, setNote] = useState("");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const activity = useMemo(
     () => store.activities.find((a) => a.id === Number(params.id)),
     [store.activities, params.id]
+  );
+  const activityAttendances = useMemo(
+    () =>
+      store.attendances
+        .filter((att) => att.activityId === Number(params.id))
+        .sort((a, b) => b.checkedInAt.localeCompare(a.checkedInAt)),
+    [store.attendances, params.id]
   );
 
   if (!activity) {
@@ -47,6 +60,7 @@ export default function ChiTietHoatDongPage() {
   const canReview = isSuperior && (activity.confirmStatus === "PENDING" || activity.confirmStatus === "NEEDS_INFO");
   const canEdit = isOwner && activity.status !== "DRAFT" ? false : isOwner;
   const existingPost = store.publishedPosts.find((p) => p.activityId === activity.id);
+  const attendanceOpen = store.attendanceOpenIds.includes(activity.id);
 
   const submitReview = () => {
     if (!reviewModal || !session) return;
@@ -182,6 +196,78 @@ export default function ChiTietHoatDongPage() {
         <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <CheckCircle2 className="h-4.5 w-4.5" /> Bạn đã xác nhận hoạt động này.
         </div>
+      ) : null}
+
+      {isOwner ? (
+        <Card>
+          <CardHeader
+            title="Điểm danh QR"
+            subtitle="Bật điểm danh và cho đoàn viên quét mã bằng camera điện thoại — không cần cài ứng dụng."
+          />
+          <CardBody>
+            {attendanceOpen ? (
+              <div className="flex flex-col gap-5 sm:flex-row">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="rounded-xl border border-stone-200 bg-white p-3">
+                    {origin ? <QRCode value={`${origin}/diem-danh/${activity.id}`} size={128} /> : <div className="h-32 w-32" />}
+                  </div>
+                  <p className="font-mono text-[10px] text-stone-400">/diem-danh/{activity.id}</p>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    </span>
+                    <p className="text-sm font-semibold text-emerald-700">Đang mở điểm danh</p>
+                  </div>
+                  <p className="mt-1.5 text-sm text-stone-600">
+                    <b className="text-stone-900">{activityAttendances.length}</b> lượt điểm danh
+                    {activity.participantCount ? ` · ${formatNumber(activity.participantCount)} đoàn viên đăng ký tham gia` : ""}
+                  </p>
+                  <ul className="thin-scrollbar mt-3 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                    {activityAttendances.map((att) => (
+                      <li key={att.id} className="flex items-center gap-2 rounded-lg bg-stone-50 px-3 py-1.5 text-xs">
+                        <Users className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                        <span className="font-medium text-stone-800">{att.memberName}</span>
+                        {att.memberClass ? <span className="text-stone-400">· {att.memberClass}</span> : null}
+                        <span className="ml-auto shrink-0 text-[10px] text-stone-400">{formatDateTime(att.checkedInAt)}</span>
+                      </li>
+                    ))}
+                    {activityAttendances.length === 0 ? (
+                      <li className="px-3 py-4 text-center text-xs text-stone-400">Chưa có lượt điểm danh nào.</li>
+                    ) : null}
+                  </ul>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      store.toggleAttendance(session!, activity.id, false);
+                      toast("Đã tắt điểm danh. Trang điểm danh công khai sẽ báo chưa mở.");
+                    }}
+                  >
+                    <Square className="h-3.5 w-3.5" /> Tắt điểm danh
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-start gap-3">
+                <p className="text-sm text-stone-500">
+                  Điểm danh chưa được bật. Khi bật, hệ thống sinh mã QR để đoàn viên quét và tự điểm danh tại chỗ.
+                </p>
+                <Button
+                  onClick={() => {
+                    store.toggleAttendance(session!, activity.id, true);
+                    toast("Đã bật điểm danh QR. Cho đoàn viên quét mã để điểm danh.");
+                  }}
+                >
+                  <Play className="h-4 w-4" /> Bật điểm danh QR
+                </Button>
+              </div>
+            )}
+          </CardBody>
+        </Card>
       ) : null}
 
       {/* Review modal */}

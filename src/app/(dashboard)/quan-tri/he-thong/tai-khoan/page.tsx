@@ -383,14 +383,12 @@ export default function TaiKhoanPage() {
         <CardBody className="p-0">
           <TableWrap>
             <THead>
-              <tr>
                 <Th>Tài khoản</Th>
                 <Th>Đơn vị</Th>
                 <Th>Vai trò</Th>
                 <Th className="w-28">Trạng thái</Th>
                 <Th className="w-40">Đăng nhập cuối</Th>
                 <Th className="w-44">Thao tác</Th>
-              </tr>
             </THead>
             <tbody>
               {list.map((a) => (

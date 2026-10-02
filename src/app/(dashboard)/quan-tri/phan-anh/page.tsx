@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MessageSquareText, Search, Send, StickyNote } from "lucide-react";
+import { Mail, MailCheck, MessageSquareText, Paperclip, Search, Send, StickyNote } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -65,7 +65,18 @@ export default function PhanAnhAdminPage() {
     }
     store.replyFeedback(session!, feedbackId, reply.trim(), internal);
     setReply("");
-    toast(internal ? "Đã lưu ghi chú nội bộ (không hiển thị với người gửi)." : "Đã gửi phản hồi — người gửi tra cứu được qua mã.");
+    toast(
+      internal
+        ? "Đã lưu ghi chú nội bộ (không hiển thị với người gửi)."
+        : `Đã gửi phản hồi — hệ thống đã gửi email tới ${fb.senderEmail}.`
+    );
+  };
+
+  const resendResult = (feedbackId: number) => {
+    const fb = store.feedbacks.find((f) => f.id === feedbackId);
+    if (!fb) return;
+    const ok = store.sendFeedbackResultEmail(session!, feedbackId, "RESULT");
+    toast(ok ? `Đã gửi lại email kết quả tới ${fb.senderEmail}.` : "Phản ánh này không có địa chỉ email người gửi.", ok ? "success" : "warning");
   };
 
   const topicName = (id: number) => feedbackTopics.find((t) => t.id === id)?.name ?? "—";
@@ -103,6 +114,9 @@ export default function PhanAnhAdminPage() {
           const messages = store.feedbackMessages
             .filter((m) => m.feedbackId === f.id)
             .sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+          const emails = store.emailLogs
+            .filter((l) => l.feedbackId === f.id)
+            .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
           return (
             <Card key={f.id}>
               <CardBody className="p-0">
@@ -126,6 +140,21 @@ export default function PhanAnhAdminPage() {
                         Liên hệ: {f.senderEmail}{f.senderPhone ? ` · ${f.senderPhone}` : ""}
                         {f.senderOrgText ? ` · ${f.senderOrgText}` : ""}
                       </p>
+                      {f.senderCommuneUnion || f.senderProvinceUnion ? (
+                        <p className="mt-0.5 text-[11px] text-stone-400">
+                          Đoàn xã/phường: {f.senderCommuneUnion ?? "—"} · Đoàn tỉnh/thành: {f.senderProvinceUnion ?? "—"}
+                        </p>
+                      ) : null}
+                      {f.evidenceNames && f.evidenceNames.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {f.evidenceNames.map((name) => (
+                            <span key={name} className="inline-flex max-w-60 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-stone-500 ring-1 ring-stone-200">
+                              <Paperclip className="h-2.5 w-2.5 shrink-0 text-stone-400" />
+                              <span className="truncate">{name}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="space-y-2.5">
@@ -139,6 +168,31 @@ export default function PhanAnhAdminPage() {
                         </div>
                       ))}
                     </div>
+
+                    {emails.length > 0 ? (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+                          <MailCheck className="h-3.5 w-3.5" /> Đã gửi {emails.length} email tới {f.senderEmail}
+                        </p>
+                        <ul className="mt-2 space-y-1.5">
+                          {emails.map((l) => (
+                            <li key={l.id} className="rounded-md bg-white px-2.5 py-1.5 text-[11px]">
+                              <p className="flex flex-wrap items-center gap-1.5">
+                                <Badge tone={l.kind === "RESULT" ? "green" : "blue"}>{l.kind === "RESULT" ? "Kết quả" : "Phản hồi"}</Badge>
+                                <span className="font-medium text-stone-700">{l.subject}</span>
+                                <span className="text-stone-400">· {formatDateTime(l.sentAt)}</span>
+                                {l.delivery ? (
+                                  <span className={l.delivery === "SENT" ? "font-medium text-emerald-600" : l.delivery === "FAILED" ? "font-medium text-red-500" : "text-stone-400"}>
+                                    · {l.delivery === "SENT" ? "Đã gửi thật qua email" : l.delivery === "FAILED" ? "Gửi thất bại" : "Đang gửi…"}
+                                  </span>
+                                ) : null}
+                              </p>
+                              <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-stone-500">{l.body}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
 
                     <div className="space-y-2 border-t border-stone-100 pt-3">
                       <Textarea
@@ -171,12 +225,16 @@ export default function PhanAnhAdminPage() {
                               variant="secondary"
                               onClick={() => {
                                 store.setFeedbackStatus(session!, f.id, "RESOLVED");
-                                toast("Đã đánh dấu Đã xử lý.");
+                                toast(`Đã đánh dấu Đã xử lý — hệ thống gửi email kết quả tới ${f.senderEmail}.`);
                               }}
                             >
                               Đánh dấu đã xử lý
                             </Button>
-                          ) : null}
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => resendResult(f.id)}>
+                              <Mail className="h-3.5 w-3.5" /> Gửi lại kết quả qua email
+                            </Button>
+                          )}
                           {f.status !== "CLOSED" ? (
                             <Button
                               size="sm"

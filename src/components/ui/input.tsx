@@ -54,12 +54,12 @@ export function Field({
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label className="block text-xs font-medium text-stone-700">
+      <label className="block text-sm font-medium text-slate-500">
         {label}
-        {required ? <span className="text-doan-600"> *</span> : null}
+        {required ? <span className="text-blue-500"> *</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-[11px] text-stone-400">{hint}</p> : null}
+      {hint ? <p className="text-[11px] font-light text-slate-400">{hint}</p> : null}
     </div>
   );
 }

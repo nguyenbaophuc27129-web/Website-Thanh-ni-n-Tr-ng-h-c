@@ -68,7 +68,7 @@ export default function ChiTietTinPage() {
         ) : null}
       </div>
 
-      <PhotoPlaceholder seed={post.coverSeed} className="mt-6 h-64 w-full rounded-xl sm:h-80" />
+      <PhotoPlaceholder seed={post.coverSeed} src={post.coverDataUrl} className="mt-6 h-64 w-full rounded-xl sm:h-80" />
 
       <p className="mt-6 border-l-4 border-doan-600 bg-doan-50/60 px-4 py-3 text-sm font-medium italic leading-relaxed text-stone-700">
         {post.excerpt}

@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  /* Palette "doan" — cờ Đảng/Đoàn: đỏ + vàng */
-  --color-doan-50: #fef2f2;
-  --color-doan-100: #fee2e2;
-  --color-doan-200: #fecaca;
-  --color-doan-300: #fca5a5;
-  --color-doan-400: #f87f78;
-  --color-doan-500: #ef4b44;
-  --color-doan-600: #da251d;
-  --color-doan-700: #b41b15;
-  --color-doan-800: #8f1812;
-  --color-doan-900: #761914;
-  --color-doan-950: #400b09;
+  /* Palette "doan" — ĐÃ CHUYỂN SANG XANH DƯƠNG theo logo TNTH (trẻ trung, năng động nhẹ).
+     Tên token giữ nguyên doan-* để toàn site đổi màu nhất quán; vàng vang-* làm màu nhấn phụ. */
+  --color-doan-50: #eff6ff;
+  --color-doan-100: #dbeafe;
+  --color-doan-200: #bfdbfe;
+  --color-doan-300: #93c5fd;
+  --color-doan-400: #60a5fa;
+  --color-doan-500: #3b82f6;
+  --color-doan-600: #2563eb;
+  --color-doan-700: #1d4ed8;
+  --color-doan-800: #1e40af;
+  --color-doan-900: #1e3a8a;
+  --color-doan-950: #172554;
 
   --color-vang-50: #fffbea;
   --color-vang-100: #fff3c4;
@@ -30,8 +31,8 @@
 }
 
 :root {
-  --background: #f8f7f4;
-  --foreground: #1c1917;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 body {
@@ -44,12 +45,12 @@ body {
   font-family: var(--font-serif);
 }
 
-/* Star pattern for hero banner */
+/* Star pattern for hero banner — xanh dương công nghệ theo logo */
 .hero-star-bg {
-  background-color: #da251d;
+  background-color: #1e3a8a;
   background-image:
-    radial-gradient(circle at 85% 20%, rgba(255, 205, 41, 0.18) 0%, transparent 45%),
-    radial-gradient(circle at 10% 90%, rgba(0, 0, 0, 0.25) 0%, transparent 50%),
+    radial-gradient(circle at 85% 20%, rgba(255, 205, 41, 0.2) 0%, transparent 45%),
+    radial-gradient(circle at 10% 90%, rgba(59, 130, 246, 0.4) 0%, transparent 50%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cpath d='M28 6l3.1 8.6 9.1.3-7.2 5.6 2.6 8.8L28 24.2l-7.6 5.1 2.6-8.8-7.2-5.6 9.1-.3z' fill='%23ffffff' fill-opacity='0.05'/%3E%3C/svg%3E");
 }
 
@@ -77,6 +78,78 @@ body {
   animation: toast-in 0.2s ease-out;
 }
 
+/* ==== Hiệu ứng đặc trưng cổng công khai ==== */
+
+/* Marquee "Dòng chảy TNTH" — rail tin chạy ngang vô hạn, dừng khi rê chuột */
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee-x 45s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Reveal: mục hiện dần trượt lên khi cuộn tới */
+.reveal-item {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal-item.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Progress line trong thẻ Infographic — xẹt ngang khi thẻ reveal */
+.reveal-item .metric-bar {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.35s;
+}
+.reveal-item.is-visible .metric-bar {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+  .reveal-item {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ==== Microsite Chứng nhận số — Trung ương Đoàn ==== */
+
+/* Nền tối sang trọng: đen đá + ánh vàng sao + quầng đỏ */
+.cert-hero-bg {
+  background-color: #0c0a09;
+  background-image:
+    radial-gradient(circle at 15% 12%, rgba(255, 205, 41, 0.16) 0%, transparent 42%),
+    radial-gradient(circle at 88% 85%, rgba(218, 37, 29, 0.28) 0%, transparent 48%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cpath d='M28 6l3.1 8.6 9.1.3-7.2 5.6 2.6 8.8L28 24.2l-7.6 5.1 2.6-8.8-7.2-5.6 9.1-.3z' fill='%23ffcd29' fill-opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* Chữ mạ vàng */
+.cert-gold-text {
+  background: linear-gradient(115deg, #fff3c4 0%, #ffcd29 40%, #f5b800 62%, #fff3c4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Họa tiết giấy chứng nhận: kẻ chéo vàng-đỏ cực nhạt */
+.cert-paper {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 205, 41, 0.04) 0 2px, transparent 2px 16px),
+    repeating-linear-gradient(-45deg, rgba(218, 37, 29, 0.03) 0 2px, transparent 2px 16px);
+}
+
 @keyframes modal-in {
   from {
     opacity: 0;
@@ -89,4 +162,419 @@ body {
 }
 .animate-modal-in {
   animation: modal-in 0.15s ease-out;
+}
+
+/* In giấy chứng nhận: chỉ hiện .print-area, ẩn .no-print */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    margin: 10mm;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ==== Intro splash — màn chào sân khi mới vào web ==== */
+
+@keyframes intro-fade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.intro-fade {
+  animation: intro-fade 1.2s ease-out both;
+}
+
+/* Logo/huy hiệu hiện ra xoay - thu nhỏ đầy công nghệ */
+@keyframes intro-star-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-160deg);
+  }
+  70% {
+    transform: scale(1.08) rotate(8deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+.intro-star {
+  animation: intro-star-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Vòng sáng lan tỏa quanh logo */
+@keyframes intro-ring-pulse {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+.intro-ring {
+  animation: intro-ring-pulse 1.6s ease-out 0.35s infinite;
+}
+
+/* Từng chữ cái unfold */
+@keyframes intro-letter-in {
+  0% {
+    opacity: 0;
+    transform: translateY(26px) scale(0.7);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+.intro-letter {
+  animation: intro-letter-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Dòng phụ fade chậm */
+.intro-sub {
+  animation: intro-fade 0.9s ease-out 1.35s both;
+}
+
+/* Vệt sáng quét ngang */
+@keyframes intro-sweep-x {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+.intro-sweep {
+  animation: intro-sweep-x 1.4s ease-in-out 1.15s both;
+}
+
+/* Thanh tiến trình chạy hết màn */
+@keyframes intro-progress-x {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+.intro-progress {
+  animation: intro-progress-x 2.6s linear both;
+}
+
+/* Màn kéo lên khi kết thúc */
+@keyframes intro-exit-up {
+  to {
+    transform: translateY(-100%);
+  }
+}
+.intro-exit {
+  animation: intro-exit-up 0.65s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-fade,
+  .intro-star,
+  .intro-ring,
+  .intro-letter,
+  .intro-sub,
+  .intro-sweep,
+  .intro-progress {
+    animation-duration: 0.01s;
+    animation-delay: 0s;
+  }
+}
+
+/* ==== Dòng truyện ánh sáng (Glow Carousel) ==== */
+
+/* Ẩn scrollbar của lane cuộn ngang */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bụi sao lơ lửng — trôi nhẹ lên rồi hạ xuống, nhấp nháy opacity */
+@keyframes tnth-particle {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translate3d(var(--dx, 12px), -36px, 0);
+    opacity: var(--o, 0.8);
+  }
+}
+.tnth-particle {
+  animation: tnth-particle var(--dur, 9s) ease-in-out var(--delay, 0s) infinite;
+}
+
+/* Hạt bụi chạy dọc đường cong — offset nét đứt tạo cảm giác dòng chảy */
+@keyframes curve-dust {
+  to {
+    stroke-dashoffset: -306;
+  }
+}
+.curve-dust {
+  animation: curve-dust 26s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tnth-particle,
+  .curve-dust {
+    animation: none;
+  }
+}
+
+/* ==== Hero High-tech Digital Portal — ánh sáng môi trường trôi chậm ==== */
+@keyframes hero-glow-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 40px) scale(1.12); }
+}
+@keyframes hero-glow-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-70px, -30px) scale(1.08); }
+}
+@keyframes hero-glow-drift-3 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-40px, 50px); }
+}
+.hero-glow-1 { animation: hero-glow-drift-1 16s ease-in-out infinite; }
+.hero-glow-2 { animation: hero-glow-drift-2 20s ease-in-out infinite; }
+.hero-glow-3 { animation: hero-glow-drift-3 13s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-glow-1,
+  .hero-glow-2,
+  .hero-glow-3 {
+    animation: none;
+  }
+}
+
+/* ==== Next-Gen GovTech Design Tokens — Pearl Glassmorphism ====
+   Bảng màu chủ đạo: Navy hoàng gia #0F172A (slate-900) · Cyan công nghệ #06B6D4 (cyan-500)
+   · Vàng kim #F59E0B (amber-500) · Nền xám băng tuyết #F8FAFC (slate-50) */
+
+/* Thẻ "kính ngọc trai": nền trắng ngà siêu sạch, viền 1px phản quang,
+   bóng phân tầng mịn như nhung */
+.pearl-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 250, 252, 0.94) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 8px 30px rgb(15, 23, 42, 0.04),
+    0 1px 2px rgb(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+.pearl-card-hover {
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+.pearl-card-hover:hover {
+  border-color: rgba(6, 182, 212, 0.25);
+  box-shadow:
+    0 8px 30px rgb(15, 23, 42, 0.06),
+    0 20px 50px rgb(6, 182, 212, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* Navbar kính nổi lơ lửng */
+.glass-nav {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Đường neon chảy liên tục — nối các bước quy trình (Civic Hub) */
+.stepper-line {
+  background: linear-gradient(90deg, #06b6d4 0%, #3b82f6 50%, #06b6d4 100%);
+  background-size: 200% 100%;
+  animation: neon-flow 2.2s linear infinite;
+}
+@keyframes neon-flow {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Hào quang bục vinh danh thở nhẹ */
+@keyframes halo-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.07);
+  }
+}
+.halo-pulse {
+  animation: halo-pulse 3.2s ease-in-out infinite;
+}
+
+/* QR Digital ID Pass thở ánh sáng cyan */
+@keyframes qr-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.4), 0 0 22px rgba(6, 182, 212, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.8), 0 0 44px rgba(6, 182, 212, 0.6);
+  }
+}
+.qr-glow {
+  animation: qr-glow 2.8s ease-in-out infinite;
+}
+
+/* Đối tượng lơ lửng nhẹ (cúp vinh danh) */
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.float-y {
+  animation: float-y 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pearl-card-hover {
+    transition: none;
+  }
+  .stepper-line,
+  .halo-pulse,
+  .qr-glow,
+  .float-y {
+    animation: none;
+  }
+}
+
+/* ==== Login — Animated Mesh Gradient ==== */
+.login-mesh {
+  background-color: #020617;
+  background-image:
+    radial-gradient(ellipse 60% 50% at 15% 20%, rgba(37, 99, 235, 0.45) 0%, transparent 62%),
+    radial-gradient(ellipse 50% 45% at 85% 12%, rgba(6, 182, 212, 0.32) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 82% 85%, rgba(30, 64, 175, 0.5) 0%, transparent 62%),
+    radial-gradient(ellipse 45% 40% at 8% 92%, rgba(8, 145, 178, 0.28) 0%, transparent 55%);
+}
+
+/* Lưới kỹ thuật siêu mờ phủ trên mesh */
+.login-grid-overlay {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at center, black 25%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 25%, transparent 78%);
+}
+
+/* ==== Footer Premium Digital Portal — đen navy + quầng cyan/blue + hoa văn sao ==== */
+.portal-footer-bg {
+  background-color: #020617;
+  background-image:
+    radial-gradient(ellipse 55% 60% at 12% 0%, rgba(6, 182, 212, 0.1) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 55% at 88% 100%, rgba(37, 99, 235, 0.12) 0%, transparent 55%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cpath d='M28 6l3.1 8.6 9.1.3-7.2 5.6 2.6 8.8L28 24.2l-7.6 5.1 2.6-8.8-7.2-5.6 9.1-.3z' fill='%23ffffff' fill-opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* ==== Digital Dawn — viền ánh sáng gradient quét quanh khung Master Showcase ==== */
+.beam-border {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    115deg,
+    rgba(34, 211, 238, 0.95),
+    rgba(37, 99, 235, 0.1) 30%,
+    rgba(34, 211, 238, 0.15) 55%,
+    rgba(59, 130, 246, 0.9) 80%,
+    rgba(34, 211, 238, 0.95)
+  );
+  background-size: 300% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: border-flow 6s linear infinite;
+  pointer-events: none;
+}
+@keyframes border-flow {
+  to {
+    background-position: -300% 0;
+  }
+}
+
+/* Chấm sáng quét dọc đường kẻ tiêu đề — tech scanning effect */
+@keyframes scan-x {
+  0% {
+    left: -2%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+.scan-dot {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #22d3ee;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.95);
+  animation: scan-x 3.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-dot {
+    animation: none;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .beam-border {
+    animation: none;
+  }
 }

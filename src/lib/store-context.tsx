@@ -10,8 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import type {
-  Activity, Account, AssignmentReview, AssignmentTarget, CriteriaSet,
-  DocumentRecord, DocumentRecipient, Feedback, FeedbackMessage, Notification,
+  Activity, Account, AssignmentReview, AssignmentTarget, Attendance, Certificate, CriteriaSet,
+  DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, LiveEvent, Notification,
   PublishedPost, RankingEntry, RankingSnapshot, Report, Resource, Score,
   SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult,
 } from "@/types";
@@ -28,6 +28,8 @@ import { reports as seedReports } from "@/data/reports";
 import { documents as seedDocuments, documentRecipients as seedRecipients } from "@/data/documents";
 import { notifications as seedNotifications } from "@/data/notifications";
 import { feedbacks as seedFeedbacks, feedbackMessages as seedMessages } from "@/data/feedbacks";
+import { certificates as seedCertificates } from "@/data/certificates";
+import { liveEvents as seedLiveEvents } from "@/data/live-events";
 import { resources as seedResources, systemSettings as seedSettings } from "@/data/resources";
 import type { Session } from "@/lib/auth-context";
 import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
@@ -43,13 +45,61 @@ export interface ActivityInput {
 
 export interface ScoreInput {
   criteriaSetId: number; taskId: number; orgUnitId: number;
+  /** Chấm chi tiết theo điều kiện (BTS 2027) */
+  metricId?: number | null;
   points: number; note?: string; method?: string;
+}
+
+/** Đầu vào của AI lượng hoá công văn → 1 nhiệm vụ mới kèm nhiều chỉ tiêu, giao nhiều đơn vị */
+export interface DirectiveTaskInput {
+  title: string;
+  description?: string;
+  dueDate: string;
+  metrics: { name: string; unit: string; targetValue: number; aggregationType: "SUM" | "COUNT" | "AVG" | "MAX" | "PERCENT" }[];
+  targetOrgUnitIds: number[];
+  sourceDocNumber?: string;
 }
 
 let uid = 900000;
 const nextId = () => ++uid;
 
 const nowISO = () => new Date().toISOString();
+
+/** Dựng 1 sự kiện trực tiếp ngẫu nhiên từ dữ liệu seed thật của đơn vị */
+function buildRandomLiveEvent(unit: (typeof seedOrgUnits)[number]): Omit<LiveEvent, "id" | "createdAt" | "orgUnitId"> {
+  const pool: { eventType: LiveEvent["eventType"]; title: string }[] = [];
+  const acts = seedActivities.filter((a) => a.orgUnitId === unit.id);
+  const asgs = seedAssignments.filter((a) => a.orgUnitId === unit.id);
+  const reps = seedReports.filter((r) => r.orgUnitId === unit.id);
+  for (const a of acts) {
+    pool.push({
+      eventType: Math.random() < 0.6 ? "ACTIVITY_SUBMITTED" : "ACTIVITY_CONFIRMED",
+      title: `${unit.shortName} cập nhật hoạt động "${a.title}"`,
+    });
+  }
+  for (const asg of asgs) {
+    const t = seedTasks.find((x) => x.id === asg.taskId);
+    pool.push({
+      eventType: "TASK_RESULT",
+      title: `${unit.shortName} báo cáo kết quả nhiệm vụ "${t?.title ?? asg.taskId}" (${Math.round(asg.completionRate)}%)`,
+    });
+  }
+  for (const r of reps) {
+    pool.push({ eventType: "REPORT_CREATED", title: `${unit.shortName} lập ${r.title.toLowerCase()}` });
+  }
+  if (pool.length === 0) {
+    pool.push({ eventType: "ACTIVITY_SUBMITTED", title: `${unit.shortName} cập nhật hoạt động phong trào mới` });
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** Seed điểm danh cho activity 101/102 */
+const seedAttendances: Attendance[] = [
+  { id: 1, activityId: 101, memberName: "Nguyễn Thị Kim Ngân", memberClass: "12A1", orgUnitId: 31, checkedInAt: "2026-08-15T01:10:00Z" },
+  { id: 2, activityId: 101, memberName: "Trần Hoàng Phú", memberClass: "11A3", orgUnitId: 31, checkedInAt: "2026-08-15T01:12:00Z" },
+  { id: 3, activityId: 101, memberName: "Lê Thanh Trúc", memberClass: "10A2", orgUnitId: 31, checkedInAt: "2026-08-15T01:15:00Z" },
+  { id: 4, activityId: 102, memberName: "Phạm Mỹ Duyên", memberClass: "12A5", orgUnitId: 31, checkedInAt: "2026-08-02T02:30:00Z" },
+];
 
 interface StoreValue {
   /* data */
@@ -77,6 +127,12 @@ interface StoreValue {
   notifications: Notification[];
   feedbacks: Feedback[];
   feedbackMessages: FeedbackMessage[];
+  certificates: Certificate[];
+  attendances: Attendance[];
+  attendanceOpenIds: number[];
+  liveEvents: LiveEvent[];
+  liveEnabled: boolean;
+  setLiveEnabled: (on: boolean) => void;
   resources: Resource[];
   settings: SystemSetting[];
 
@@ -103,12 +159,16 @@ interface StoreValue {
   /* posts (R2) */
   savePost: (post: PublishedPost) => void;
   setPostStatus: (id: number, status: PublishedPost["status"]) => void;
-  createPostFromActivity: (session: Session, activityId: number, title: string, excerpt: string) => number;
+  createPostFromActivity: (session: Session, activityId: number, title: string, excerpt: string, extras?: Partial<PublishedPost>) => number;
 
   /* tasks (R3) */
   distributeAssignment: (session: Session, taskId: number, parentAssignmentId: number | null, orgUnitId: number, dueDate: string, targets: { taskMetricId: number; targetValue: number }[], note?: string) => void;
+  /** Tạo nhiệm vụ từ AI lượng hoá công văn — tạo Task + TaskMetrics + giao nhiều đơn vị + thông báo, trả về id */
+  createDirectiveTask: (session: Session, input: DirectiveTaskInput) => { taskId: number; assignmentIds: number[] };
   updateResult: (session: Session, assignmentId: number, values: { assignmentTargetId: number; reportedValue: number }[], note?: string) => void;
   reviewAssignment: (session: Session, assignmentId: number, action: AssignmentReview["action"], note?: string) => void;
+  /** Đánh dấu nhanh tiến độ (hoàn thành / đang làm / chưa bắt đầu) ngay từ danh sách nhiệm vụ */
+  setAssignmentProgress: (session: Session, assignmentId: number, status: TaskAssignment["progressStatus"]) => void;
   saveScore: (session: Session, input: ScoreInput) => void;
 
   /* reports (R4) */
@@ -132,9 +192,16 @@ interface StoreValue {
   markAllNotificationsRead: (accountId: number) => void;
 
   /* feedbacks (R8) */
-  submitFeedback: (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; feedbackTopicId: number; title: string; content: string }) => string;
+  submitFeedback: (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[]; feedbackTopicId: number; title: string; content: string }) => string;
   replyFeedback: (session: Session, feedbackId: number, content: string, internal: boolean) => void;
   setFeedbackStatus: (session: Session, feedbackId: number, status: Feedback["status"]) => void;
+  /** Gửi email kết quả/phản hồi cho người gửi (giả lập SMTP) — trả về false nếu thiếu email */
+  sendFeedbackResultEmail: (session: Session, feedbackId: number, kind?: EmailLog["kind"]) => boolean;
+  emailLogs: EmailLog[];
+
+  /* attendance (công khai, không cần session) */
+  toggleAttendance: (session: Session, activityId: number, open: boolean) => void;
+  addAttendance: (input: { activityId: number; memberName: string; memberClass?: string }) => boolean;
 
   /* resources (R9) */
   saveResource: (input: Omit<Resource, "id" | "downloadCount">, id?: number) => void;
@@ -163,8 +230,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [activities, setActivities] = useState(seedActivities);
   const [publishedPosts, setPublishedPosts] = useState(seedPosts);
   const [criteriaSets] = useState(seedCriteriaSets);
-  const [tasks] = useState(seedTasks);
-  const [taskMetrics] = useState(seedTaskMetrics);
+  const [tasks, setTasks] = useState(seedTasks);
+  const [taskMetrics, setTaskMetrics] = useState(seedTaskMetrics);
   const [taskAssignments, setTaskAssignments] = useState(seedAssignments);
   const [assignmentTargets, setAssignmentTargets] = useState(seedTargets);
   const [taskResults, setTaskResults] = useState(seedResults);
@@ -178,6 +245,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState(seedNotifications);
   const [feedbacks, setFeedbacks] = useState(seedFeedbacks);
   const [feedbackMessages, setFeedbackMessages] = useState(seedMessages);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [certificates, setCertificates] = useState(seedCertificates);
+  const [attendances, setAttendances] = useState(seedAttendances);
+  const [attendanceOpenIds, setAttendanceOpenIds] = useState<number[]>([]);
+  const [liveEvents, setLiveEvents] = useState<LiveEvent[]>(seedLiveEvents);
+  const [liveEnabled, setLiveEnabled] = useState(false);
   const [resources, setResources] = useState(seedResources);
   const [settings, setSettings] = useState(seedSettings);
 
@@ -194,6 +267,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
     }
   }, []);
+
+  // Ticker mô phỏng realtime — mặc định TẮT, đệ quy setTimeout 8–15s, cap 40 sự kiện
+  useEffect(() => {
+    if (!liveEnabled) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const spawn = () => {
+      const lvl34 = orgUnits.filter((u) => u.orgLevel === 3 || u.orgLevel === 4);
+      const unit = lvl34[Math.floor(Math.random() * lvl34.length)];
+      if (unit) {
+        const draft = buildRandomLiveEvent(unit);
+        setLiveEvents((prev) => [{ ...draft, orgUnitId: unit.id, id: nextId(), createdAt: nowISO() }, ...prev].slice(0, 40));
+      }
+      timer = setTimeout(spawn, 8000 + Math.random() * 7000);
+    };
+    timer = setTimeout(spawn, 4000);
+    return () => clearTimeout(timer);
+  }, [liveEnabled, orgUnits]);
 
   const orgById = useCallback((id: number) => orgUnits.find((u) => u.id === id), [orgUnits]);
   const orgName = useCallback((id: number) => orgUnits.find((u) => u.id === id)?.name ?? `Đơn vị #${id}`, [orgUnits]);
@@ -313,7 +403,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createPostFromActivity = useCallback(
-    (session: Session, activityId: number, title: string, excerpt: string) => {
+    (session: Session, activityId: number, title: string, excerpt: string, extras?: Partial<PublishedPost>) => {
       const act = activities.find((a) => a.id === activityId);
       const slug = title
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D")
@@ -328,6 +418,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         editorAccountId: session.accountId,
         categoryNames: [],
         createdAt: nowISO(),
+        ...extras,
       };
       setPublishedPosts((prev) => [post, ...prev]);
       return id;
@@ -362,6 +453,81 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     },
     [accountByOrgUnit, addNotification, tasks]
+  );
+
+  /**
+   * Tạo nhiệm vụ mới từ kết quả AI lượng hoá công văn:
+   * Task + TaskMetrics + giao đồng loạt cho các đơn vị chọn + thông báo TASK_ASSIGNED.
+   * Tự tạo assignment inline (không gọi distributeAssignment) để tránh stale closure khi đọc tasks.
+   */
+  const createDirectiveTask = useCallback(
+    (session: Session, input: DirectiveTaskInput) => {
+      const taskId = nextId();
+      const codeSeq = tasks.filter((t) => t.code.startsWith("CV-")).length + 1;
+      const task: Task = {
+        id: taskId,
+        criteriaSetId: null,
+        parentTaskId: null,
+        code: `CV-2026-${String(codeSeq).padStart(2, "0")}`,
+        title: input.title.trim(),
+        description: input.description?.trim() || undefined,
+        taskKind: "TASK",
+        maxPoints: 0,
+        scoringMethod: "MANUAL_CONFIRM",
+        dueDate: input.dueDate,
+        displayOrder: 900 + tasks.length,
+        status: "PUBLISHED",
+      };
+      // Pre-generate id cho metrics + assignments + targets để tránh trùng nextId()+i
+      const metricIds = input.metrics.map((_, i) => nextId() + i);
+      const assignmentIds = input.targetOrgUnitIds.map((_, i) => nextId() + 100 + i);
+      let targetBase = nextId() + 200;
+      const newMetrics: TaskMetric[] = input.metrics.map((m, i) => ({
+        id: metricIds[i],
+        taskId,
+        code: `DIRECTIVE_${i + 1}`,
+        name: m.name,
+        unitOfMeasure: m.unit,
+        aggregationType: m.aggregationType,
+      }));
+      const newAssignments: TaskAssignment[] = input.targetOrgUnitIds.map((orgUnitId, i) => ({
+        id: assignmentIds[i],
+        taskId,
+        orgUnitId,
+        assignedByOrgUnitId: session.orgUnitId,
+        parentAssignmentId: null,
+        dueDate: input.dueDate,
+        progressStatus: "NOT_STARTED",
+        confirmStatus: "PENDING",
+        completionRate: 0,
+        note: input.sourceDocNumber ? `Theo công văn ${input.sourceDocNumber}` : "Giao từ AI phân tích công văn",
+        assignedAt: nowISO(),
+      }));
+      const newTargets: AssignmentTarget[] = [];
+      assignmentIds.forEach((asgId) => {
+        input.metrics.forEach((m, i) => {
+          newTargets.push({ id: targetBase++, taskAssignmentId: asgId, taskMetricId: metricIds[i], targetValue: m.targetValue, achievedValue: 0 });
+        });
+      });
+      setTasks((prev) => [...prev, task]);
+      setTaskMetrics((prev) => [...prev, ...newMetrics]);
+      setTaskAssignments((prev) => [...prev, ...newAssignments]);
+      setAssignmentTargets((prev) => [...prev, ...newTargets]);
+      for (let i = 0; i < input.targetOrgUnitIds.length; i++) {
+        const acc = accountByOrgUnit(input.targetOrgUnitIds[i]);
+        if (acc) {
+          addNotification({
+            recipientAccountId: acc.id,
+            notificationType: "TASK_ASSIGNED",
+            title: "Nhiệm vụ mới được giao",
+            message: `Bạn nhận nhiệm vụ "${task.title}" với ${input.metrics.length} chỉ tiêu, hạn ${input.dueDate}.`,
+            refType: "ASSIGNMENT", refId: assignmentIds[i], linkUrl: `/quan-tri/nhiem-vu/phan-cong/${assignmentIds[i]}`,
+          });
+        }
+      }
+      return { taskId, assignmentIds };
+    },
+    [tasks, accountByOrgUnit, addNotification]
   );
 
   const updateResult = useCallback(
@@ -435,23 +601,61 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [accountByOrgUnit, addNotification, taskAssignments]
   );
 
+  const setAssignmentProgress = useCallback(
+    (session: Session, assignmentId: number, status: TaskAssignment["progressStatus"]) => {
+      setTaskAssignments((prev) =>
+        prev.map((a) =>
+          a.id === assignmentId
+            ? {
+                ...a,
+                progressStatus: status,
+                completionRate: status === "COMPLETED" ? 100 : status === "NOT_STARTED" ? 0 : a.completionRate > 0 ? a.completionRate : 50,
+              }
+            : a
+        )
+      );
+      const asg = taskAssignments.find((a) => a.id === assignmentId);
+      if (asg) {
+        const acc = accountByOrgUnit(asg.assignedByOrgUnitId);
+        if (acc) {
+          addNotification({
+            recipientAccountId: acc.id,
+            notificationType: "SYSTEM",
+            title: status === "COMPLETED" ? "Nhiệm vụ được đánh dấu hoàn thành" : "Cập nhật tiến độ nhiệm vụ",
+            message: `${orgName(session.orgUnitId)} đã đánh dấu nhiệm vụ "${tasks.find((t) => t.id === asg.taskId)?.title ?? ""}" ở trạng thái ${status === "COMPLETED" ? "HOÀN THÀNH" : status === "IN_PROGRESS" ? "đang thực hiện" : "chưa bắt đầu"}.`,
+            refType: "ASSIGNMENT", refId: assignmentId, linkUrl: `/quan-tri/nhiem-vu/phan-cong/${assignmentId}`,
+          });
+        }
+      }
+    },
+    [taskAssignments, accountByOrgUnit, addNotification, tasks, orgName]
+  );
+
   const saveScore = useCallback(
     (session: Session, input: ScoreInput) => {
       const task = tasks.find((t) => t.id === input.taskId);
-      const maxPoints = task?.maxPoints ?? 0;
+      const metric = input.metricId != null ? taskMetrics.find((m) => m.id === input.metricId) : undefined;
+      const maxPoints = metric?.maxPoints ?? task?.maxPoints ?? 0;
       setScores((prev) => {
-        const exists = prev.find((s) => s.criteriaSetId === input.criteriaSetId && s.taskId === input.taskId && s.orgUnitId === input.orgUnitId);
+        const exists = prev.find(
+          (s) =>
+            s.criteriaSetId === input.criteriaSetId &&
+            s.taskId === input.taskId &&
+            (s.metricId ?? null) === (input.metricId ?? null) &&
+            s.orgUnitId === input.orgUnitId
+        );
         const record: Score = {
           id: exists?.id ?? nextId(),
           criteriaSetId: input.criteriaSetId, taskId: input.taskId, orgUnitId: input.orgUnitId,
-          points: Math.min(input.points, maxPoints), maxPoints,
+          metricId: input.metricId ?? null,
+          points: Math.max(0, Math.min(input.points, maxPoints)), maxPoints,
           scoringMethod: input.method ?? task?.scoringMethod ?? "MANUAL_CONFIRM",
           note: input.note, scoredByAccountId: session.accountId, scoredAt: nowISO(),
         };
         return exists ? prev.map((s) => (s.id === exists.id ? record : s)) : [...prev, record];
       });
     },
-    [tasks]
+    [tasks, taskMetrics]
   );
 
   /* ============ Reports (R4) ============ */
@@ -561,10 +765,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setNotifications((prev) => prev.map((n) => (n.recipientAccountId === accountId ? { ...n, isRead: true } : n)));
   }, []);
 
+  /** Gửi email thật qua SMTP (API route /api/send-email + Nodemailer) — cập nhật trạng thái delivery trên log */
+  const deliverEmail = useCallback((logId: number, to: string, subject: string, body: string) => {
+    fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, body }),
+    })
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+        if (res.ok && data?.ok) {
+          setEmailLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, delivery: "SENT" } : l)));
+        } else if (res.status === 503) {
+          // Chưa cấu hình SMTP — chạy chế độ mô phỏng, không đánh dấu thất bại
+          setEmailLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, delivery: undefined } : l)));
+        } else {
+          console.warn("[TNTH][SMTP] Gửi email thật thất bại:", data?.error ?? `HTTP ${res.status}`);
+          setEmailLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, delivery: "FAILED" } : l)));
+        }
+      })
+      .catch(() => {
+        console.warn("[TNTH][SMTP] Không gọi được API gửi email.");
+        setEmailLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, delivery: "FAILED" } : l)));
+      });
+  }, []);
+
   /* ============ Feedbacks (R8) ============ */
 
   const submitFeedback = useCallback(
-    (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; feedbackTopicId: number; title: string; content: string }) => {
+    (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[]; feedbackTopicId: number; title: string; content: string }) => {
       const maxNum = feedbacks.reduce((m, f) => {
         const match = f.trackingCode.match(/PA-\d{4}-(\d+)/);
         return match ? Math.max(m, parseInt(match[1], 10)) : m;
@@ -582,6 +811,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return code;
     },
     [feedbacks]
+  );
+
+  /** Soạn và "gửi" email cho người gửi phản ánh — nội dung ghép từ phản hồi chính thức mới nhất (giả lập SMTP) */
+  const sendFeedbackResultEmail = useCallback(
+    (session: Session, feedbackId: number, kind: EmailLog["kind"] = "RESULT") => {
+      const fb = feedbacks.find((f) => f.id === feedbackId);
+      if (!fb || !fb.senderEmail) return false;
+      const latestReply = feedbackMessages
+        .filter((m) => m.feedbackId === feedbackId && m.senderType === "STAFF" && !m.isInternalNote)
+        .sort((a, b) => b.sentAt.localeCompare(a.sentAt))[0];
+      const isResult = kind === "RESULT";
+      const subject = isResult
+        ? `[TNTH] Kết quả xử lý phản ánh ${fb.trackingCode}`
+        : `[TNTH] Phản hồi cho phản ánh ${fb.trackingCode}`;
+      const body = [
+        `Kính gửi: ${fb.senderName},`,
+        `Phản ánh kiến nghị của anh/chị về nội dung "${fb.title}" (Mã theo dõi: ${fb.trackingCode}) đã được Cổng Thanh niên trường học tiếp nhận và ${isResult ? "giải quyết xong" : "đang được xem xét"}.`,
+        latestReply
+          ? `Nội dung phản hồi của cán bộ xử lý:\n${latestReply.content}`
+          : `Kết quả chi tiết sẽ được cập nhật trên trang tra cứu theo mã phản ánh.`,
+        `Anh/chị có thể tra cứu toàn bộ tiến trình xử lý bằng mã ${fb.trackingCode} tại mục "Phản ánh kiến nghị" trên Cổng TNTH.`,
+        `Trân trọng cảm ơn anh/chị đã phản ánh và đồng hành cùng Đoàn.`,
+        `— Email tự động từ hệ thống Thanh niên trường học, vui lòng không trả lời email này.`,
+      ].join("\n\n");
+      const logId = nextId();
+      setEmailLogs((prev) => [
+        { id: logId, feedbackId, to: fb.senderEmail, subject, body, kind, sentByAccountId: session.accountId, sentAt: nowISO(), delivery: "PENDING" },
+        ...prev,
+      ]);
+      // Gửi email thật tới hộp thư người nhận qua SMTP (nếu đã cấu hình .env.local)
+      deliverEmail(logId, fb.senderEmail, subject, body);
+      return true;
+    },
+    [feedbacks, feedbackMessages, deliverEmail]
   );
 
   const replyFeedback = useCallback(
@@ -606,9 +869,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             refType: "FEEDBACK", refId: feedbackId, linkUrl: `/quan-tri/phan-anh`,
           });
         }
+        // Tự động gửi email phản hồi cho người gửi
+        sendFeedbackResultEmail(session, feedbackId, "REPLY");
       }
     },
-    [addNotification, feedbacks]
+    [addNotification, feedbacks, sendFeedbackResultEmail]
   );
 
   const setFeedbackStatus = useCallback(
@@ -624,8 +889,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           refType: "FEEDBACK", refId: feedbackId, linkUrl: "/quan-tri/phan-anh",
         });
       }
+      // Có kết quả → tự động gửi email kết quả về hộp thư người gửi
+      if (status === "RESOLVED") sendFeedbackResultEmail(session, feedbackId, "RESULT");
     },
-    [addNotification, feedbacks]
+    [addNotification, feedbacks, sendFeedbackResultEmail]
+  );
+
+  /* ============ Attendance ============ */
+
+  const toggleAttendance = useCallback((session: Session, activityId: number, open: boolean) => {
+    setAttendanceOpenIds((prev) => (open ? [...new Set([...prev, activityId])] : prev.filter((id) => id !== activityId)));
+  }, []);
+
+  const addAttendance = useCallback(
+    (input: { activityId: number; memberName: string; memberClass?: string }) => {
+      if (!attendanceOpenIds.includes(input.activityId)) return false;
+      const record: Attendance = {
+        id: nextId(),
+        activityId: input.activityId,
+        memberName: input.memberName.trim(),
+        memberClass: input.memberClass?.trim() || undefined,
+        orgUnitId: activities.find((a) => a.id === input.activityId)?.orgUnitId ?? 0,
+        checkedInAt: nowISO(),
+      };
+      setAttendances((prev) => [record, ...prev]);
+      return true;
+    },
+    [activities, attendanceOpenIds]
   );
 
   /* ============ Resources (R9) ============ */
@@ -691,17 +981,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       activities, publishedPosts, criteriaSets, tasks, taskMetrics, taskAssignments,
       assignmentTargets, taskResults, assignmentReviews, scores, rankingSnapshots, rankingEntries,
       reports, documents, documentRecipients, notifications, feedbacks, feedbackMessages,
-      resources, settings,
+      certificates, attendances, attendanceOpenIds, liveEvents, liveEnabled, setLiveEnabled, resources, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
       reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,
       savePost, setPostStatus, createPostFromActivity,
-      distributeAssignment, updateResult, reviewAssignment, saveScore,
+      distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, saveScore,
+      createDirectiveTask,
       createReport, updateReport, finalizeReport, exportReport,
       createRankingSnapshot, finalizeRanking,
       issueDocument, revokeDocument, markDocumentRead,
       addNotification, markNotificationRead, markAllNotificationsRead,
-      submitFeedback, replyFeedback, setFeedbackStatus,
+      submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
+      toggleAttendance, addAttendance,
       saveResource, downloadResource,
       updateSetting, updateAccountStatus, createAccount,
     }),
@@ -709,17 +1001,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orgUnits, accounts, activities, publishedPosts, criteriaSets, tasks, taskMetrics,
       taskAssignments, assignmentTargets, taskResults, assignmentReviews, scores,
       rankingSnapshots, rankingEntries, reports, documents, documentRecipients,
-      notifications, feedbacks, feedbackMessages, resources, settings,
+      notifications, feedbacks, feedbackMessages, certificates, attendances, attendanceOpenIds, liveEvents, liveEnabled, resources, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
       reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,
       savePost, setPostStatus, createPostFromActivity,
-      distributeAssignment, updateResult, reviewAssignment, saveScore,
+      distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, saveScore,
+      createDirectiveTask,
       createReport, updateReport, finalizeReport, exportReport,
       createRankingSnapshot, finalizeRanking,
       issueDocument, revokeDocument, markDocumentRead,
       addNotification, markNotificationRead, markAllNotificationsRead,
-      submitFeedback, replyFeedback, setFeedbackStatus,
+      submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
+      toggleAttendance, addAttendance,
       saveResource, downloadResource,
       updateSetting, updateAccountStatus, createAccount,
     ]

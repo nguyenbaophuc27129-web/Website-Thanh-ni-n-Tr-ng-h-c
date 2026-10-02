@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarClock, ClipboardList } from "lucide-react";
+import { CalendarClock, CheckCircle2, ClipboardList, PlayCircle } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { TableWrap, THead, Th, Tr, Td, EmptyRow } from "@/components/ui/table";
 import { TaskTree } from "@/components/dashboard/task-tree";
@@ -16,6 +18,7 @@ import { formatPercent } from "@/lib/utils";
 export default function NhiemVuPage() {
   const { session } = useAuth();
   const store = useStore();
+  const { toast } = useToast();
   const [tab, setTab] = useState<"criterias" | "mine">("criterias");
 
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
@@ -37,6 +40,18 @@ export default function NhiemVuPage() {
     [store.taskAssignments, scope, session]
   );
 
+  const markProgress = (id: number, status: "COMPLETED" | "IN_PROGRESS") => {
+    if (!session) return;
+    store.setAssignmentProgress(session, id, status);
+    toast(status === "COMPLETED" ? "Đã đánh dấu nhiệm vụ HOÀN THÀNH (tiến độ 100%)." : "Đã cập nhật trạng thái đang thực hiện.");
+  };
+
+  const confirmAssignment = (id: number) => {
+    if (!session) return;
+    store.reviewAssignment(session, id, "CONFIRM");
+    toast("Đã xác nhận kết quả nhiệm vụ của cấp dưới.");
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -44,6 +59,13 @@ export default function NhiemVuPage() {
         <p className="mt-0.5 text-sm text-stone-500">
           Bộ tiêu chí do Trung ương ban hành — phân bổ chỉ tiêu nhiều cấp từ tỉnh xuống trường.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-xs text-stone-600">
+        <span className="font-semibold text-stone-800">Luồng xử lý:</span>
+        <span><b>1.</b> Đọc bộ tiêu chí &amp; nhiệm vụ được giao</span>
+        <span><b>2.</b> Báo cáo số liệu hoặc bấm &quot;Đánh dấu hoàn thành&quot;</span>
+        <span><b>3.</b> Cấp trên bấm &quot;Xác nhận&quot; — điểm thi đua về phiếu chấm</span>
       </div>
 
       <Tabs
@@ -79,7 +101,6 @@ export default function NhiemVuPage() {
               <CardBody className="p-0">
                 <TableWrap>
                   <THead>
-                    <tr>
                       <Th>Nhiệm vụ</Th>
                       <Th>Đơn vị nhận</Th>
                       <Th>Chỉ tiêu</Th>
@@ -88,7 +109,6 @@ export default function NhiemVuPage() {
                       <Th>Hạn</Th>
                       <Th>Xác nhận</Th>
                       <Th />
-                    </tr>
                   </THead>
                   <tbody>
                     {subordinateAssignments.map((a) => {
@@ -127,12 +147,19 @@ export default function NhiemVuPage() {
                           </Td>
                           <Td><ConfirmStatusBadge status={a.confirmStatus} /></Td>
                           <Td>
-                            <Link
-                              href={`/quan-tri/nhiem-vu/phan-cong/${a.id}`}
-                              className="text-xs font-medium text-doan-600 hover:underline"
-                            >
-                              Chi tiết
-                            </Link>
+                            <div className="flex items-center gap-2">
+                              {session && a.confirmStatus !== "CONFIRMED" ? (
+                                <Button size="sm" variant="outline" onClick={() => confirmAssignment(a.id)}>
+                                  <CheckCircle2 className="h-3.5 w-3.5" /> Xác nhận
+                                </Button>
+                              ) : null}
+                              <Link
+                                href={`/quan-tri/nhiem-vu/phan-cong/${a.id}`}
+                                className="text-xs font-medium text-doan-600 hover:underline"
+                              >
+                                Chi tiết
+                              </Link>
+                            </div>
                           </Td>
                         </Tr>
                       );
@@ -150,7 +177,7 @@ export default function NhiemVuPage() {
         <Card>
           <CardHeader
             title="Nhiệm vụ đơn vị bạn nhận"
-            subtitle="Cập nhật kết quả định kỳ — lịch sử báo cáo được lưu vết (append-only)"
+            subtitle="Báo cáo số liệu định kỳ hoặc đánh dấu hoàn thành nhanh — cấp trên sẽ xác nhận kết quả"
           />
           <CardBody className="p-0">
             {myAssignments.length === 0 ? (
@@ -164,8 +191,8 @@ export default function NhiemVuPage() {
                   const task = store.tasks.find((t) => t.id === a.taskId);
                   const targets = store.targetsOf(a.id);
                   return (
-                    <li key={a.id}>
-                      <Link href={`/quan-tri/nhiem-vu/phan-cong/${a.id}`} className="block px-5 py-4 hover:bg-stone-50">
+                    <li key={a.id} className="flex flex-wrap items-start gap-3 px-5 py-4">
+                      <Link href={`/quan-tri/nhiem-vu/phan-cong/${a.id}`} className="min-w-0 flex-1 hover:opacity-90">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="flex-1 text-sm font-semibold text-stone-900">{task?.title}</p>
                           <DeadlineBadge dueDate={a.dueDate} />
@@ -185,6 +212,21 @@ export default function NhiemVuPage() {
                         <Progress value={a.completionRate} className="mt-2.5" />
                         <p className="mt-1 text-right text-[11px] font-medium text-stone-500">{formatPercent(a.completionRate)} hoàn thành</p>
                       </Link>
+                      <div className="flex shrink-0 flex-col gap-1.5">
+                        {a.progressStatus !== "COMPLETED" ? (
+                          <Button size="sm" variant="outline" onClick={() => markProgress(a.id, "COMPLETED")}>
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Đánh dấu hoàn thành
+                          </Button>
+                        ) : null}
+                        {a.progressStatus === "NOT_STARTED" ? (
+                          <Button size="sm" variant="secondary" onClick={() => markProgress(a.id, "IN_PROGRESS")}>
+                            <PlayCircle className="h-3.5 w-3.5" /> Bắt đầu thực hiện
+                          </Button>
+                        ) : null}
+                        <Link href={`/quan-tri/nhiem-vu/phan-cong/${a.id}`} className="text-center text-[11px] font-medium text-doan-600 hover:underline">
+                          Báo cáo số liệu chi tiết →
+                        </Link>
+                      </div>
                     </li>
                   );
                 })}

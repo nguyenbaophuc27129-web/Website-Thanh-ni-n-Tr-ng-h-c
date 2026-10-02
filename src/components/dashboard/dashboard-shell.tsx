@@ -7,9 +7,11 @@ import {
   LayoutDashboard, Activity, ClipboardList, CheckSquare, Calculator, Megaphone,
   FileBarChart, BarChart3, Trophy, FileText, BellRing, LifeBuoy, FolderOpen,
   Network, Users, ShieldCheck, Database, Settings, LogOut, Globe, Menu, X, ChevronDown,
+  Radio, Sparkles, Flag,
 } from "lucide-react";
 import { useAuth, ROLE_LABELS } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
+import { useAssignmentReminders } from "@/lib/use-assignment-reminders";
 import { cn, formatDateTime } from "@/lib/utils";
 
 interface NavItem {
@@ -32,6 +34,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const [bellOpen, setBellOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
 
+  // Nhắc việc tự động — phải đứng TRƯỚC early return (quy tắc hooks)
+  useAssignmentReminders();
+
   useEffect(() => {
     if (ready && !session) router.replace("/dang-nhap");
   }, [ready, session, router]);
@@ -44,7 +49,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   if (!ready || !session) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-100">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <p className="text-sm text-stone-500">Đang kiểm tra phiên đăng nhập…</p>
       </div>
     );
@@ -64,7 +69,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   ).length;
 
   const groups: NavGroup[] = [];
-  groups.push({ title: "Tổng quan", items: [{ href: "/quan-tri", label: "Bảng điều khiển", icon: LayoutDashboard }] });
+  const overviewItems: NavItem[] = [
+    { href: "/quan-tri", label: "Bảng điều khiển", icon: LayoutDashboard },
+    { href: "/quan-tri/chuong-trinh", label: "Chương trình", icon: Flag },
+  ];
+  if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
+    overviewItems.push({ href: "/quan-tri/truc-tiep", label: "Trực tiếp & cảnh báo", icon: Radio });
+  }
+  groups.push({ title: "Tổng quan", items: overviewItems });
 
   groups.push({
     title: "Hoạt động",
@@ -73,6 +85,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   const taskItems: NavItem[] = [{ href: "/quan-tri/nhiem-vu", label: "Nhiệm vụ & chỉ tiêu", icon: ClipboardList }];
   if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
+    taskItems.push({ href: "/quan-tri/nhiem-vu/ai-phan-tich", label: "AI phân tích công văn", icon: Sparkles });
     taskItems.push({ href: "/quan-tri/nhiem-vu/xac-nhan", label: "Xác nhận báo cáo", icon: CheckSquare, badge: pendingReviews || undefined });
   }
   if (role !== "BIEN_TAP_VIEN") {
@@ -80,9 +93,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   }
   groups.push({ title: "Nhiệm vụ & thi đua", items: taskItems });
 
-  if (role === "BIEN_TAP_VIEN" || role === "QUAN_TRI_TW") {
-    groups.push({ title: "Truyền thông", items: [{ href: "/quan-tri/xuat-ban", label: "Xuất bản tin bài", icon: Megaphone }] });
-  }
+  // Mở cho mọi cấp — đơn vị tự đăng tin từ hoạt động của mình, Ban TNTH giám sát và gỡ nếu vi phạm
+  groups.push({ title: "Truyền thông", items: [{ href: "/quan-tri/xuat-ban", label: "Xuất bản tin bài", icon: Megaphone }] });
 
   const reportItems: NavItem[] = [{ href: "/quan-tri/bao-cao", label: "Báo cáo", icon: FileBarChart }];
   if (role !== "DON_VI" && role !== "BIEN_TAP_VIEN") {
@@ -147,7 +159,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                       "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
                       isActive(item.href)
                         ? "bg-doan-600 text-white shadow-sm"
-                        : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+                        : "text-stone-600 hover:bg-slate-50 hover:text-stone-900"
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
@@ -171,7 +183,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <div className="border-t border-stone-200 p-3">
         <Link
           href="/"
-          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-stone-600 hover:bg-stone-100"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-stone-600 hover:bg-slate-50"
         >
           <Globe className="h-4 w-4" /> Xem website công khai
         </Link>
@@ -180,9 +192,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen bg-stone-100">
+    <div className="flex min-h-screen bg-slate-50">
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-stone-200 bg-white lg:block">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-slate-200/80 bg-white lg:block">
         {sidebar}
       </aside>
 
@@ -196,8 +208,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-stone-200 bg-white px-4 lg:px-6">
-          <button className="rounded-md p-2 text-stone-500 hover:bg-stone-100 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/80 backdrop-blur px-4 lg:px-6">
+          <button className="rounded-md p-2 text-stone-500 hover:bg-slate-50 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu">
             <Menu className="h-5 w-5" />
           </button>
 
@@ -213,7 +225,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <div className="relative">
               <button
                 onClick={() => setBellOpen((v) => !v)}
-                className="relative rounded-lg p-2 text-stone-500 hover:bg-stone-100"
+                className="relative rounded-lg p-2 text-stone-500 hover:bg-slate-50"
                 aria-label="Thông báo"
               >
                 <BellRing className="h-5 w-5" />
@@ -259,7 +271,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                       <p className="px-4 py-8 text-center text-xs text-stone-400">Chưa có thông báo</p>
                     ) : null}
                   </div>
-                  <Link href="/quan-tri/thong-bao" className="block bg-stone-50 px-4 py-2.5 text-center text-[11px] font-semibold text-doan-700 hover:bg-stone-100">
+                  <Link href="/quan-tri/thong-bao" className="block bg-stone-50 px-4 py-2.5 text-center text-[11px] font-semibold text-doan-700 hover:bg-slate-50">
                     Xem tất cả thông báo
                   </Link>
                 </div>
@@ -270,7 +282,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <div className="relative">
               <button
                 onClick={() => setUserOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-stone-100"
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-doan-600 text-xs font-bold text-white">
                   {session.contactPerson.split(" ").map((w) => w[0]).slice(-2).join("")}

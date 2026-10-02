@@ -128,6 +128,18 @@ export interface TaskMetric {
   name: string;
   unitOfMeasure: string;
   aggregationType: "SUM" | "COUNT" | "AVG" | "MAX" | "PERCENT";
+  /** Điểm tối đa của điều kiện chấm (BTS 2027 — trích cột Điểm trong Excel) */
+  maxPoints?: number;
+  /** Nguyên tắc chấm điểm — thang điểm chi tiết từng mức */
+  scoringLadder?: string;
+  /** Yêu cầu trong đánh giá kết quả thực hiện */
+  requirement?: string;
+  /** Yêu cầu minh chứng hình ảnh, đường link */
+  evidence?: string;
+  /** Thời gian thực hiện điều kiện chấm (Quý I–IV) */
+  period?: string;
+  /** Bộ phận phụ trách của TW */
+  dept?: string;
 }
 
 export interface Task {
@@ -193,6 +205,8 @@ export interface Score {
   id: number;
   criteriaSetId: number;
   taskId: number;
+  /** Chấm chi tiết theo điều kiện (TaskMetric) — null/undefined = chấm cả tiêu chí */
+  metricId?: number | null;
   orgUnitId: number;
   points: number;
   maxPoints: number;
@@ -212,6 +226,8 @@ export interface PublishedPost {
   excerpt: string;
   content: string;
   coverSeed: number;
+  /** Ảnh bìa thật do người dùng tải lên (data URL) — ưu tiên hơn coverSeed */
+  coverDataUrl?: string;
   status: "DRAFT" | "SCHEDULED" | "PUBLISHED" | "UNPUBLISHED";
   isFeatured: boolean;
   publishedAt?: string;
@@ -324,6 +340,7 @@ export interface FeedbackTopic {
   id: number;
   code: string;
   name: string;
+  description?: string;
 }
 
 export interface Feedback {
@@ -333,9 +350,12 @@ export interface Feedback {
   senderEmail: string;
   senderPhone?: string;
   senderOrgText?: string;
+  senderCommuneUnion?: string;
+  senderProvinceUnion?: string;
   feedbackTopicId: number;
   title: string;
   content: string;
+  evidenceNames?: string[];
   status: "NEW" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
   assignedAccountId?: number;
   submittedAt: string;
@@ -349,6 +369,60 @@ export interface FeedbackMessage {
   content: string;
   isInternalNote: boolean;
   sentAt: string;
+}
+
+/** Email hệ thống đã gửi cho người gửi phản ánh (giả lập SMTP trong prototype) */
+export interface EmailLog {
+  id: number;
+  feedbackId: number;
+  to: string; // email người gửi
+  subject: string;
+  body: string;
+  kind: "REPLY" | "RESULT"; // phản hồi trung gian / kết quả xử lý
+  sentByAccountId: number;
+  /** Trạng thái gửi SMTP thật — undefined = email mô phỏng/seed, chưa đi qua SMTP */
+  delivery?: "PENDING" | "SENT" | "FAILED";
+  sentAt: string;
+}
+
+/* ============ Chứng nhận số ============ */
+
+export interface Certificate {
+  id: number;
+  code: string; // CRT-2026-XXXXX
+  recipientName: string;
+  recipientOrgText?: string;
+  activityId?: number;
+  title: string;
+  certType: "HOAT_DONG" | "DANH_HIEU" | "KHOA_HOC" | "KHAC";
+  issuedByOrgUnitId: number;
+  issuedAt: string;
+  status: "ACTIVE" | "REVOKED";
+}
+
+/* ============ Điểm danh hoạt động ============ */
+
+export interface Attendance {
+  id: number;
+  activityId: number;
+  memberName: string;
+  memberClass?: string;
+  orgUnitId: number;
+  checkedInAt: string;
+}
+
+/* ============ Sự kiện trực tiếp (mô phỏng realtime) ============ */
+
+export type LiveEventType =
+  | "ACTIVITY_SUBMITTED" | "ACTIVITY_CONFIRMED" | "TASK_RESULT"
+  | "TASK_ASSIGNED" | "ATTENDANCE" | "REPORT_CREATED" | "FEEDBACK_NEW";
+
+export interface LiveEvent {
+  id: number;
+  orgUnitId: number;
+  eventType: LiveEventType;
+  title: string;
+  createdAt: string;
 }
 
 /* ============ 3.8. Tài nguyên & Hệ thống ============ */

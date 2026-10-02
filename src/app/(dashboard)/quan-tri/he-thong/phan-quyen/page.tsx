@@ -57,14 +57,12 @@ export default function PhanQuyenPage() {
         <CardBody className="p-0">
           <TableWrap>
             <THead>
-              <tr>
                 <Th>Quyền chức năng</Th>
                 {roleList.map((r) => (
                   <Th key={r.id} className="text-center">
                     <span className="block whitespace-normal text-[11px] leading-tight">{r.name}</span>
                   </Th>
                 ))}
-              </tr>
             </THead>
             <tbody>
               {modules.map(([module, perms]) => (

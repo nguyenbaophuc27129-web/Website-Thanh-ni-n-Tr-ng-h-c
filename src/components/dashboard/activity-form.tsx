@@ -102,7 +102,7 @@ export function ActivityForm({ activity }: { activity?: Activity }) {
           <Field label="Địa điểm tổ chức">
             <Input value={form.location} onChange={set("location")} placeholder="VD: Nhà văn hóa phường" />
           </Field>
-          <Field label="Số đoàn viên tham gia" hint="Chỉ nhập số.">
+          <Field label="Số đoàn viên tham gia" hint="Nhập số thực tế — số liệu hiển thị công khai và dùng để tính điểm tham gia.">
             <Input type="number" min={0} value={form.participantCount} onChange={set("participantCount")} placeholder="VD: 350" />
           </Field>
           <Field label="Nhóm nội dung" className="sm:col-span-2" hint="Chọn 1 hoặc nhiều nhóm phù hợp.">

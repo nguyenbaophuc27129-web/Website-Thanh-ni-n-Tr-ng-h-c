@@ -16,27 +16,36 @@ export function PhotoPlaceholder({
   label,
   className,
   icon = true,
+  src,
 }: {
   seed?: number;
   label?: string;
   className?: string;
   icon?: boolean;
+  /** Ảnh thật (data URL từ file người dùng tải lên) — ưu tiên hiển thị thay gradient */
+  src?: string;
 }) {
   const g = gradients[Math.abs(seed) % gradients.length];
   return (
     <div
       className={cn(
-        "flex items-center justify-center bg-gradient-to-br",
-        g,
+        "flex items-center justify-center overflow-hidden",
+        src ? "bg-stone-100" : cn("bg-gradient-to-br", g),
         className
       )}
     >
-      {icon ? <Image className="h-6 w-6 text-white/60" /> : null}
-      {label ? (
-        <span className="absolute bottom-2 left-2 right-2 truncate text-[10px] font-medium text-white/80">
-          {label}
-        </span>
-      ) : null}
+      {src ? (
+        <img src={src} alt={label ?? ""} className="h-full w-full object-cover" />
+      ) : (
+        <>
+          {icon ? <Image className="h-6 w-6 text-white/60" /> : null}
+          {label ? (
+            <span className="absolute bottom-2 left-2 right-2 truncate text-[10px] font-medium text-white/80">
+              {label}
+            </span>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
