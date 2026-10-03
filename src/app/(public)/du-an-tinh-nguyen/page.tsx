@@ -1,88 +1,393 @@
 "use client";
 
 import Link from "next/link";
-import { Target, Users, Route, ArrowRight, Home, LogIn } from "lucide-react";
-import { Reveal } from "@/components/public/reveal";
+import { useMemo, useState } from "react";
+import {
+  MapPin, HeartHandshake, Users, Send, Loader2, Clock, Plus, MapPinned, HandHeart, Landmark,
+} from "lucide-react";
+import { Reveal, CountUp } from "@/components/public/reveal";
+import { SponsorStrip } from "@/components/public/sponsor-strip";
+import { Modal } from "@/components/ui/modal";
+import { Input, Textarea, Select, Field } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { useStore } from "@/lib/store-context";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
+import { moderateText } from "@/lib/ai-moderation";
+import { relTime } from "@/lib/utils";
 
-const BLOCKS = [
-  {
-    icon: Target,
-    title: "Mục tiêu",
-    desc: "Mỗi trường THPT xây dựng tối thiểu 01 dự án tình nguyện vì cộng đồng mỗi năm học — có mục tiêu đo lường được, có kết quả kiểm chứng và báo cáo minh bạch trên Cổng TNTH.",
-  },
-  {
-    icon: Users,
-    title: "Đối tượng tham gia",
-    desc: "Toàn bộ Đoàn trường THPT, PTDT và tương đương trên toàn hệ thống; đoàn viên, thanh niên các trường cùng chung tay thực hiện dự án của đơn vị mình.",
-  },
-  {
-    icon: Route,
-    title: "Cách tham gia",
-    desc: "Đăng ký dự án qua Ban Chỉ huy Đoàn trường → cập nhật tiến độ, hình ảnh minh chứng trên Cổng → cấp trên xác nhận và chấm điểm thi đua → tổng kết, tuyên dương cuối kỳ.",
-  },
-];
+/** Tọa độ pin % trên ảnh bản đồ 34 tỉnh (public/vn-map-34.jpg 1200×1485) */
+const PROVINCE_PINS: Record<string, { x: number; y: number }> = {
+  "Lào Cai": { x: 18, y: 16 },
+  "Hà Nội": { x: 21, y: 21 },
+  "Bắc Giang": { x: 22, y: 19 },
+  "Nghệ An": { x: 26, y: 36 },
+  "Đà Nẵng": { x: 38, y: 47 },
+  "Bình Dương": { x: 28.5, y: 63 },
+  "TP Hồ Chí Minh": { x: 27, y: 65 },
+  "Cần Thơ": { x: 22, y: 71 },
+  "Bến Tre": { x: 25, y: 73 },
+};
+
+const PROVINCE_OPTIONS = Object.keys(PROVINCE_PINS);
 
 export default function DuAnTinhNguyenPage() {
+  const { volunteerProjects, orgName, submitVolunteerProject } = useStore();
+  const { session } = useAuth();
+  const { toast } = useToast();
+
+  const [provinceFilter, setProvinceFilter] = useState<string | null>(null);
+  const [openSubmit, setOpenSubmit] = useState(false);
+  const [pName, setPName] = useState("");
+  const [pProvince, setPProvince] = useState(PROVINCE_OPTIONS[0]);
+  const [pSummary, setPSummary] = useState("");
+  const [pBeneficiaries, setPBeneficiaries] = useState("");
+  const [pParticipants, setPParticipants] = useState("50");
+  const [busy, setBusy] = useState(false);
+
+  const approved = useMemo(
+    () => volunteerProjects.filter((p) => p.status === "APPROVED"),
+    [volunteerProjects]
+  );
+
+  // Aggregate theo tỉnh — 1 pin/tỉnh, badge số dự án nếu >1
+  const byProvince = useMemo(() => {
+    const map = new Map<string, { count: number; participants: number }>();
+    for (const p of approved) {
+      const cur = map.get(p.province) ?? { count: 0, participants: 0 };
+      cur.count += 1;
+      cur.participants += p.participants;
+      map.set(p.province, cur);
+    }
+    return map;
+  }, [approved]);
+
+  const shown = useMemo(
+    () => (provinceFilter ? approved.filter((p) => p.province === provinceFilter) : approved),
+    [approved, provinceFilter]
+  );
+
+  const totalParticipants = approved.reduce((s, p) => s + p.participants, 0);
+  const myPending = volunteerProjects.filter(
+    (p) => p.status === "PENDING" && p.submittedByAccountId === session?.accountId
+  );
+
+  const openForm = () => {
+    if (!session) {
+      toast("Bạn cần đăng nhập để tiếp nhận dự án. Tài khoản demo: dv.demo / demo123", "warning");
+      return;
+    }
+    setOpenSubmit(true);
+  };
+
+  const pickProvince = (prov: string) => {
+    setPProvince(prov);
+  };
+
+  const submitProject = async () => {
+    if (!session) return;
+    if (pName.trim().length < 8 || pSummary.trim().length < 20) {
+      toast("Cần tên dự án tối thiểu 8 ký tự và tóm tắt tối thiểu 20 ký tự.", "warning");
+      return;
+    }
+    setBusy(true);
+    const mod = await moderateText(`${pName}\n${pSummary}`);
+    submitVolunteerProject(
+      session,
+      {
+        orgUnitId: session.orgUnitId,
+        schoolName: orgName(session.orgUnitId),
+        province: pProvince,
+        projectName: pName,
+        summary: pSummary,
+        beneficiaries: pBeneficiaries || "Cộng đồng địa phương",
+        participants: Number(pParticipants) || 1,
+        mapX: PROVINCE_PINS[pProvince]?.x ?? 25,
+        mapY: PROVINCE_PINS[pProvince]?.y ?? 45,
+      },
+      mod
+    );
+    setBusy(false);
+    setOpenSubmit(false);
+    setPName(""); setPSummary(""); setPBeneficiaries(""); setPParticipants("50");
+    toast(
+      mod.verdict === "CLEAN"
+        ? "Đã tiếp nhận dự án — chờ cấp trên duyệt, được duyệt sẽ hiển thị trên bản đồ (+20 điểm)."
+        : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — dự án chờ kiểm duyệt thủ công.`,
+      mod.verdict === "CLEAN" ? "success" : "warning"
+    );
+  };
+
   return (
     <div>
-      {/* Hero gradient xanh + chip giai đoạn */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-700 to-blue-900 text-white">
-        <span className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
-        <span className="pointer-events-none absolute -bottom-24 left-1/4 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" />
-        <div className="relative mx-auto max-w-5xl px-4 py-16 sm:py-20">
+      {/* ===== Hero đêm ===== */}
+      <section className="relative overflow-hidden bg-[#040b1c] text-white">
+        <span className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl hero-glow-1" />
+        <span className="pointer-events-none absolute -bottom-24 left-1/4 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl hero-glow-2" />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)",
+            backgroundSize: "44px 44px",
+            maskImage: "radial-gradient(ellipse 80% 70% at 50% 40%, black, transparent)",
+          }}
+        />
+        <div className="relative mx-auto max-w-7xl px-4 py-16 sm:py-20">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] ring-1 ring-white/25 backdrop-blur">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-300" />
             </span>
-            Giai đoạn 02 — Sắp ra mắt
+            Đang hoạt động
           </span>
           <h1 className="mt-4 max-w-3xl text-2xl font-black leading-snug sm:text-4xl">
             Mỗi trường THPT — 01 dự án tình nguyện vì cộng đồng
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-blue-100 sm:text-base">
-            Chương trình trọng tâm giai đoạn 02 của Thanh niên Trường học: biến phong trào tình nguyện
-            thành các dự án cụ thể, đo lường được kết quả vì cộng đồng.
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-blue-100/90 sm:text-base">
+            Bản đồ dự án toàn quốc: mỗi trường xây dựng tối thiểu 1 dự án tình nguyện mỗi năm học —
+            có mục tiêu đo lường được, có kết quả kiểm chứng và hiển thị công khai trên Cổng TNTH.
           </p>
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-4 py-12">
-        <div className="grid gap-4 md:grid-cols-3">
-          {BLOCKS.map((b, i) => (
-            <Reveal key={b.title} delay={i * 80}>
-              <div className="h-full rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-doan-50 text-doan-600">
-                  <b.icon className="h-5 w-5" />
+      <div className="mx-auto max-w-7xl px-4 pb-14 pt-10">
+        {/* ===== Stats 3 ô ===== */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { icon: HeartHandshake, label: "Dự án đã duyệt", value: approved.length, suffix: " dự án" },
+            { icon: Users, label: "Lượt đoàn viên tham gia", value: totalParticipants, suffix: " bạn" },
+            { icon: MapPin, label: "Tỉnh thành có dự án", value: byProvince.size, suffix: `/${PROVINCE_OPTIONS.length} tỉnh` },
+          ].map((s, i) => (
+            <Reveal key={s.label} delay={i * 80}>
+              <div className="flex items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-[0_8px_30px_rgb(15,23,42,0.05)] ring-1 ring-slate-100">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
+                  <s.icon className="h-5 w-5" />
                 </span>
-                <h2 className="mt-3 text-sm font-bold text-stone-900">{b.title}</h2>
-                <p className="mt-1.5 text-xs leading-relaxed text-stone-500">{b.desc}</p>
+                <div>
+                  <p className="text-2xl font-black text-slate-900">
+                    <CountUp value={s.value} />
+                    <span className="text-sm font-bold text-slate-400">{s.suffix}</span>
+                  </p>
+                  <p className="text-xs text-slate-500">{s.label}</p>
+                </div>
               </div>
             </Reveal>
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-doan-50/70 px-5 py-6 ring-1 ring-doan-100">
-          <p className="w-full text-center text-sm font-medium text-doan-800 sm:w-auto">
-            Đơn vị của bạn sẵn sàng cho giai đoạn 02?
-          </p>
-          <Link
-            href="/dang-nhap"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-doan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-doan-700"
-          >
-            <LogIn className="h-4 w-4" /> Đăng nhập khu quản trị
-          </Link>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-doan-200 bg-white px-4 py-2 text-sm font-semibold text-doan-700 hover:bg-doan-50"
-          >
-            <Home className="h-4 w-4" /> Về trang chủ
-          </Link>
-          <span className="w-full text-center text-[11px] text-doan-600/80 sm:w-auto">
-            Tài khoản demo: tw.admin · bd.province · mật khẩu demo123
-          </span>
+        {/* ===== Bản đồ dự án ===== */}
+        <div className="mt-10 grid gap-8 lg:grid-cols-5">
+          <div className="lg:col-span-3">
+            <div className="flex items-center justify-between">
+              <h2 className="inline-flex items-center gap-2 text-lg font-bold text-slate-900">
+                <MapPinned className="h-5 w-5 text-blue-600" /> Bản đồ dự án 34 tỉnh thành
+              </h2>
+              {provinceFilter ? (
+                <button
+                  type="button"
+                  onClick={() => setProvinceFilter(null)}
+                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
+                >
+                  Bỏ lọc: {provinceFilter} ✕
+                </button>
+              ) : (
+                <p className="text-[11px] text-slate-400">Nhấn pin để xem dự án theo tỉnh</p>
+              )}
+            </div>
+            <div className="relative mt-4 overflow-hidden rounded-3xl bg-white p-2 shadow-[0_8px_30px_rgb(15,23,42,0.06)] ring-1 ring-slate-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/vn-map-34.jpg"
+                alt="Bản đồ Việt Nam 34 tỉnh thành"
+                className="w-full rounded-2xl"
+                draggable={false}
+              />
+              {approved.map((p) => {
+                const agg = byProvince.get(p.province);
+                if (!agg) return null;
+                // 1 pin / tỉnh — chỉ render pin cho dự án có id nhỏ nhất của tỉnh
+                const isFirstOfProvince = !approved.some((q) => q.province === p.province && q.id < p.id);
+                if (!isFirstOfProvince) return null;
+                const pos = PROVINCE_PINS[p.province] ?? { x: p.mapX, y: p.mapY };
+                const active = provinceFilter === p.province;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setProvinceFilter(active ? null : p.province)}
+                    title={`${p.province} — ${agg.count} dự án`}
+                    className="group absolute -translate-x-1/2 -translate-y-full"
+                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+                  >
+                    <span
+                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-white shadow-lg transition-transform group-hover:scale-110 ${
+                        active ? "bg-red-500 ring-2 ring-red-200" : "bg-blue-600"
+                      }`}
+                    >
+                      <MapPin className="h-3 w-3" />
+                      {agg.count > 1 ? agg.count : ""}
+                    </span>
+                    {active || agg.count <= 1 ? (
+                      <span
+                        className={`absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 ${
+                          active ? "bg-red-500" : "bg-blue-600"
+                        }`}
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ===== Cột phải: nút tiếp nhận + list chờ duyệt ===== */}
+          <div className="space-y-5 lg:col-span-2">
+            <button
+              type="button"
+              onClick={openForm}
+              className="flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-4 text-left text-white shadow-lg shadow-blue-600/25 transition-all hover:-translate-y-0.5 hover:shadow-xl"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
+                <Plus className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold">Tiếp nhận dự án của trường bạn</span>
+                <span className="block text-[11px] text-blue-100">
+                  Đăng nhập → điền form → AI kiểm duyệt → cấp trên duyệt đăng bản đồ
+                </span>
+              </span>
+            </button>
+
+            {myPending.length > 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                <p className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                  <Clock className="h-3.5 w-3.5" /> Dự án của bạn chờ duyệt ({myPending.length})
+                </p>
+                <ul className="mt-2.5 space-y-2">
+                  {myPending.map((p) => (
+                    <li key={p.id} className="rounded-xl bg-white/80 px-3 py-2">
+                      <p className="truncate text-sm font-medium text-stone-800">{p.projectName}</p>
+                      <p className="text-[11px] text-stone-500">
+                        {p.province} · gửi {relTime(p.createdAt)}
+                        {p.aiVerdict === "FLAGGED" ? " · AI gắn cờ, chờ kiểm duyệt thủ công" : ""}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl bg-white p-4 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-100">
+              <p className="px-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                Tiêu chí một dự án tốt
+              </p>
+              <ul className="mt-3 space-y-2.5 text-xs leading-relaxed text-slate-600">
+                <li className="flex gap-2"><HandHeart className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> Giải quyết vấn đề thật của cộng đồng, đo lường được kết quả.</li>
+                <li className="flex gap-2"><Landmark className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /> Có minh chứng hình ảnh và danh sách người thụ hưởng rõ ràng.</li>
+                <li className="flex gap-2"><Users className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" /> Đoàn viên tham gia có đăng ký, có xác nhận trên cổng.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== Grid thẻ dự án ===== */}
+        <div className="mt-10">
+          <h2 className="text-lg font-bold text-slate-900">
+            {provinceFilter ? `Dự án tại ${provinceFilter}` : "Dự án mới nhất"}{" "}
+            <span className="text-sm font-medium text-slate-400">({shown.length})</span>
+          </h2>
+          {shown.length === 0 ? (
+            <p className="mt-6 rounded-2xl bg-stone-50 px-5 py-8 text-center text-sm text-stone-500">
+              Chưa có dự án đã duyệt ở khu vực này.
+            </p>
+          ) : (
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {shown.map((p, i) => (
+                <Reveal key={p.id} delay={i * 60}>
+                  <div className="flex h-full flex-col rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:ring-blue-200">
+                    <div className="flex items-center gap-2">
+                      <Badge tone="blue">{p.province}</Badge>
+                      <span className="text-[11px] text-slate-400">{p.schoolName}</span>
+                    </div>
+                    <h3 className="mt-2.5 text-sm font-bold leading-snug text-stone-900">{p.projectName}</h3>
+                    <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-stone-500">{p.summary}</p>
+                    <div className="mt-auto flex items-center gap-4 pt-3.5 text-[11px] text-slate-500">
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="h-3.5 w-3.5 text-blue-500" /> {p.participants} đoàn viên
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <HandHeart className="h-3.5 w-3.5 text-emerald-500" /> {p.beneficiaries}
+                      </span>
+                    </div>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ===== Modal tiếp nhận dự án ===== */}
+      <Modal
+        open={openSubmit}
+        onClose={() => !busy && setOpenSubmit(false)}
+        title="Tiếp nhận dự án tình nguyện"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setOpenSubmit(false)}
+              disabled={busy}
+              className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={submitProject}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {busy ? "AI đang kiểm duyệt…" : "Gửi tiếp nhận"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-stone-50 px-3 py-2.5 text-xs text-stone-600">
+            Đơn vị thực hiện: <b>{orgName(session?.orgUnitId ?? 0)}</b> (lấy từ tài khoản của bạn)
+          </div>
+          <Field label="Tên dự án" required hint="Tối thiểu 8 ký tự">
+            <Input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="Ví dụ: Đồng quản lý kênh Nông Trại xanh" />
+          </Field>
+          <Field label="Tỉnh thành" hint="Chọn tỉnh — vị trí pin trên bản đồ tự điền theo tỉnh">
+            <Select value={pProvince} onChange={(e) => pickProvince(e.target.value)}>
+              {PROVINCE_OPTIONS.map((prov) => (
+                <option key={prov} value={prov}>{prov}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Tóm tắt dự án" required hint="Tối thiểu 20 ký tự — nêu rõ việc làm và kết quả đo được">
+            <Textarea value={pSummary} onChange={(e) => setPSummary(e.target.value)} className="min-h-24" />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Người thụ hưởng">
+              <Input value={pBeneficiaries} onChange={(e) => setPBeneficiaries(e.target.value)} placeholder="VD: 450 hộ dân ven kênh" />
+            </Field>
+            <Field label="Số đoàn viên tham gia">
+              <Input type="number" min={1} value={pParticipants} onChange={(e) => setPParticipants(e.target.value)} />
+            </Field>
+          </div>
+          <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
+            Dự án qua AI kiểm duyệt tự động, sau đó cấp trên duyệt sẽ hiển thị pin trên bản đồ toàn quốc
+            và cộng 20 điểm đóng góp cho bạn.
+          </p>
+        </div>
+      </Modal>
+
+      <SponsorStrip />
     </div>
   );
 }

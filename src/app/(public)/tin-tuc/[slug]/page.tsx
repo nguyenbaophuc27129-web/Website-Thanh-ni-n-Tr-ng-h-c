@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
-import { ArrowLeft, CalendarDays, Eye, Building2, Tag } from "lucide-react";
+import { ArrowLeft, CalendarDays, Eye, Building2, Tag, PenLine } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { NewsCard } from "@/components/public/news-card";
+import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
 
 export default function ChiTietTinPage() {
   const params = useParams<{ slug: string }>();
-  const { publishedPosts } = useStore();
+  const { publishedPosts, accounts, orgName } = useStore();
 
   const post = useMemo(
     () => publishedPosts.find((p) => p.slug === params.slug && p.status === "PUBLISHED"),
@@ -79,6 +80,28 @@ export default function ChiTietTinPage() {
           <p key={i}>{para}</p>
         ))}
       </div>
+
+      {post.contributorAccountId ? (
+        <div className="mt-8 flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white">
+            <PenLine className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-stone-800">
+              Bài viết đóng góp từ{" "}
+              {accounts.find((a) => a.id === post.contributorAccountId)?.contactPerson ?? "Đoàn viên"}
+              {" · "}
+              {accounts.find((a) => a.id === post.contributorAccountId)
+                ? orgName(accounts.find((a) => a.id === post.contributorAccountId)!.orgUnitId)
+                : "Cộng đồng đoàn viên"}
+            </p>
+            <p className="text-[11px] text-stone-500">
+              Nội dung qua AI kiểm duyệt và được Ban TNTH duyệt trước khi đăng.
+            </p>
+          </div>
+          <Badge tone="blue">Đóng góp cộng đồng</Badge>
+        </div>
+      ) : null}
 
       {related.length > 0 ? (
         <section className="mt-12">

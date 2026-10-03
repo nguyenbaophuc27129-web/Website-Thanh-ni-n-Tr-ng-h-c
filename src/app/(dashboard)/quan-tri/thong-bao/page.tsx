@@ -23,6 +23,10 @@ const TYPE_META: Record<NotificationType, { label: string; cls: string }> = {
   POST_PUBLISHED: { label: "Tin bài mới", cls: "bg-pink-100 text-pink-700" },
   SYSTEM: { label: "Hệ thống", cls: "bg-stone-100 text-stone-600" },
   FORUM_FLAGGED: { label: "Kiểm duyệt diễn đàn", cls: "bg-orange-100 text-orange-700" },
+  CONTRIBUTION_APPROVED: { label: "Đóng góp được duyệt", cls: "bg-emerald-100 text-emerald-700" },
+  CONTRIBUTION_REJECTED: { label: "Đóng góp bị từ chối", cls: "bg-red-100 text-red-700" },
+  PROJECT_APPROVED: { label: "Dự án được duyệt", cls: "bg-emerald-100 text-emerald-700" },
+  HS3T_AWARDED: { label: "Danh hiệu 3 tốt", cls: "bg-yellow-100 text-yellow-700" },
 };
 
 export default function ThongBaoPage() {

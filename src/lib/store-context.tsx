@@ -10,12 +10,15 @@ import {
   type ReactNode,
 } from "react";
 import type {
-  Activity, Account, AssignmentReview, AssignmentTarget, Attendance, Certificate, CriteriaSet,
+  Activity, Account, AdaptiveStep, AssignmentReview, AssignmentTarget, Attendance, Certificate,
+  ContributionKind, ContributionLog, CriteriaSet,
   DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, ForumComment, ForumThread,
-  LiveEvent, ModerationResult, Notification,
-  PublishedPost, RankingEntry, RankingSnapshot, Report, Resource, Score,
-  SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult,
+  Hs3tAchievement, Hs3tCategory, Hs3tProfile, LiveEvent, MemberContribution, ModerationResult, Notification,
+  OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
+  RankingEntry, RankingSnapshot, Report, Resource, Score,
+  Sponsor, SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
 } from "@/types";
+import { CONTRIBUTION_POINTS } from "@/types";
 import { orgUnits as seedOrgUnits, descendantIds } from "@/data/org-units";
 import { accounts as seedAccounts } from "@/data/accounts";
 import { contentCategories, documentCategories, resourceTypes, feedbackTopics } from "@/data/categories";
@@ -33,6 +36,12 @@ import { certificates as seedCertificates } from "@/data/certificates";
 import { liveEvents as seedLiveEvents } from "@/data/live-events";
 import { resources as seedResources, systemSettings as seedSettings } from "@/data/resources";
 import { FORUM_THREADS as seedForumThreads, FORUM_COMMENTS as seedForumComments } from "@/data/forum";
+import { sponsors as seedSponsors } from "@/data/sponsors";
+import { orgDirectories as seedDirectories } from "@/data/directory";
+import { volunteerProjects as seedVolunteerProjects } from "@/data/volunteer-projects";
+import { quizQuestions as seedQuizQuestions } from "@/data/quiz-bank";
+import { quizExams as seedQuizExams } from "@/data/quiz-exams";
+import { hs3tProfiles as seedHs3tProfiles, hs3tAchievements as seedHs3tAchievements } from "@/data/hs3t";
 import { generateUniqueAlias } from "@/lib/forum-alias";
 import type { Session } from "@/lib/auth-context";
 import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
@@ -195,7 +204,7 @@ interface StoreValue {
   markAllNotificationsRead: (accountId: number) => void;
 
   /* feedbacks (R8) */
-  submitFeedback: (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[]; feedbackTopicId: number; title: string; content: string }) => string;
+  submitFeedback: (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[]; feedbackTopicId: number; title: string; content: string; senderAccountId?: number }) => string;
   replyFeedback: (session: Session, feedbackId: number, content: string, internal: boolean) => void;
   setFeedbackStatus: (session: Session, feedbackId: number, status: Feedback["status"]) => void;
   /** Gửi email kết quả/phản hồi cho người gửi (giả lập SMTP) — trả về false nếu thiếu email */
@@ -225,6 +234,34 @@ interface StoreValue {
   createForumComment: (session: Session, input: { threadId: number; content: string }, mod: ModerationResult) => number;
   toggleForumLike: (session: Session, kind: "THREAD" | "COMMENT", id: number) => void;
   moderateForumItem: (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => void;
+
+  /* v12 — đóng góp cộng đồng & chương trình */
+  contributions: ContributionLog[];
+  memberContributions: MemberContribution[];
+  createMemberContribution: (session: Session, input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }, mod: ModerationResult) => number;
+  moderateMemberContribution: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => number | undefined;
+  submitResourceDraft: (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number }) => number;
+  moderateResourceContribution: (session: Session, id: number, action: "APPROVE" | "REJECT") => void;
+  sponsors: Sponsor[];
+  saveSponsor: (input: Omit<Sponsor, "id">, id?: number) => void;
+  orgDirectories: OrgDirectory[];
+  saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
+  volunteerProjects: VolunteerProject[];
+  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number }, mod: ModerationResult) => number;
+  moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
+  quizQuestions: QuizQuestion[];
+  quizExams: QuizExam[];
+  saveQuizExam: (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; status?: QuizExam["status"] }, questionIds: number[]) => number;
+  setQuizExamStatus: (id: number, status: QuizExam["status"]) => void;
+  quizAttempts: QuizAttempt[];
+  startQuizAttempt: (examId: number, examinee: { name: string; orgText: string; accountId?: number }) => number;
+  submitQuizAttempt: (attemptId: number, answers: Record<number, QuizAnswer>, autoScore: number, maxScore: number, trail?: AdaptiveStep[]) => void;
+  gradeQuizAttempt: (session: Session, attemptId: number, manualPoints: number) => void;
+  hs3tProfiles: Hs3tProfile[];
+  hs3tAchievements: Hs3tAchievement[];
+  ensureHs3tProfile: (session: Session) => Hs3tProfile;
+  addHs3tAchievement: (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => void;
+  awardHs3tLevel: (session: Session, profileId: number, level: "XA" | "TINH" | "TW") => void;
 }
 
 const StoreCtx = createContext<StoreValue | null>(null);
@@ -266,6 +303,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState(seedSettings);
   const [forumThreads, setForumThreads] = useState<ForumThread[]>(seedForumThreads);
   const [forumComments, setForumComments] = useState<ForumComment[]>(seedForumComments);
+  const [contributions, setContributions] = useState<ContributionLog[]>([]);
+  const [memberContributions, setMemberContributions] = useState<MemberContribution[]>([]);
+  const [sponsors, setSponsors] = useState<Sponsor[]>(seedSponsors);
+  const [orgDirectories, setOrgDirectories] = useState<OrgDirectory[]>(seedDirectories);
+  const [volunteerProjects, setVolunteerProjects] = useState<VolunteerProject[]>(seedVolunteerProjects);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(seedQuizQuestions);
+  const [quizExams, setQuizExams] = useState<QuizExam[]>(seedQuizExams);
+  const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
+  const [hs3tProfiles, setHs3tProfiles] = useState<Hs3tProfile[]>(seedHs3tProfiles);
+  const [hs3tAchievements, setHs3tAchievements] = useState<Hs3tAchievement[]>(seedHs3tAchievements);
 
   // Khôi phục tài khoản đã tạo từ localStorage (để khớp với đăng nhập)
   useEffect(() => {
@@ -1109,6 +1156,420 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  /* ============ v12 — Đóng góp cộng đồng & chương trình ============ */
+
+  /** Cộng điểm đóng góp cho đoàn viên (nội bộ — không đưa vào StoreValue) */
+  const awardContribution = useCallback(
+    (accountId: number, kind: ContributionKind, refId: number, refTitle: string) => {
+      setContributions((prev) => [
+        { id: nextId(), accountId, kind, refId, refTitle, points: CONTRIBUTION_POINTS[kind], createdAt: nowISO() },
+        ...prev,
+      ]);
+    },
+    []
+  );
+
+  const createMemberContribution = useCallback(
+    (session: Session, input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }, mod: ModerationResult) => {
+      void session;
+      const id = nextId();
+      const record: MemberContribution = {
+        id,
+        contributorAccountId: session.accountId,
+        categoryTag: input.categoryTag,
+        title: input.title.trim(),
+        excerpt: input.excerpt.trim(),
+        content: input.content.trim(),
+        coverDataUrl: input.coverDataUrl,
+        status: "PENDING",
+        aiVerdict: mod.verdict,
+        aiReason: mod.reason,
+        aiModel: mod.model,
+        createdAt: nowISO(),
+      };
+      setMemberContributions((prev) => [record, ...prev]);
+      if (mod.verdict === "FLAGGED") {
+        addNotification({
+          recipientAccountId: 1,
+          notificationType: "FORUM_FLAGGED",
+          title: "Bài đóng góp chờ kiểm duyệt",
+          message: `Bài "${record.title}" bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
+          refType: "MEMBER_CONTRIBUTION", refId: id, linkUrl: "/quan-tri/dong-gop",
+        });
+      }
+      return id;
+    },
+    [addNotification]
+  );
+
+  /** Duyệt bài đóng góp — APPROVE dựng PublishedPost công khai + cộng điểm; REJECT trả lý do */
+  const moderateMemberContribution = useCallback(
+    (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string): number | undefined => {
+      const c = memberContributions.find((x) => x.id === id);
+      if (!c) return undefined;
+      const stamp = { moderatedByAccountId: session.accountId, moderatedAt: nowISO() };
+      if (action === "REJECT") {
+        const why = reason?.trim() || "Nội dung chưa phù hợp để đăng tải";
+        setMemberContributions((prev) =>
+          prev.map((x) => (x.id === id ? { ...x, ...stamp, status: "REJECTED", rejectionReason: why } : x))
+        );
+        addNotification({
+          recipientAccountId: c.contributorAccountId,
+          notificationType: "CONTRIBUTION_REJECTED",
+          title: "Bài đóng góp chưa được duyệt",
+          message: `Bài "${c.title}" chưa được duyệt đăng. Lý do: ${why}.`,
+          refType: "MEMBER_CONTRIBUTION", refId: id, linkUrl: "/tai-khoan",
+        });
+        return undefined;
+      }
+      const postId = nextId();
+      const slug = c.title
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D")
+        .toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 70) || `bai-viet-${postId}`;
+      const contributor = accounts.find((a) => a.id === c.contributorAccountId);
+      const post: PublishedPost = {
+        id: postId,
+        activityId: null,
+        slug,
+        title: c.title,
+        excerpt: c.excerpt,
+        content: c.content,
+        coverSeed: 1,
+        coverDataUrl: c.coverDataUrl,
+        status: "PUBLISHED",
+        isFeatured: false,
+        publishedAt: nowISO(),
+        viewCount: 0,
+        authorOrgUnitName: contributor ? orgName(contributor.orgUnitId) : "Cộng đồng đoàn viên",
+        editorAccountId: session.accountId,
+        contributorAccountId: c.contributorAccountId,
+        categoryNames: [c.categoryTag],
+        createdAt: nowISO(),
+      };
+      setPublishedPosts((prev) => [post, ...prev]);
+      setMemberContributions((prev) =>
+        prev.map((x) => (x.id === id ? { ...x, ...stamp, status: "APPROVED", postSlug: slug } : x))
+      );
+      awardContribution(c.contributorAccountId, "POST", postId, c.title);
+      addNotification({
+        recipientAccountId: c.contributorAccountId,
+        notificationType: "CONTRIBUTION_APPROVED",
+        title: `Bài đóng góp đã được đăng (+${CONTRIBUTION_POINTS.POST} điểm)`,
+        message: `Bài "${c.title}" đã được duyệt đăng công khai. Bạn được cộng ${CONTRIBUTION_POINTS.POST} điểm đóng góp.`,
+        refType: "POST", refId: postId, linkUrl: `/tin-tuc/${slug}`,
+      });
+      return postId;
+    },
+    [accounts, memberContributions, awardContribution, orgName, addNotification]
+  );
+
+  /** Đoàn viên gửi tài nguyên — luôn DRAFT + isPublic false, chờ Ban TNTH duyệt */
+  const submitResourceDraft = useCallback(
+    (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number }) => {
+      const id = nextId();
+      const resource: Resource = {
+        id,
+        resourceTypeId: input.resourceTypeId,
+        title: input.title.trim(),
+        description: input.description.trim(),
+        fileName: input.fileName || "tai-lieu.pdf",
+        fileSizeKb: input.fileSizeKb || 1024,
+        isPublic: false,
+        downloadCount: 0,
+        publishedByOrgUnitId: session.orgUnitId,
+        publishedAt: nowISO(),
+        submittedByAccountId: session.accountId,
+        status: "DRAFT",
+      };
+      setResources((prev) => [resource, ...prev]);
+      addNotification({
+        recipientAccountId: 1,
+        notificationType: "SYSTEM",
+        title: "Tài nguyên chờ duyệt từ đoàn viên",
+        message: `${session.contactPerson} đóng góp tài nguyên "${resource.title}" — chờ Ban TNTH duyệt.`,
+        refType: "RESOURCE", refId: id, linkUrl: "/quan-tri/dong-gop",
+      });
+      return id;
+    },
+    [addNotification]
+  );
+
+  const moderateResourceContribution = useCallback(
+    (session: Session, id: number, action: "APPROVE" | "REJECT") => {
+      const r = resources.find((x) => x.id === id);
+      if (!r?.submittedByAccountId) return;
+      if (action === "APPROVE") {
+        setResources((prev) => prev.map((x) => (x.id === id ? { ...x, status: "PUBLISHED", isPublic: true } : x)));
+        awardContribution(r.submittedByAccountId, "RESOURCE", id, r.title);
+        addNotification({
+          recipientAccountId: r.submittedByAccountId,
+          notificationType: "CONTRIBUTION_APPROVED",
+          title: `Tài nguyên được duyệt (+${CONTRIBUTION_POINTS.RESOURCE} điểm)`,
+          message: `Tài nguyên "${r.title}" đã được công khai trên kho tài nguyên dùng chung. Bạn được cộng ${CONTRIBUTION_POINTS.RESOURCE} điểm đóng góp.`,
+          refType: "RESOURCE", refId: id, linkUrl: "/tai-nguyen",
+        });
+      } else {
+        setResources((prev) => prev.filter((x) => x.id !== id));
+        addNotification({
+          recipientAccountId: r.submittedByAccountId,
+          notificationType: "CONTRIBUTION_REJECTED",
+          title: "Tài nguyên đóng góp chưa được duyệt",
+          message: `Tài nguyên "${r.title}" chưa phù hợp để công khai trên kho tài nguyên dùng chung.`,
+          refType: "RESOURCE", refId: id, linkUrl: "/tai-khoan",
+        });
+      }
+    },
+    [resources, awardContribution, addNotification]
+  );
+
+  const saveSponsor = useCallback((input: Omit<Sponsor, "id">, id?: number) => {
+    setSponsors((prev) => {
+      if (id) return prev.map((s) => (s.id === id ? { ...s, ...input } : s));
+      return [...prev, { ...input, id: nextId() }];
+    });
+  }, []);
+
+  const saveDirectory = useCallback(
+    (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => {
+      setOrgDirectories((prev) => {
+        const exists = prev.find((d) => d.orgUnitId === orgUnitId);
+        if (exists) {
+          return prev.map((d) => (d.orgUnitId === orgUnitId ? { ...d, ...input, updatedAt: nowISO(), updatedByAccountId: session.accountId } : d));
+        }
+        return [...prev, { ...input, id: nextId(), orgUnitId, updatedAt: nowISO(), updatedByAccountId: session.accountId }];
+      });
+    },
+    []
+  );
+
+  const submitVolunteerProject = useCallback(
+    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number }, mod: ModerationResult) => {
+      const id = nextId();
+      const project: VolunteerProject = {
+        id,
+        orgUnitId: input.orgUnitId,
+        schoolName: input.schoolName.trim(),
+        province: input.province,
+        projectName: input.projectName.trim(),
+        summary: input.summary.trim(),
+        beneficiaries: input.beneficiaries.trim(),
+        participants: input.participants || 1,
+        status: "PENDING",
+        submittedByAccountId: session.accountId,
+        mapX: input.mapX,
+        mapY: input.mapY,
+        aiVerdict: mod.verdict,
+        aiReason: mod.reason,
+        createdAt: nowISO(),
+      };
+      setVolunteerProjects((prev) => [project, ...prev]);
+      if (mod.verdict === "FLAGGED") {
+        addNotification({
+          recipientAccountId: 1,
+          notificationType: "FORUM_FLAGGED",
+          title: "Dự án tình nguyện chờ kiểm duyệt",
+          message: `Dự án "${project.projectName}" bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
+          refType: "VOLUNTEER_PROJECT", refId: id, linkUrl: "/quan-tri/du-an",
+        });
+      }
+      return id;
+    },
+    [addNotification]
+  );
+
+  const moderateVolunteerProject = useCallback(
+    (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => {
+      const p = volunteerProjects.find((x) => x.id === id);
+      if (!p) return;
+      const stamp = { moderatedByAccountId: session.accountId, moderatedAt: nowISO() };
+      setVolunteerProjects((prev) =>
+        prev.map((x) =>
+          x.id === id
+            ? {
+                ...x, ...stamp,
+                status: action === "APPROVE" ? "APPROVED" : "REJECTED",
+                rejectionReason: action === "REJECT" ? (reason?.trim() || "Dự án chưa đạt yêu cầu") : undefined,
+              }
+            : x
+        )
+      );
+      if (p.submittedByAccountId) {
+        if (action === "APPROVE") {
+          awardContribution(p.submittedByAccountId, "PROJECT", id, p.projectName);
+          addNotification({
+            recipientAccountId: p.submittedByAccountId,
+            notificationType: "PROJECT_APPROVED",
+            title: `Dự án tình nguyện được duyệt (+${CONTRIBUTION_POINTS.PROJECT} điểm)`,
+            message: `Dự án "${p.projectName}" đã được duyệt và hiển thị trên bản đồ dự án toàn quốc. Bạn được cộng ${CONTRIBUTION_POINTS.PROJECT} điểm đóng góp.`,
+            refType: "VOLUNTEER_PROJECT", refId: id, linkUrl: "/du-an-tinh-nguyen",
+          });
+        } else {
+          addNotification({
+            recipientAccountId: p.submittedByAccountId,
+            notificationType: "CONTRIBUTION_REJECTED",
+            title: "Dự án tình nguyện chưa được duyệt",
+            message: `Dự án "${p.projectName}" chưa được duyệt. Lý do: ${reason?.trim() || "Dự án chưa đạt yêu cầu"}.`,
+            refType: "VOLUNTEER_PROJECT", refId: id, linkUrl: "/du-an-tinh-nguyen",
+          });
+        }
+      }
+    },
+    [volunteerProjects, awardContribution, addNotification]
+  );
+
+  /* ============ v12 — Thi trực tuyến ============ */
+
+  const saveQuizExam = useCallback(
+    (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; status?: QuizExam["status"] }, questionIds: number[]) => {
+      const id = nextId();
+      const exam: QuizExam = {
+        id,
+        code: input.code.trim() || `KT-2026-${String(id % 1000).padStart(3, "0")}`,
+        title: input.title.trim(),
+        description: input.description?.trim() || undefined,
+        durationMinutes: input.durationMinutes || 15,
+        questionIds,
+        shuffleQuestions: input.shuffleQuestions,
+        shuffleOptions: input.shuffleOptions,
+        adaptive: input.adaptive,
+        status: input.status ?? "OPEN",
+        createdByAccountId: session.accountId,
+        createdAt: nowISO(),
+      };
+      setQuizExams((prev) => [exam, ...prev]);
+      return id;
+    },
+    []
+  );
+
+  const setQuizExamStatus = useCallback((id: number, status: QuizExam["status"]) => {
+    setQuizExams((prev) => prev.map((e) => (e.id === id ? { ...e, status } : e)));
+  }, []);
+
+  const startQuizAttempt = useCallback(
+    (examId: number, examinee: { name: string; orgText: string; accountId?: number }) => {
+      const id = nextId();
+      const attempt: QuizAttempt = {
+        id,
+        examId,
+        accountId: examinee.accountId,
+        examineeName: examinee.name.trim() || "Thí sinh ẩn danh",
+        examineeOrgText: examinee.orgText.trim() || "—",
+        answers: {},
+        autoScore: 0,
+        maxScore: 0,
+        status: "IN_PROGRESS",
+        startedAt: nowISO(),
+      };
+      setQuizAttempts((prev) => [attempt, ...prev]);
+      return id;
+    },
+    []
+  );
+
+  const submitQuizAttempt = useCallback(
+    (attemptId: number, answers: Record<number, QuizAnswer>, autoScore: number, maxScore: number, trail?: AdaptiveStep[]) => {
+      setQuizAttempts((prev) =>
+        prev.map((a) =>
+          a.id === attemptId
+            ? { ...a, answers, autoScore, maxScore, trail, status: "SUBMITTED", submittedAt: nowISO() }
+            : a
+        )
+      );
+    },
+    []
+  );
+
+  const gradeQuizAttempt = useCallback(
+    (session: Session, attemptId: number, manualPoints: number) => {
+      const at = quizAttempts.find((x) => x.id === attemptId);
+      if (!at) return;
+      setQuizAttempts((prev) =>
+        prev.map((x) => (x.id === attemptId ? { ...x, manualPoints, status: "GRADED", gradedByAccountId: session.accountId } : x))
+      );
+      if (at.accountId) {
+        addNotification({
+          recipientAccountId: at.accountId,
+          notificationType: "SYSTEM",
+          title: "Kết quả thi đã có điểm chính thức",
+          message: `Lượt thi "${at.examineeName}" đã được chấm: ${at.autoScore} điểm tự động + ${manualPoints} điểm tự luận.`,
+          refType: "QUIZ_ATTEMPT", refId: attemptId, linkUrl: "/thi-kien-thuc",
+        });
+      }
+    },
+    [quizAttempts, addNotification]
+  );
+
+  /* ============ v12 — Học sinh 3 tốt ============ */
+
+  /** Lấy hoặc tạo hồ sơ 3 tốt cho tài khoản — idempotent, CHỈ gọi trong useEffect */
+  const ensureHs3tProfile = useCallback(
+    (session: Session): Hs3tProfile => {
+      const existing = hs3tProfiles.find((p) => p.accountId === session.accountId);
+      if (existing) return existing;
+      const maxNum = hs3tProfiles.reduce((m, p) => {
+        const match = p.code.match(/HS3T-\d{4}-(\d+)/);
+        return match ? Math.max(m, parseInt(match[1], 10)) : m;
+      }, 1000);
+      const profile: Hs3tProfile = {
+        id: nextId(),
+        code: `HS3T-2026-${maxNum + 1}`,
+        accountId: session.accountId,
+        studentName: session.contactPerson,
+        schoolOrgUnitId: session.orgUnitId,
+        createdAt: nowISO(),
+      };
+      // idempotent trong strict mode — chỉ thêm khi chưa có
+      setHs3tProfiles((prev) => (prev.some((p) => p.accountId === session.accountId) ? prev : [profile, ...prev]));
+      return profile;
+    },
+    [hs3tProfiles]
+  );
+
+  const addHs3tAchievement = useCallback(
+    (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => {
+      const profile = hs3tProfiles.find((p) => p.id === profileId);
+      if (!profile) return;
+      // Cán bộ trường chỉ được "bổ sung hộ" hồ sơ thuộc trường mình (kiểm tra 2 lớp)
+      const asSchool = input.asSchool === true && session.orgUnitId === profile.schoolOrgUnitId;
+      setHs3tAchievements((prev) => [
+        ...prev,
+        {
+          id: nextId(),
+          profileId,
+          title: input.title.trim(),
+          category: input.category,
+          evidenceNames: input.evidenceNames?.length ? input.evidenceNames : undefined,
+          achievedAt: input.achievedAt || nowISO().slice(0, 10),
+          addedByRole: asSchool ? "SCHOOL" : "STUDENT",
+          addedByAccountId: session.accountId,
+          createdAt: nowISO(),
+        },
+      ]);
+    },
+    [hs3tProfiles]
+  );
+
+  const awardHs3tLevel = useCallback(
+    (session: Session, profileId: number, level: "XA" | "TINH" | "TW") => {
+      const profile = hs3tProfiles.find((p) => p.id === profileId);
+      setHs3tProfiles((prev) =>
+        prev.map((p) => (p.id === profileId ? { ...p, awardedLevel: level, awardedAt: nowISO(), awardedByAccountId: session.accountId } : p))
+      );
+      if (profile) {
+        awardContribution(profile.accountId, "HS3T", profileId, `Hồ sơ 3 tốt ${profile.code}`);
+        addNotification({
+          recipientAccountId: profile.accountId,
+          notificationType: "HS3T_AWARDED",
+          title: `Hồ sơ 3 tốt đạt danh hiệu cấp ${level === "XA" ? "Xã/Phường" : level === "TINH" ? "Tỉnh/Thành phố" : "Trung ương"}`,
+          message: `Hồ sơ Học sinh 3 tốt ${profile.code} đã được chốt danh hiệu. Bạn được cộng ${CONTRIBUTION_POINTS.HS3T} điểm đóng góp.`,
+          refType: "HS3T_PROFILE", refId: profileId, linkUrl: "/hoc-sinh-3-tot",
+        });
+      }
+    },
+    [hs3tProfiles, awardContribution, addNotification]
+  );
+
   const value: StoreValue = useMemo(
     () => ({
       orgUnits, accounts, contentCategories, documentCategories, resourceTypes, feedbackTopics,
@@ -1131,10 +1592,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveResource, downloadResource,
       updateSetting, updateAccountStatus, createAccount,
       forumThreads, forumComments, createForumThread, createForumComment, toggleForumLike, moderateForumItem,
+      contributions, memberContributions, createMemberContribution, moderateMemberContribution,
+      submitResourceDraft, moderateResourceContribution,
+      sponsors, saveSponsor, orgDirectories, saveDirectory,
+      volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
+      quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
+      startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,
+      hs3tProfiles, hs3tAchievements, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel,
     }),
     [
       forumThreads, forumComments,
       createForumThread, createForumComment, toggleForumLike, moderateForumItem,
+      contributions, memberContributions, createMemberContribution, moderateMemberContribution,
+      submitResourceDraft, moderateResourceContribution,
+      sponsors, saveSponsor, orgDirectories, saveDirectory,
+      volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
+      quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
+      startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,
+      hs3tProfiles, hs3tAchievements, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel,
       orgUnits, accounts, activities, publishedPosts, criteriaSets, tasks, taskMetrics,
       taskAssignments, assignmentTargets, taskResults, assignmentReviews, scores,
       rankingSnapshots, rankingEntries, reports, documents, documentRecipients,

@@ -14,11 +14,15 @@ import {
   Check,
   Loader2,
   CalendarDays,
+  Upload,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
+import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { formatNumber, formatDate, cn } from "@/lib/utils";
 import { EmptyState } from "@/components/public/empty-state";
+import { Modal } from "@/components/ui/modal";
+import { Input, Textarea, Select, Field } from "@/components/ui/input";
 
 /* Staggered fade-up — mỗi dòng lệch nhau 50ms */
 const listVariants = {
@@ -70,7 +74,8 @@ const FORMAT_FILTERS: {
 const extOf = (fileName: string) => fileName.split(".").pop()?.toLowerCase() ?? "";
 
 export default function TaiNguyenPage() {
-  const { resources, resourceTypes, orgName, downloadResource } = useStore();
+  const { resources, resourceTypes, downloadResource, submitResourceDraft } = useStore();
+  const { session } = useAuth();
   const { toast } = useToast();
   const [type, setType] = useState<string>("all");
   const [fmt, setFmt] = useState<string>("all");
@@ -78,6 +83,44 @@ export default function TaiNguyenPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [doneId, setDoneId] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  /* ===== Đóng góp tài nguyên (login-gated) ===== */
+  const [contribOpen, setContribOpen] = useState(false);
+  const [rTitle, setRTitle] = useState("");
+  const [rType, setRType] = useState(String(resourceTypes[0]?.id ?? 1));
+  const [rDesc, setRDesc] = useState("");
+  const [rFile, setRFile] = useState<{ name: string; sizeKb: number } | null>(null);
+
+  const openResourceContribute = () => {
+    if (!session) {
+      toast("Bạn cần đăng nhập để đóng góp tài nguyên. Tài khoản demo: dv.demo / demo123", "warning");
+      return;
+    }
+    setContribOpen(true);
+  };
+
+  const pickFile = (file: File | null) => {
+    if (!file) return;
+    setRFile({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)) });
+  };
+
+  const submitResourceContribute = () => {
+    if (!session) return;
+    if (rTitle.trim().length < 6 || !rFile) {
+      toast("Cần tên tài nguyên tối thiểu 6 ký tự và chọn tệp đính kèm.", "warning");
+      return;
+    }
+    submitResourceDraft(session, {
+      resourceTypeId: Number(rType),
+      title: rTitle,
+      description: rDesc || "Tài nguyên do đoàn viên đóng góp, chờ Ban TNTH duyệt.",
+      fileName: rFile.name,
+      fileSizeKb: rFile.sizeKb,
+    });
+    setContribOpen(false);
+    setRTitle(""); setRDesc(""); setRFile(null);
+    toast("Đã gửi tài nguyên — ở trạng thái nháp, chờ Ban TNTH duyệt công khai (+10 điểm khi được duyệt).");
+  };
 
   // Phím tắt ⌘K / Ctrl+K
   useEffect(() => {
@@ -129,14 +172,23 @@ export default function TaiNguyenPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-12">
       {/* ===== Header ===== */}
-      <div>
-        <div className="h-1 w-12 rounded-full bg-gradient-to-r from-cyan-400 to-blue-600" />
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-          Kho tài nguyên
-        </h1>
-        <p className="mt-2 max-w-xl text-sm text-slate-500">
-          Tài liệu hướng dẫn, biểu mẫu nghiệp vụ và sản phẩm truyền thông dùng chung toàn hệ thống.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="h-1 w-12 rounded-full bg-gradient-to-r from-cyan-400 to-blue-600" />
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+            Kho tài nguyên
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-slate-500">
+            Tài liệu hướng dẫn, biểu mẫu nghiệp vụ và sản phẩm truyền thông dùng chung toàn hệ thống.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openResourceContribute}
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30"
+        >
+          <Upload className="h-4 w-4" /> Đóng góp tài nguyên
+        </button>
       </div>
 
       {/* ===== Search bar giữa trang — kích thước lớn, glow khi focus ===== */}
@@ -344,6 +396,69 @@ export default function TaiNguyenPage() {
           />
         </div>
       )}
+
+      {/* ===== Modal đóng góp tài nguyên ===== */}
+      <Modal
+        open={contribOpen}
+        onClose={() => setContribOpen(false)}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Upload className="h-4 w-4 text-cyan-500" /> Đóng góp tài nguyên
+          </span>
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setContribOpen(false)}
+              className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={submitResourceContribute}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
+            >
+              <Upload className="h-4 w-4" /> Gửi cho Ban TNTH duyệt
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Loại tài nguyên">
+            <Select value={rType} onChange={(e) => setRType(e.target.value)}>
+              {resourceTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Tên tài nguyên" required hint="Tối thiểu 6 ký tự">
+            <Input value={rTitle} onChange={(e) => setRTitle(e.target.value)} placeholder="Ví dụ: Bộ slide hướng dẫn an toàn không gian mạng" />
+          </Field>
+          <Field label="Mô tả">
+            <Textarea value={rDesc} onChange={(e) => setRDesc(e.target.value)} className="min-h-20" placeholder="Mô tả ngắn về tài nguyên và đối tượng sử dụng" />
+          </Field>
+          <Field label="Tệp đính kèm" required hint="Chỉ ghi nhận tên + dung lượng cho bản demo">
+            {rFile ? (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">
+                <Check className="h-4 w-4" />
+                <span className="min-w-0 flex-1 truncate">{rFile.name}</span>
+                <span className="text-[11px] text-emerald-600">{(rFile.sizeKb / 1024).toFixed(1)} MB</span>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 px-3 py-4 text-sm text-stone-500 hover:border-doan-400 hover:text-doan-600">
+                <Upload className="h-4 w-4" /> Chọn tệp từ máy
+                <input type="file" className="hidden" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} />
+              </label>
+            )}
+          </Field>
+          <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
+            Tài nguyên ở trạng thái nháp — Ban TNTH duyệt sẽ công khai trên kho dùng chung và cộng
+            10 điểm đóng góp vào trang Tài khoản của bạn.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

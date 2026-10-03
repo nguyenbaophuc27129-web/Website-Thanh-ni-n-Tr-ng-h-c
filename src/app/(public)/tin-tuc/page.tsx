@@ -1,13 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { Search, PenLine, ImagePlus, Loader2, X, ShieldCheck } from "lucide-react";
 import { useStore } from "@/lib/store-context";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
+import { moderateText } from "@/lib/ai-moderation";
+import { SPECIAL_CATEGORIES } from "@/data/categories";
 import { TechNewsCard } from "@/components/public/tech-news-card";
 import { EmptyState } from "@/components/public/empty-state";
+import { Modal } from "@/components/ui/modal";
+import { Input, Textarea, Select, Field } from "@/components/ui/input";
 
 type Cat = "all" | string;
+
+/** Chuyên mục nhận bài đóng góp — suy ra tag từ SPECIAL_CATEGORIES + mục tin chung */
+const CONTRIBUTION_TAGS: string[] = [
+  ...SPECIAL_CATEGORIES.map((c) => new URLSearchParams(c.href.split("?")[1] ?? "").get("q")).filter((t): t is string => !!t),
+  "Tin tức hoạt động Đoàn",
+];
+
+const MAX_COVER_BYTES = 2 * 1024 * 1024; // 2MB — khớp coverDataUrl của modal xuất bản
 
 /* Staggered fade-up — mỗi thẻ lệch nhau 60ms */
 const gridVariants = {
@@ -20,10 +35,68 @@ const itemVariants = {
 };
 
 export default function TinTucPage() {
-  const { publishedPosts } = useStore();
+  const { publishedPosts, createMemberContribution } = useStore();
+  const { session } = useAuth();
+  const { toast } = useToast();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<Cat>("all");
   const searchRef = useRef<HTMLInputElement>(null);
+
+  /* ===== Đóng góp bài viết (login-gated) ===== */
+  const [contribOpen, setContribOpen] = useState(false);
+  const [cTag, setCTag] = useState(CONTRIBUTION_TAGS[0]);
+  const [cTitle, setCTitle] = useState("");
+  const [cExcerpt, setCExcerpt] = useState("");
+  const [cContent, setCContent] = useState("");
+  const [cCover, setCCover] = useState<string | undefined>(undefined);
+  const [cCoverName, setCCoverName] = useState("");
+  const [cBusy, setCBusy] = useState(false);
+
+  const openContribute = () => {
+    if (!session) {
+      toast("Bạn cần đăng nhập để đóng góp bài viết. Tài khoản demo: dv.demo / demo123", "warning");
+      return;
+    }
+    setContribOpen(true);
+  };
+
+  const pickCover = (file: File | null) => {
+    if (!file) return;
+    if (file.size > MAX_COVER_BYTES) {
+      toast("Ảnh bìa vượt quá 2MB — hãy chọn ảnh nhỏ hơn.", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCCover(String(reader.result));
+      setCCoverName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const submitContribution = async () => {
+    if (!session) return;
+    if (cTitle.trim().length < 8 || cContent.trim().length < 40) {
+      toast("Cần tiêu đề tối thiểu 8 ký tự và nội dung tối thiểu 40 ký tự.", "warning");
+      return;
+    }
+    setCBusy(true);
+    const mod = await moderateText(`${cTitle}\n${cContent}`);
+    createMemberContribution(
+      session,
+      { categoryTag: cTag, title: cTitle, excerpt: cExcerpt || cContent.slice(0, 150), content: cContent, coverDataUrl: cCover },
+      mod
+    );
+    setCBusy(false);
+    setContribOpen(false);
+    setCTitle(""); setCExcerpt(""); setCContent(""); setCCover(undefined); setCCoverName("");
+    toast(
+      mod.verdict === "CLEAN"
+        ? "Đã gửi bài đóng góp — nội dung đạt kiểm duyệt AI, chờ Ban TNTH duyệt đăng."
+        : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — bài ở trạng thái chờ kiểm duyệt thủ công.`,
+      mod.verdict === "CLEAN" ? "success" : "warning"
+    );
+  };
 
   // Nhận từ khóa chủ đề từ liên kết hashtag ở trang chủ (?q=...)
   useEffect(() => {
@@ -74,6 +147,13 @@ export default function TinTucPage() {
             Tin bài do các đơn vị Đoàn cập nhật và biên tập viên biên tập, xuất bản trên cổng thông tin.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={openContribute}
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30"
+        >
+          <PenLine className="h-4 w-4" /> Đóng góp bài viết
+        </button>
       </div>
 
       {/* ===== 1. TRẠM ĐIỀU KHIỂN THÔNG MINH — Control Bar kính mờ nổi trên nền trang ===== */}
@@ -140,6 +220,91 @@ export default function TinTucPage() {
         <div className="mt-10">
           <EmptyState message="Không tìm thấy tin bài phù hợp." />
         </div>
+      )}
+
+      {/* ===== Modal đóng góp bài viết ===== */}
+      <Modal
+        open={contribOpen}
+        onClose={() => !cBusy && setContribOpen(false)}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <PenLine className="h-4 w-4 text-cyan-500" /> Đóng góp bài viết chuyên mục
+          </span>
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setContribOpen(false)}
+              disabled={cBusy}
+              className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={submitContribution}
+              disabled={cBusy}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
+            >
+              {cBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              {cBusy ? "AI đang kiểm duyệt…" : "Gửi qua kiểm duyệt AI"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Chuyên mục">
+            <Select value={cTag} onChange={(e) => setCTag(e.target.value)}>
+              {CONTRIBUTION_TAGS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Tiêu đề" required hint="Tối thiểu 8 ký tự">
+            <Input value={cTitle} onChange={(e) => setCTitle(e.target.value)} placeholder="Ví dụ: Tin tốt #42: Lớp 12A1 trồng 200 cây xanh…" />
+          </Field>
+          <Field label="Tóm tắt" hint="Để trống sẽ tự lấy 150 ký tự đầu của nội dung">
+            <Textarea value={cExcerpt} onChange={(e) => setCExcerpt(e.target.value)} className="min-h-16" placeholder="1–2 câu tóm tắt ý nghĩa bài viết" />
+          </Field>
+          <Field label="Nội dung" required hint="Tối thiểu 40 ký tự — nội dung rõ ràng, lành mạnh sẽ qua AI ngay">
+            <Textarea value={cContent} onChange={(e) => setCContent(e.target.value)} className="min-h-36" />
+          </Field>
+          <Field label="Ảnh bìa (không bắt buộc)" hint="PNG/JPG tối đa 2MB">
+            {cCover ? (
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={cCover} alt="Ảnh bìa" className="h-16 w-28 rounded-lg object-cover ring-1 ring-stone-200" />
+                <span className="min-w-0 flex-1 truncate text-xs text-stone-500">{cCoverName}</span>
+                <button
+                  type="button"
+                  onClick={() => { setCCover(undefined); setCCoverName(""); }}
+                  className="rounded-md p-1 text-stone-400 hover:bg-stone-100 hover:text-red-500"
+                  aria-label="Bỏ ảnh"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 px-3 py-4 text-sm text-stone-500 hover:border-doan-400 hover:text-doan-600">
+                <ImagePlus className="h-4 w-4" /> Chọn ảnh từ máy
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => pickCover(e.target.files?.[0] ?? null)} />
+              </label>
+            )}
+          </Field>
+          <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
+            Bài của bạn sẽ đi qua AI kiểm duyệt tự động. Nội dung đạt → Ban TNTH duyệt đăng và cộng
+            15 điểm đóng góp vào trang Tài khoản của bạn.
+          </p>
+        </div>
+      </Modal>
+
+      {session ? null : (
+        <p className="mt-6 text-center text-[11px] text-stone-400">
+          Đoàn viên đăng nhập có thể{" "}
+          <Link href="/dang-nhap" className="text-doan-600 hover:underline">đóng góp bài viết</Link>{" "}
+          và nhận điểm thưởng.
+        </p>
       )}
     </div>
   );

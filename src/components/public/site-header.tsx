@@ -13,6 +13,7 @@ import {
   SearchCheck,
   BookOpen,
   MessagesSquare,
+  User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/", label: "Trang chủ" },
   { href: "/tin-tuc", label: "Tin tức" },
   { href: "/dien-dan", label: "Diễn đàn" },
+  { href: "/hoc-sinh-3-tot", label: "Học sinh 3 tốt" },
   { href: "/van-ban", label: "Văn bản" },
   { href: "/bang-xep-hang", label: "Xếp hạng" },
   { href: "/tai-nguyen", label: "Tài nguyên" },
@@ -132,6 +134,15 @@ export function SiteHeader() {
             ))}
             <span className="mx-1.5 h-5 w-px bg-slate-200" />
           </div>
+          {session?.role === "DOAN_VIEN" ? (
+            <Link
+              href="/tai-khoan"
+              className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-white/70 px-3.5 py-2 text-[13px] font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:inline-flex"
+              aria-label="Tài khoản của tôi"
+            >
+              <User className="h-4 w-4" /> Tài khoản
+            </Link>
+          ) : null}
           <Link
             href={session ? (session.role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri") : "/dang-nhap"}
             className="hidden items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:brightness-110 sm:inline-flex"
@@ -190,6 +201,15 @@ export function SiteHeader() {
                 </Link>
               ))}
             </div>
+            {session?.role === "DOAN_VIEN" ? (
+              <Link
+                href="/tai-khoan"
+                onClick={() => setOpen(false)}
+                className="mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700"
+              >
+                <User className="h-4 w-4" /> Tài khoản của tôi
+              </Link>
+            ) : null}
             <Link
               href={session ? (session.role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri") : "/dang-nhap"}
               onClick={() => setOpen(false)}

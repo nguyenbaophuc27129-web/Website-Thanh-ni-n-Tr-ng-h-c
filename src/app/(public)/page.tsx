@@ -15,9 +15,10 @@ import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { GlowCarousel } from "@/components/public/glow-carousel";
 import { SpotlightBento } from "@/components/public/spotlight-bento";
 import { StoryFlow } from "@/components/public/story-flow";
+import { SponsorStrip } from "@/components/public/sponsor-strip";
 import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { formatDate, formatNumber } from "@/lib/utils";
-import { PROGRAMS, CERT_PORTAL_URL, HS3T_PORTAL_URL } from "@/data/programs";
+import { PROGRAMS, CERT_PORTAL_URL } from "@/data/programs";
 import { SPECIAL_CATEGORIES } from "@/data/categories";
 
 /** Icon của hệ thống nút chuyên mục đặc biệt (thứ tự khớp SPECIAL_CATEGORIES) */
@@ -132,16 +133,15 @@ export default function HomePage() {
             </div>
           ))}
 
-          {/* 2 ô cổng dịch vụ — bấm là sang website riêng của từng chương trình */}
+          {/* 2 ô cổng dịch vụ — chứng nhận mở website riêng, HS3T là trang nội bộ */}
           {[
-            { label: "Tra cứu chứng nhận TW", sub: "Học sinh 3 tốt · quét QR kiểm thực", href: CERT_PORTAL_URL, icon: QrCode },
-            { label: "Học sinh 3 TỐT", sub: "Cổng chương trình riêng", href: HS3T_PORTAL_URL, icon: GraduationCap },
+            { label: "Tra cứu chứng nhận TW", sub: "Học sinh 3 tốt · quét QR kiểm thực", href: CERT_PORTAL_URL, icon: QrCode, internal: false },
+            { label: "Học sinh 3 TỐT", sub: "Hồ sơ thành tích số · xét danh hiệu", href: "/hoc-sinh-3-tot", icon: GraduationCap, internal: true },
           ].map((s) => (
             <a
               key={s.label}
               href={s.href}
-              target="_blank"
-              rel="noreferrer"
+              {...(s.internal ? {} : { target: "_blank", rel: "noreferrer" })}
               className="group flex items-center gap-3 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 transition-all duration-300 hover:border-cyan-300/60 hover:bg-cyan-400/20 hover:shadow-[0_0_26px_rgba(34,211,238,0.28)]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-400/15 text-cyan-200">
@@ -433,6 +433,8 @@ export default function HomePage() {
           </section>
         </Reveal>
       </div>
+
+      <SponsorStrip />
     </>
   );
 }

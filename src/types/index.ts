@@ -235,6 +235,8 @@ export interface PublishedPost {
   viewCount: number;
   authorOrgUnitName: string;
   editorAccountId: number;
+  /** Đóng góp từ cộng đồng (Đoàn viên) — id tài khoản người gửi bài */
+  contributorAccountId?: number;
   categoryNames: string[];
   metaDescription?: string;
   createdAt: string;
@@ -321,7 +323,9 @@ export type NotificationType =
   | "TASK_ASSIGNED" | "TASK_DUE_SOON" | "TASK_OVERDUE"
   | "RESULT_CONFIRMED" | "RESULT_NEEDS_INFO" | "NEW_DOCUMENT"
   | "FEEDBACK_REPLIED" | "FEEDBACK_STATUS" | "POST_PUBLISHED" | "SYSTEM"
-  | "FORUM_FLAGGED";
+  | "FORUM_FLAGGED"
+  | "CONTRIBUTION_APPROVED" | "CONTRIBUTION_REJECTED"
+  | "PROJECT_APPROVED" | "HS3T_AWARDED";
 
 export interface Notification {
   id: number;
@@ -350,6 +354,8 @@ export interface Feedback {
   trackingCode: string;
   senderName: string;
   senderEmail: string;
+  /** Nếu người gửi đăng nhập — liên kết để hiển thị "Phản ánh của tôi" trong trang Tài khoản */
+  senderAccountId?: number;
   senderPhone?: string;
   senderOrgText?: string;
   senderCommuneUnion?: string;
@@ -446,6 +452,8 @@ export interface Resource {
   downloadCount: number;
   publishedByOrgUnitId: number;
   publishedAt: string;
+  /** Tài nguyên do Đoàn viên đóng góp — id tài khoản chờ Ban TNTH duyệt */
+  submittedByAccountId?: number;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
 }
 
@@ -511,5 +519,200 @@ export interface ForumComment {
   aiModel?: string;
   moderatedByAccountId?: number;
   moderatedAt?: string;
+  createdAt: string;
+}
+
+/* ============ v12 — Đóng góp cộng đồng & chương trình ============ */
+
+/** Loại đóng góp — quy đổi điểm thưởng cho Đoàn viên */
+export type ContributionKind = "POST" | "RESOURCE" | "PROJECT" | "HS3T";
+
+export const CONTRIBUTION_POINTS: Record<ContributionKind, number> = {
+  POST: 15,
+  RESOURCE: 10,
+  PROJECT: 20,
+  HS3T: 30,
+};
+
+/** Nhật ký cộng điểm đóng góp của Đoàn viên */
+export interface ContributionLog {
+  id: number;
+  accountId: number;
+  kind: ContributionKind;
+  refId: number;
+  refTitle: string;
+  points: number;
+  createdAt: string;
+}
+
+/** Bài viết chuyên mục do Đoàn viên đóng góp — qua AI kiểm duyệt rồi Ban TNTH duyệt đăng */
+export interface MemberContribution {
+  id: number;
+  contributorAccountId: number;
+  categoryTag: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  coverDataUrl?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  aiVerdict: "CLEAN" | "FLAGGED";
+  aiReason?: string;
+  aiModel?: string;
+  moderatedByAccountId?: number;
+  moderatedAt?: string;
+  rejectionReason?: string;
+  /** Slug bài PublishedPost sau khi được duyệt đăng */
+  postSlug?: string;
+  createdAt: string;
+}
+
+/** Nhà tài trợ đồng hành — hiển thị strip công khai + quản trị /quan-tri/tai-tro */
+export interface Sponsor {
+  id: number;
+  name: string;
+  tier: "GOLD" | "SILVER" | "BRONZE";
+  websiteUrl?: string;
+  note?: string;
+  sinceYear?: number;
+  isActive: boolean;
+}
+
+/** Danh bạ Đoàn trường — thông tin liên hệ + điểm mạnh từng đơn vị (upsert theo orgUnitId) */
+export interface OrgDirectory {
+  id: number;
+  orgUnitId: number; // unique
+  secretaryName: string;
+  secretaryPhone: string;
+  email: string;
+  achievements: string;
+  strengths: string;
+  academicResources: string;
+  clubs: string;
+  updatedAt: string;
+  updatedByAccountId: number;
+}
+
+/** Dự án tình nguyện "Mỗi trường THPT — 01 dự án" — hiển thị pin bản đồ 34 tỉnh */
+export interface VolunteerProject {
+  id: number;
+  orgUnitId: number;
+  schoolName: string;
+  province: string;
+  projectName: string;
+  summary: string;
+  beneficiaries: string;
+  participants: number;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  submittedByAccountId?: number;
+  /** Vị trí pin trên ảnh bản đồ — % từ mép trái/trên */
+  mapX: number;
+  mapY: number;
+  aiVerdict?: "CLEAN" | "FLAGGED";
+  aiReason?: string;
+  moderatedByAccountId?: number;
+  moderatedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+/* ============ v12 — Thi trực tuyến ============ */
+
+export type QuizDifficulty = "EASY" | "MEDIUM" | "HARD";
+
+/** 7 dạng câu hỏi — MCQ 1/n đáp án, đúng-sai, điền khuyết, 2 loại tự luận, tải file */
+export type QuizQuestionType =
+  | "MCQ_SINGLE" | "MCQ_MULTI" | "TRUE_FALSE" | "FILL"
+  | "SHORT_ANSWER" | "LONG_ANSWER" | "FILE_UPLOAD";
+
+export interface QuizQuestion {
+  id: number;
+  topic: string;
+  difficulty: QuizDifficulty;
+  type: QuizQuestionType;
+  stem: string;
+  options?: string[];
+  /** Đáp án đúng (MCQ/Đúng-sai) — index vào options */
+  correctIndexes?: number[];
+  /** Đáp án đúng dạng chữ (FILL) */
+  correctText?: string;
+  points: number;
+}
+
+export interface QuizExam {
+  id: number;
+  code: string; // KT-2026-XXX
+  title: string;
+  description?: string;
+  durationMinutes: number;
+  questionIds: number[];
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+  /** Adaptive: đúng → câu khó hơn, sai → câu dễ hơn */
+  adaptive: boolean;
+  status: "DRAFT" | "OPEN" | "CLOSED";
+  createdByAccountId: number;
+  createdAt: string;
+}
+
+export interface QuizAnswer {
+  selected?: number[];
+  text?: string;
+  fileName?: string;
+}
+
+/** Lộ trình adaptive: từng bước thí sinh gặp câu nào, trả đúng/sai */
+export interface AdaptiveStep {
+  questionId: number;
+  difficulty: QuizDifficulty;
+  correct: boolean;
+}
+
+export interface QuizAttempt {
+  id: number;
+  examId: number;
+  /** null/undefined = khách vãng lai không đăng nhập */
+  accountId?: number;
+  examineeName: string;
+  examineeOrgText: string;
+  answers: Record<number, QuizAnswer>;
+  trail?: AdaptiveStep[];
+  autoScore: number;
+  maxScore: number;
+  /** Điểm do giám khảo chấm phần tự luận */
+  manualPoints?: number;
+  status: "IN_PROGRESS" | "SUBMITTED" | "GRADED";
+  gradedByAccountId?: number;
+  startedAt: string;
+  submittedAt?: string;
+}
+
+/* ============ v12 — Học sinh 3 tốt ============ */
+
+export interface Hs3tProfile {
+  id: number;
+  code: string; // HS3T-2026-XXXX
+  accountId: number;
+  studentName: string;
+  schoolOrgUnitId: number;
+  className?: string;
+  /** Cấp danh hiệu đã chốt: XA (xã/phường) | TINH (tỉnh) | TW (trung ương) */
+  awardedLevel?: "XA" | "TINH" | "TW";
+  awardedAt?: string;
+  awardedByAccountId?: number;
+  createdAt: string;
+}
+
+export type Hs3tCategory = "HOC_TAP" | "REN_LUYEN" | "PHONG_TRAO";
+
+/** Thành tích hồ sơ 3 tốt — append-only, không xóa */
+export interface Hs3tAchievement {
+  id: number;
+  profileId: number;
+  title: string;
+  category: Hs3tCategory;
+  evidenceNames?: string[];
+  achievedAt: string;
+  addedByRole: "STUDENT" | "SCHOOL";
+  addedByAccountId: number;
   createdAt: string;
 }

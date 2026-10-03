@@ -10,19 +10,19 @@ import { Button } from "@/components/ui/button";
 /** Việc đơn vị cần làm theo từng chương trình, viết riêng cho cấp cơ sở */
 const TODO_BY_KEY: Record<string, string[]> = {
   HS3T: [
-    "Rà soát danh sách học sinh đăng ký hồ sơ 3 Tốt trên cổng chương trình",
-    "Theo dõi tiến độ rèn luyện và nhắc học sinh cập nhật minh chứng",
-    "Đối soát chứng nhận số trước kỳ tổng kết",
+    "Duyệt và bổ sung minh chứng cho hồ sơ 3 Tốt của học sinh tại mục Hồ sơ HS3T",
+    "Bấm “AI xét” để nhận định cấp danh hiệu, sau đó chốt theo đúng thẩm quyền",
+    "Nhắc học sinh cập nhật thành tích tại trang Học sinh 3 tốt (mã hồ sơ có QR tra cứu)",
   ],
   DU_AN_TN: [
-    "Chọn trước 01 ý tưởng dự án tình nguyện có tính bền vững",
-    "Chuẩn bị kế hoạch đo lường kết quả (số người thụ hưởng, sản phẩm đầu ra)",
-    "Tập huấn cán bộ Đoàn cách cập nhật tiến độ dự án trên Cổng TNTH",
+    "Tiếp nhận dự án tình nguyện của trường bạn tại mục Dự án tình nguyện",
+    "Duyệt dự án để ghim lên bản đồ 34 tỉnh trên chuyên trang công khai",
+    "Theo dõi số người thụ hưởng và đoàn viên tham gia qua thẻ dự án",
   ],
   THI_KT: [
-    "Cử đoàn viên tham gia vòng thi thử khi hệ thống mở",
-    "Chuẩn bị đội tuyên truyền viên hướng dẫn học sinh đăng ký",
-    "Theo dõi bảng xếp hạng trực tuyến của đơn vị bạn",
+    "Tạo kỳ thi bằng “Sinh đề từ ngân hàng” tại mục Thi trực tuyến — lưu xong tự động mở",
+    "Gửi mã kỳ thi (VD: KT-2026-001) cho đoàn viên, khách vào thi bằng tên cũng được",
+    "Chấm tay phần tự luận trong mục Bài thi & chấm — điểm cập nhật ngay cho thí sinh",
   ],
 };
 

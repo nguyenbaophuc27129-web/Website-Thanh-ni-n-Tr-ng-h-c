@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Activity, ClipboardList, CheckSquare, Calculator, Megaphone,
   FileBarChart, BarChart3, Trophy, FileText, BellRing, LifeBuoy, FolderOpen,
   Network, Users, ShieldCheck, Database, Settings, LogOut, Globe, Menu, X, ChevronDown,
-  Radio, Sparkles, Flag, MessagesSquare,
+  Radio, Sparkles, Flag, MessagesSquare, PenLine, MonitorPlay, BookMarked, MapPinned,
+  GraduationCap, Handshake, UserCircle,
 } from "lucide-react";
 import { useAuth, ROLE_LABELS } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
@@ -74,6 +75,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             >
               <MessagesSquare className="h-4 w-4" /> Vào Diễn đàn
             </Link>
+            <Link
+              href="/tai-khoan"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              <UserCircle className="h-4 w-4" /> Tài khoản của tôi
+            </Link>
             <button
               onClick={() => { logout(); router.push("/"); }}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
@@ -104,6 +111,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     store.forumComments.filter((c) => c.status === "PENDING_REVIEW").length +
     store.forumThreads.filter((t) => t.aiVerdict === "FLAGGED" && !t.moderatedByAccountId).length;
 
+  // Đóng góp cộng đồng: bài viết chờ duyệt + tài nguyên đoàn viên gửi (nháp)
+  const pendingContributions =
+    store.memberContributions.filter((c) => c.status === "PENDING").length +
+    store.resources.filter((r) => r.submittedByAccountId && r.status === "DRAFT").length;
+  // Dự án tình nguyện chờ ghim bản đồ
+  const pendingProjects = store.volunteerProjects.filter((p) => p.status === "PENDING").length;
+
   const groups: NavGroup[] = [];
   const overviewItems: NavItem[] = [
     { href: "/quan-tri", label: "Bảng điều khiển", icon: LayoutDashboard },
@@ -130,7 +144,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   groups.push({ title: "Nhiệm vụ & thi đua", items: taskItems });
 
   // Mở cho mọi cấp — đơn vị tự đăng tin từ hoạt động của mình, Ban TNTH giám sát và gỡ nếu vi phạm
-  groups.push({ title: "Truyền thông", items: [{ href: "/quan-tri/xuat-ban", label: "Xuất bản tin bài", icon: Megaphone }] });
+  const mediaItems: NavItem[] = [{ href: "/quan-tri/xuat-ban", label: "Xuất bản tin bài", icon: Megaphone }];
+  if (role === "QUAN_TRI_TW" || role === "BIEN_TAP_VIEN") {
+    mediaItems.push({ href: "/quan-tri/dong-gop", label: "Duyệt đóng góp", icon: PenLine, badge: pendingContributions || undefined });
+  }
+  mediaItems.push({ href: "/quan-tri/thi", label: "Thi trực tuyến", icon: MonitorPlay });
+  groups.push({ title: "Truyền thông", items: mediaItems });
 
   const reportItems: NavItem[] = [{ href: "/quan-tri/bao-cao", label: "Báo cáo", icon: FileBarChart }];
   if (role !== "DON_VI" && role !== "BIEN_TAP_VIEN") {
@@ -154,14 +173,19 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   fbResItems.push({ href: "/quan-tri/tai-nguyen", label: "Tài nguyên", icon: FolderOpen });
   groups.push({ title: "Phản ánh & tài nguyên", items: fbResItems });
 
+  const communityItems: NavItem[] = [];
   if (role === "QUAN_TRI_TW") {
-    groups.push({
-      title: "Cộng đồng",
-      items: [
-        { href: "/quan-tri/dien-dan", label: "Kiểm duyệt Diễn đàn", icon: MessagesSquare, badge: pendingForum || undefined },
-      ],
-    });
+    communityItems.push({ href: "/quan-tri/dien-dan", label: "Kiểm duyệt Diễn đàn", icon: MessagesSquare, badge: pendingForum || undefined });
   }
+  communityItems.push(
+    { href: "/quan-tri/danh-ba", label: "Danh bạ Đoàn trường", icon: BookMarked },
+    { href: "/quan-tri/du-an", label: "Dự án tình nguyện", icon: MapPinned, badge: pendingProjects || undefined },
+    { href: "/quan-tri/hs3t", label: "Hồ sơ HS3T", icon: GraduationCap }
+  );
+  if (role === "QUAN_TRI_TW") {
+    communityItems.push({ href: "/quan-tri/tai-tro", label: "Nhà tài trợ", icon: Handshake });
+  }
+  groups.push({ title: "Cộng đồng & chương trình", items: communityItems });
 
   if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
     groups.push({

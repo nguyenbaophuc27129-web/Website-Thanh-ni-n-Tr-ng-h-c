@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { LifeBuoy, SearchCheck, Send, ShieldCheck, Clock, CheckCircle2, Paperclip, X } from "lucide-react";
+import { LifeBuoy, SearchCheck, Send, ShieldCheck, Clock, CheckCircle2, Paperclip, X, UserCircle } from "lucide-react";
 import { useStore } from "@/lib/store-context";
+import { useAuth } from "@/lib/auth-context";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ const fadeUp = {
 
 export default function PhanAnhPage() {
   const { feedbackTopics, submitFeedback } = useStore();
+  const { session } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [form, setForm] = useState({
@@ -40,6 +42,17 @@ export default function PhanAnhPage() {
   const [evidence, setEvidence] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [agree, setAgree] = useState(false);
+
+  // Đăng nhập → tự điền thông tin người gửi và gắn phản ánh vào tài khoản
+  useEffect(() => {
+    if (!session) return;
+    setForm((f) => ({
+      ...f,
+      senderName: f.senderName || session.contactPerson,
+      senderEmail: f.senderEmail || session.email,
+      senderOrgText: f.senderOrgText || session.orgUnitName,
+    }));
+  }, [session]);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -70,8 +83,13 @@ export default function PhanAnhPage() {
       ...form,
       feedbackTopicId: Number(form.feedbackTopicId),
       evidenceNames: evidence.length > 0 ? evidence : undefined,
+      senderAccountId: session?.accountId,
     });
-    toast(`Gửi phản ánh thành công! Mã tra cứu của bạn: ${code}`);
+    toast(
+      session
+        ? `Gửi phản ánh thành công! Mã tra cứu: ${code} — theo dõi trong trang Tài khoản của tôi.`
+        : `Gửi phản ánh thành công! Mã tra cứu của bạn: ${code}`
+    );
     router.push(`/phan-anh/${code}`);
   };
 
@@ -84,6 +102,12 @@ export default function PhanAnhPage() {
         <p className="mt-2 max-w-2xl text-sm text-slate-500">
           Kênh tiếp nhận ý kiến của đoàn viên, học sinh, phụ huynh về hoạt động phong trào, nhiệm vụ thi đua
           và hệ thống. Không cần tài khoản — sau khi gửi bạn nhận ngay mã tra cứu.
+          {session ? (
+            <span className="ml-1 inline-flex items-center gap-1 font-medium text-blue-600">
+              <UserCircle className="h-3.5 w-3.5" />
+              Đăng nhập để theo dõi phản ánh trong trang <Link href="/tai-khoan" className="underline hover:no-underline">Tài khoản</Link>.
+            </span>
+          ) : null}
         </p>
       </div>
 
