@@ -91,7 +91,7 @@ export function SiteHeader() {
         </Link>
 
         {/* Desktop nav — dải pill trượt con nhộng */}
-        <nav className="hidden items-center gap-0.5 rounded-full bg-slate-900/[0.045] p-1 lg:flex">
+        <nav className="hidden shrink-0 items-center gap-0.5 rounded-full bg-slate-900/[0.045] p-1 xl:flex">
           {NAV.map((item) => {
             const active = isActive(item.href);
             return (
@@ -99,7 +99,7 @@ export function SiteHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
+                  "relative whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
                   active ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
                 )}
               >
@@ -148,7 +148,7 @@ export function SiteHeader() {
             {session ? (session.role === "DOAN_VIEN" ? "Diễn đàn" : "Khu quản trị") : "Đăng nhập"}
           </Link>
           <button
-            className="rounded-full p-2 text-slate-600 transition-colors hover:bg-slate-900/5 lg:hidden"
+            className="rounded-full p-2 text-slate-600 transition-colors hover:bg-slate-900/5 xl:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label="Menu"
           >
@@ -165,7 +165,7 @@ export function SiteHeader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="glass-nav mx-auto mt-2 max-w-7xl rounded-2xl p-3 shadow-[0_14px_44px_rgb(15,23,42,0.12)] lg:hidden"
+            className="glass-nav mx-auto mt-2 max-w-7xl rounded-2xl p-3 shadow-[0_14px_44px_rgb(15,23,42,0.12)] xl:hidden"
           >
             {NAV.map((item) => (
               <Link
