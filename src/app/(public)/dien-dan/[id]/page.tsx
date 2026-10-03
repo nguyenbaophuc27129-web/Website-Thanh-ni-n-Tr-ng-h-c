@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Heart, LogIn, MessagesSquare, MessageSquareText, Send, ShieldAlert, ShieldCheck, Sparkles,
+  ArrowLeft, Heart, ImagePlus, LogIn, MessagesSquare, MessageSquareText, Send, ShieldAlert, ShieldCheck, Sparkles, X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
 import { useToast } from "@/lib/toast-context";
 import { moderateText } from "@/lib/ai-moderation";
+import { readForumMediaFiles } from "@/lib/forum-media";
 import { avatarInitials, avatarTone } from "@/lib/forum-alias";
 import { formatDateTime, relTime } from "@/lib/utils";
-import type { ForumComment } from "@/types";
+import type { ForumComment, ForumMedia } from "@/types";
 
 export default function ForumThreadPage() {
   const params = useParams<{ id: string }>();
@@ -23,7 +24,9 @@ export default function ForumThreadPage() {
   const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
   const [comment, setComment] = useState("");
+  const [media, setMedia] = useState<ForumMedia[]>([]);
   const [checking, setChecking] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -68,8 +71,9 @@ export default function ForumThreadPage() {
     setChecking(true);
     const mod = await moderateText(c);
     setChecking(false);
-    store.createForumComment(session, { threadId: thread.id, content: c }, mod);
+    store.createForumComment(session, { threadId: thread.id, content: c, media: media.length ? media : undefined }, mod);
     setComment("");
+    setMedia([]);
     toast(
       mod.verdict === "CLEAN" ? "Đã đăng bình luận ẩn danh." : `Bình luận của bạn đang chờ kiểm duyệt: ${mod.reason ?? "nội dung đáng ngờ"}.`,
       mod.verdict === "CLEAN" ? "success" : "warning"
@@ -120,6 +124,7 @@ export default function ForumThreadPage() {
         </div>
         <h1 className="mt-5 text-2xl font-bold leading-snug tracking-tight text-slate-900">{thread.title}</h1>
         <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-slate-600">{thread.content}</p>
+        <MediaGrid media={thread.media} />
         <div className="mt-5 border-t border-slate-100 pt-4">
           <button
             onClick={() => (session ? store.toggleForumLike(session, "THREAD", thread.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}
@@ -150,8 +155,45 @@ export default function ForumThreadPage() {
               placeholder="Chia sẻ suy nghĩ của bạn…"
               className="mt-3 w-full resize-none rounded-xl border border-slate-200/80 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-cyan-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(34,211,238,0.14)]"
             />
-            <div className="mt-2.5 flex items-center justify-end gap-3">
-              <span className="text-[11px] text-slate-400">{comment.length}/1000</span>
+            {media.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {media.map((m, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1.5 text-[11px] font-medium text-slate-600">
+                    {m.kind === "image" ? <span className="text-[10px] font-bold text-blue-500">ẢNH</span> : <span className="text-[10px] font-bold text-purple-500">VIDEO</span>}
+                    <span className="max-w-40 truncate">{m.name ?? "Tệp đính kèm"}</span>
+                    <button
+                      type="button"
+                      onClick={() => setMedia(media.filter((_, j) => j !== i))}
+                      className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-rose-100 hover:text-rose-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div className="mt-2.5 flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const res = await readForumMediaFiles(e.target.files ?? [], media);
+                  if ("error" in res) toast(res.error, "warning");
+                  else setMedia(res.media);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:border-cyan-300 hover:text-cyan-600"
+              >
+                <ImagePlus className="h-3.5 w-3.5" /> Ảnh / video
+              </button>
+              <span className="ml-auto text-[11px] text-slate-400">{comment.length}/1000</span>
               <button
                 onClick={submitComment}
                 disabled={checking}
@@ -214,6 +256,41 @@ export default function ForumThreadPage() {
   );
 }
 
+/** Lưới ảnh + video đính kèm (thread & comment dùng chung) */
+function MediaGrid({ media }: { media?: ForumMedia[] }) {
+  if (!media?.length) return null;
+  const images = media.filter((m) => m.kind === "image");
+  const videos = media.filter((m) => m.kind === "video");
+  return (
+    <div className="mt-3 space-y-2.5">
+      {images.length > 0 ? (
+        <div className={`grid gap-2 ${images.length === 1 ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}>
+          {images.map((m, i) => (
+            <a
+              key={i}
+              href={m.dataUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={m.name ?? "Xem ảnh gốc"}
+              className="group/img block overflow-hidden rounded-xl border border-slate-200"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={m.dataUrl}
+                alt={m.name ?? "Ảnh đính kèm"}
+                className="h-40 w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
+              />
+            </a>
+          ))}
+        </div>
+      ) : null}
+      {videos.map((m, i) => (
+        <video key={i} src={m.dataUrl} controls preload="metadata" className="max-h-96 w-full rounded-xl border border-slate-200 bg-black" />
+      ))}
+    </div>
+  );
+}
+
 function CommentRow({ c, mounted }: { c: ForumComment; mounted: boolean }) {
   const { session } = useAuth();
   const store = useStore();
@@ -234,6 +311,7 @@ function CommentRow({ c, mounted }: { c: ForumComment; mounted: boolean }) {
         ) : null}
       </div>
       <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-600">{c.content}</p>
+      <MediaGrid media={c.media} />
       <div className="mt-3">
         <button
           onClick={() => (session ? store.toggleForumLike(session, "COMMENT", c.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}

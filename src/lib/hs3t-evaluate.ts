@@ -17,7 +17,29 @@ export interface Hs3tEvaluation {
 export const HS3T_CATEGORY_NAMES: Record<Hs3tCategory, string> = {
   HOC_TAP: "Học tập tốt",
   REN_LUYEN: "Rèn luyện tốt",
-  PHONG_TRAO: "Phong trào / tình nguyện tốt",
+  PHONG_TRAO: "Đạo đức tốt",
+};
+
+/** 12 tiêu chí phụ (4 mục/nhóm) — nộp minh chứng đúng mục + thống kê theo dõi */
+export const HS3T_SUB_CRITERIA: Record<Hs3tCategory, string[]> = {
+  HOC_TAP: [
+    "Kết quả học tập Khá trở lên",
+    "Đúng giờ, không bỏ tiết",
+    "Đạt giải học sinh giỏi / Olympic",
+    "Nghiên cứu khoa học, sáng tạo STEM",
+  ],
+  REN_LUYEN: [
+    "Kỹ năng an toàn (ATGT, mạng, PCCC)",
+    "Tham gia CLB, kỹ năng mềm",
+    "Thể dục thể thao, văn nghệ",
+    "Ngoại ngữ, tin học, chuyển đổi số",
+  ],
+  PHONG_TRAO: [
+    "Chấp hành nội quy, pháp luật",
+    "Tích cực tham gia hoạt động Đoàn - Đội",
+    "Tham gia tình nguyện vì cộng đồng",
+    "Lễ phép, đoàn kết, giúp đỡ bạn bè",
+  ],
 };
 
 export function ruleEvaluateHs3t(
@@ -36,7 +58,7 @@ export function ruleEvaluateHs3t(
 
   if (counts.HOC_TAP === 0) missing.push("Chưa có minh chứng nhóm 'Học tập tốt'");
   if (counts.REN_LUYEN === 0) missing.push("Chưa có minh chứng nhóm 'Rèn luyện tốt'");
-  if (counts.PHONG_TRAO === 0) missing.push("Chưa có minh chứng nhóm 'Phong trào/tình nguyện tốt'");
+  if (counts.PHONG_TRAO === 0) missing.push("Chưa có minh chứng nhóm 'Đạo đức tốt'");
   if (filled.length === 3 && total < 10) {
     missing.push(`Đủ 3 nhóm nhưng tổng thành tích ${total}/10 — cần bổ sung thêm để xét cấp Trung ương`);
   }

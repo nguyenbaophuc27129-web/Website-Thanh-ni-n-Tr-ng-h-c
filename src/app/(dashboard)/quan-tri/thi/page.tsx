@@ -16,6 +16,7 @@ import { Input, Textarea, Field } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { TableWrap, THead, Th, Tr, Td, EmptyRow } from "@/components/ui/table";
 import { pickExamQuestions } from "@/lib/quiz";
+import { quizQuestions as quizBank } from "@/data/quiz-bank";
 import { formatDateTime } from "@/lib/utils";
 import type { QuizDifficulty, QuizQuestionType } from "@/types";
 
@@ -32,6 +33,9 @@ const TYPE_LABEL: Record<QuizQuestionType, string> = {
 };
 /** Các loại câu hỏi máy không chấm được — cần giám khảo chấm tay */
 const isEssay = (t: QuizQuestionType) => t === "SHORT_ANSWER" || t === "LONG_ANSWER" || t === "FILE_UPLOAD";
+
+/** Danh sách chuyên mục trong ngân hàng câu hỏi — sắp xếp alphabet tiếng Việt */
+const TOPIC_LIST = Array.from(new Set(quizBank.map((q) => q.topic))).sort((a, b) => a.localeCompare(b, "vi"));
 
 type View = "EXAMS" | "ATTEMPTS";
 
@@ -58,8 +62,15 @@ export default function ThiAdminPage() {
   const [shuffleO, setShuffleO] = useState(false);
   const [adaptive, setAdaptive] = useState(false);
   const [matrix, setMatrix] = useState<Record<QuizDifficulty, number>>({ EASY: 2, MEDIUM: 2, HARD: 2 });
+  const [topics, setTopics] = useState<string[]>([]);
   const [picked, setPicked] = useState<number[] | null>(null);
   const [shortfall, setShortfall] = useState(0);
+
+  /** Ngân hàng thu hẹp theo chuyên mục đang chọn (rỗng = tất cả) */
+  const scopedBank = useMemo(
+    () => store.quizQuestions.filter((q) => !topics.length || topics.includes(q.topic)),
+    [store.quizQuestions, topics]
+  );
 
   // ===== Chấm tay =====
   const [gradingId, setGradingId] = useState<number | null>(null);
@@ -78,13 +89,21 @@ export default function ThiAdminPage() {
   }
 
   const generate = () => {
-    const r = pickExamQuestions(store.quizQuestions, { easy: matrix.EASY, medium: matrix.MEDIUM, hard: matrix.HARD });
+    const r = pickExamQuestions(
+      store.quizQuestions,
+      { easy: matrix.EASY, medium: matrix.MEDIUM, hard: matrix.HARD },
+      Date.now(),
+      topics.length ? topics : undefined
+    );
     setPicked(r.ids);
     setShortfall(r.shortfall);
     if (r.shortfall > 0) {
-      toast(`Ngân hàng chưa đủ câu — thiếu ${r.shortfall} câu so với ma trận.`, "warning");
+      toast(
+        `Chuyên mục "${topics.join(", ") || "Tất cả"}" chưa đủ câu — thiếu ${r.shortfall} câu so với ma trận.`,
+        "warning"
+      );
     } else {
-      toast(`Đã sinh đề ${r.ids.length} câu từ ngân hàng.`, "success");
+      toast(`Đã sinh đề ${r.ids.length} câu từ ${topics.length ? `chuyên mục ${topics.join(", ")}` : "toàn bộ ngân hàng"}.`, "success");
     }
   };
 
@@ -111,12 +130,14 @@ export default function ThiAdminPage() {
         shuffleQuestions: shuffleQ,
         shuffleOptions: shuffleO,
         adaptive,
+        topics: topics.length ? topics : undefined,
         status: "OPEN",
       },
       picked
     );
     toast(`Đã mở kỳ thi ${code} — thí sinh vào thi tại /thi-kien-thuc/${code}.`, "success");
     setTitle(""); setDescription(""); setPicked(null); setShortfall(0);
+    setTopics([]);
     setCode(nextCode());
   };
 
@@ -235,6 +256,36 @@ export default function ThiAdminPage() {
                 </div>
               </div>
 
+              {/* Chuyên mục nội dung câu hỏi */}
+              <div>
+                <p className="text-xs font-semibold text-stone-600">
+                  Nhóm nội dung câu hỏi{" "}
+                  <span className="font-normal text-stone-400">— bỏ chọn hết để lấy tất cả chuyên mục</span>
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {TOPIC_LIST.map((t) => {
+                    const on = topics.includes(t);
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTopics(on ? topics.filter((x) => x !== t) : [...topics, t])}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                          on
+                            ? "bg-doan-600 text-white shadow-md shadow-doan-600/20"
+                            : "bg-stone-100 text-stone-500 hover:bg-stone-200 hover:text-stone-700"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                  <span className="self-center text-[11px] text-stone-400">
+                    Đang chọn: {topics.length ? topics.join(", ") : "Tất cả chuyên mục"}
+                  </span>
+                </div>
+              </div>
+
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="secondary" onClick={generate}>
                   <Wand2 className="h-4 w-4" /> Sinh đề từ ngân hàng
@@ -243,13 +294,14 @@ export default function ThiAdminPage() {
                   <Play className="h-4 w-4" /> Lưu &amp; mở thi
                 </Button>
                 <span className="text-[11px] text-stone-400">
-                  Ngân hàng hiện có {store.quizQuestions.length} câu (Dễ {store.quizQuestions.filter((q) => q.difficulty === "EASY").length} · Vừa {store.quizQuestions.filter((q) => q.difficulty === "MEDIUM").length} · Khó {store.quizQuestions.filter((q) => q.difficulty === "HARD").length})
+                  Ngân hàng khả dụng {scopedBank.length}/{store.quizQuestions.length} câu
+                  {topics.length ? ` (chuyên mục ${topics.join(", ")})` : " (tất cả chuyên mục)"} — Dễ {scopedBank.filter((q) => q.difficulty === "EASY").length} · Vừa {scopedBank.filter((q) => q.difficulty === "MEDIUM").length} · Khó {scopedBank.filter((q) => q.difficulty === "HARD").length}
                 </span>
               </div>
 
               {shortfall > 0 ? (
                 <p className="rounded-lg bg-amber-50 px-4 py-2.5 text-xs text-amber-700">
-                  Thiếu {shortfall} câu so với ma trận — giảm số lượng hoặc bổ sung câu hỏi vào ngân hàng rồi bấm “Sinh đề” lại.
+                  Thiếu {shortfall} câu trong chuyên mục đang chọn ({topics.join(", ") || "Tất cả chuyên mục"}) so với ma trận — giảm số lượng, bỏ bớt chuyên mục hoặc bổ sung câu hỏi rồi bấm “Sinh đề” lại.
                 </p>
               ) : null}
 
@@ -294,7 +346,13 @@ export default function ThiAdminPage() {
                       <Td><span className="rounded-md bg-stone-900 px-2 py-0.5 font-mono text-[11px] font-bold text-white">{e.code}</span></Td>
                       <Td>
                         <p className="max-w-64 truncate font-semibold text-stone-800">{e.title}</p>
-                        {e.adaptive ? <Badge tone="purple"><Sparkles className="h-3 w-3" /> Thích ứng</Badge> : null}
+                        <div className="mt-0.5 flex flex-wrap gap-1">
+                          {e.adaptive ? <Badge tone="purple"><Sparkles className="h-3 w-3" /> Thích ứng</Badge> : null}
+                          {(e.topics?.length ? e.topics : []).map((t) => (
+                            <Badge key={t} tone="blue">{t}</Badge>
+                          ))}
+                          {!e.topics?.length ? <Badge tone="gray">Tất cả chuyên mục</Badge> : null}
+                        </div>
                       </Td>
                       <Td className="text-xs"><Timer className="mr-1 inline h-3.5 w-3.5 text-orange-500" />{e.durationMinutes} phút</Td>
                       <Td className="text-xs">{e.questionIds.length} câu</Td>

@@ -33,7 +33,7 @@ async function replyWithAI(message: string): Promise<{ reply: string; model: str
         {
           role: "system",
           content:
-            "Bạn là trợ lý ảo của Cổng thông tin Thanh niên Trường học (TW Đoàn TNCS Hồ Chí Minh). Trả lời ngắn gọn tiếng Việt (≤ 4 câu), thân thiện. Khi phù hợp, gợi ý đúng 1 đường dẫn trang trên cổng dạng /tin-tuc, /van-ban, /bang-xep-hang, /phan-anh, /tai-nguyen, /chung-nhan/tra-cuu, /dang-nhap. Không bịa thông tin ngoài phạm vi cổng.",
+            "Bạn là trợ lý ảo của Cổng thông tin Thanh niên Trường học (TW Đoàn TNCS Hồ Chí Minh). Trả lời ngắn gọn tiếng Việt (≤ 4 câu), thân thiện. Khi phù hợp, gợi ý đúng 1 đường dẫn trang trên cổng dạng /tin-tuc, /van-ban, /bang-xep-hang, /phan-anh, /tai-nguyen, /hoc-sinh-3-tot, /dang-nhap. Không bịa thông tin ngoài phạm vi cổng.",
         },
         { role: "user", content: message },
       ],

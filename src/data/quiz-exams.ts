@@ -29,6 +29,7 @@ export const quizExams: QuizExam[] = [
     shuffleQuestions: true,
     shuffleOptions: true,
     adaptive: true,
+    topics: ["An toàn giao thông"],
     status: "OPEN",
     createdByAccountId: 1,
     createdAt: "2026-09-25T02:00:00Z",

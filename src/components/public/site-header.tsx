@@ -9,7 +9,6 @@ import {
   X,
   LayoutDashboard,
   LogIn,
-  Award,
   SearchCheck,
   BookOpen,
   MessagesSquare,
@@ -20,19 +19,17 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "Trang chủ" },
+  { href: "/gioi-thieu", label: "Giới thiệu" },
   { href: "/tin-tuc", label: "Tin tức" },
   { href: "/dien-dan", label: "Diễn đàn" },
   { href: "/hoc-sinh-3-tot", label: "Học sinh 3 tốt" },
-  { href: "/van-ban", label: "Văn bản" },
-  { href: "/bang-xep-hang", label: "Xếp hạng" },
   { href: "/tai-nguyen", label: "Tài nguyên" },
   { href: "/phan-anh", label: "Phản ánh" },
-  { href: "/gioi-thieu", label: "Giới thiệu" },
+  { href: "/bang-xep-hang", label: "Xếp hạng" },
 ];
 
 /** Tiện ích hệ sinh thái — nút icon tròn trên navbar kính */
 const UTILITIES = [
-  { href: "/chung-nhan/tra-cuu", label: "Tra cứu chứng nhận", icon: Award },
   { href: "/phan-anh/tra-cuu", label: "Tra cứu phản ánh", icon: SearchCheck },
   { href: "/huong-dan", label: "Hướng dẫn sử dụng", icon: BookOpen },
 ];

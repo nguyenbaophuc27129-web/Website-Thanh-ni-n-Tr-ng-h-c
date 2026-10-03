@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  Heart, LogIn, MessagesSquare, MessageSquareText, PenLine, Send, ShieldCheck, Sparkles, UserPlus,
+  Ban, Heart, ImagePlus, ImageIcon, LogIn, MessagesSquare, MessageSquareText, PenLine, Send, ShieldCheck, Sparkles, UserPlus, X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
 import { useToast } from "@/lib/toast-context";
 import { moderateText } from "@/lib/ai-moderation";
+import { readForumMediaFiles } from "@/lib/forum-media";
 import { avatarInitials, avatarTone } from "@/lib/forum-alias";
 import { formatDateTime, relTime } from "@/lib/utils";
-import type { ForumThread } from "@/types";
+import type { ForumMedia, ForumThread } from "@/types";
 
 const TOPICS = ["Học tập", "Hoạt động Đoàn", "Góp ý", "Khoa học", "Làm quen"];
 
@@ -24,7 +25,9 @@ export default function DienDanPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [topic, setTopic] = useState("");
+  const [media, setMedia] = useState<ForumMedia[]>([]);
   const [checking, setChecking] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -47,6 +50,21 @@ export default function DienDanPage() {
     );
   }, [store.forumThreads, session]);
 
+  // Bài của mình bị Ban biên tập từ chối — chỉ tác giả thấy để biết lý do
+  const myRejected = useMemo(() => {
+    if (!session) return [];
+    return store.forumThreads.filter(
+      (t) => t.status === "HIDDEN" && !!t.rejectionReason && t.authorAccountId === session.accountId
+    );
+  }, [store.forumThreads, session]);
+
+  const onPickMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const res = await readForumMediaFiles(e.target.files ?? [], media);
+    if ("error" in res) toast(res.error, "warning");
+    else setMedia(res.media);
+    e.target.value = "";
+  };
+
   const submitThread = async () => {
     if (!session) return;
     const t = title.trim();
@@ -58,10 +76,11 @@ export default function DienDanPage() {
     setChecking(true);
     const mod = await moderateText(`${t}\n${c}`);
     setChecking(false);
-    store.createForumThread(session, { title: t, content: c, topic: topic || undefined }, mod);
+    store.createForumThread(session, { title: t, content: c, topic: topic || undefined, media: media.length ? media : undefined }, mod);
     setTitle("");
     setContent("");
     setTopic("");
+    setMedia([]);
     toast(
       mod.verdict === "CLEAN"
         ? "Đã đăng bài ẩn danh — cảm ơn bạn đã chia sẻ!"
@@ -90,8 +109,7 @@ export default function DienDanPage() {
         </span>
         <p className="min-w-0 flex-1 text-sm leading-relaxed text-slate-600">
           <span className="font-semibold text-slate-800">Hoàn toàn ẩn danh.</span> Mỗi bài đăng dùng một bí danh ngẫu nhiên
-          (VD: “Bằng Lăng Tim Xanh #2481”) — kể cả Ban biên tập cũng không thấy danh tính thật. Mọi nội dung được AI tự động
-          kiểm duyệt trước khi hiển thị.
+          (VD: “Bằng Lăng Tim Xanh #2481”) — kể cả Ban biên tập cũng không thấy danh tính thật.
         </p>
       </div>
 
@@ -123,6 +141,24 @@ export default function DienDanPage() {
               maxLength={2000}
               className="mt-3 w-full resize-none rounded-xl border border-slate-200/80 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-cyan-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(34,211,238,0.14)]"
             />
+            {media.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {media.map((m, i) => (
+                  <span key={i} className="group inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1.5 text-[11px] font-medium text-slate-600">
+                    {m.kind === "image" ? <ImageIcon className="h-3.5 w-3.5 text-blue-500" /> : <span className="text-[10px] font-bold text-purple-500">VIDEO</span>}
+                    <span className="max-w-40 truncate">{m.name ?? (m.kind === "image" ? "Ảnh" : "Video")}</span>
+                    <button
+                      type="button"
+                      onClick={() => setMedia(media.filter((_, j) => j !== i))}
+                      className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-rose-100 hover:text-rose-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <span className="self-center text-[10px] text-slate-400">Ảnh ≤2MB × 4 · video ≤15MB × 1</span>
+              </div>
+            ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 {TOPICS.map((t) => (
@@ -142,6 +178,21 @@ export default function DienDanPage() {
               </div>
               <div className="ml-auto flex items-center gap-3">
                 <span className="text-[11px] text-slate-400">{content.length}/2000</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  onChange={onPickMedia}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:border-cyan-300 hover:text-cyan-600"
+                >
+                  <ImagePlus className="h-3.5 w-3.5" /> Ảnh / video
+                </button>
                 <button
                   onClick={submitThread}
                   disabled={checking}
@@ -203,6 +254,25 @@ export default function DienDanPage() {
         </div>
       ) : null}
 
+      {/* ===== Bài của tôi bị từ chối ===== */}
+      {myRejected.length > 0 ? (
+        <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50/70 p-5">
+          <p className="flex items-center gap-2 text-sm font-semibold text-rose-800">
+            <Ban className="h-4 w-4" /> Bài của bạn bị từ chối ({myRejected.length})
+          </p>
+          <ul className="mt-3 space-y-2">
+            {myRejected.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-2 text-xs text-rose-900">
+                <span className="rounded-full bg-rose-200/70 px-2 py-0.5 text-[10px] font-bold text-rose-800">BỊ TỪ CHỐI</span>
+                <span className="font-semibold">{t.title}</span>
+                <span className="text-rose-700/80">— Lý do: {t.rejectionReason}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2.5 text-[11px] text-rose-500/80">Bạn có thể đăng lại bài mới với nội dung phù hợp hơn.</p>
+        </div>
+      ) : null}
+
       {/* ===== Feed ===== */}
       <div className="mt-8 grid gap-5 lg:grid-cols-2">
         {threads.map((t, i) => {
@@ -231,6 +301,11 @@ export default function DienDanPage() {
                 </div>
                 {t.topic ? (
                   <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-600">{t.topic}</span>
+                ) : null}
+                {t.media?.length ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500">
+                    <ImageIcon className="h-3 w-3" /> {t.media.length}
+                  </span>
                 ) : null}
               </div>
               <Link href={`/dien-dan/${t.id}`} className="mt-4">

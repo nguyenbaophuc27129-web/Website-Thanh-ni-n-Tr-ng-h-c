@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-  MapPin, HeartHandshake, Users, Send, Loader2, Clock, Plus, MapPinned, HandHeart, Landmark,
+  MapPin, HeartHandshake, Users, Send, Loader2, Clock, Plus, MapPinned, HandHeart, Landmark, FileDown, Paperclip, X,
 } from "lucide-react";
 import { Reveal, CountUp } from "@/components/public/reveal";
 import { SponsorStrip } from "@/components/public/sponsor-strip";
@@ -14,7 +14,9 @@ import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { moderateText } from "@/lib/ai-moderation";
+import { buildTemplateWordData, downloadWordDoc } from "@/lib/word-export";
 import { relTime } from "@/lib/utils";
+import type { VolunteerProject } from "@/types";
 
 /** Tọa độ pin % trên ảnh bản đồ 34 tỉnh (public/vn-map-34.jpg 1200×1485) */
 const PROVINCE_PINS: Record<string, { x: number; y: number }> = {
@@ -31,6 +33,26 @@ const PROVINCE_PINS: Record<string, { x: number; y: number }> = {
 
 const PROVINCE_OPTIONS = Object.keys(PROVINCE_PINS);
 
+const REPORT_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5MB
+
+/** Chip đính kèm file báo cáo (card + khối chờ duyệt dùng chung) */
+function ReportFileChip({ p }: { p: Pick<VolunteerProject, "reportFile"> }) {
+  const file = p.reportFile;
+  if (!file?.name) return null;
+  return (
+    <span className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-100 py-1 pl-2.5 pr-3 text-[11px] font-medium text-slate-600">
+      <Paperclip className="h-3 w-3 shrink-0 text-slate-400" />
+      {file.dataUrl ? (
+        <a href={file.dataUrl} download={file.name} className="max-w-56 truncate text-blue-600 hover:underline" title={`Tải ${file.name}`}>
+          {file.name}
+        </a>
+      ) : (
+        <span className="max-w-56 truncate">{file.name}</span>
+      )}
+    </span>
+  );
+}
+
 export default function DuAnTinhNguyenPage() {
   const { volunteerProjects, orgName, submitVolunteerProject } = useStore();
   const { session } = useAuth();
@@ -43,7 +65,9 @@ export default function DuAnTinhNguyenPage() {
   const [pSummary, setPSummary] = useState("");
   const [pBeneficiaries, setPBeneficiaries] = useState("");
   const [pParticipants, setPParticipants] = useState("50");
+  const [pReportFile, setPReportFile] = useState<{ name: string; dataUrl?: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const reportInputRef = useRef<HTMLInputElement>(null);
 
   const approved = useMemo(
     () => volunteerProjects.filter((p) => p.status === "APPROVED"),
@@ -84,6 +108,46 @@ export default function DuAnTinhNguyenPage() {
     setPProvince(prov);
   };
 
+  /** Tải mẫu văn bản báo cáo phương pháp thực hiện (Word thể thức hành chính) */
+  const downloadTemplate = () => {
+    const data = buildTemplateWordData({
+      orgUnitName: session?.orgUnitName ?? "ĐOÀN TRƯỜNG / CƠ SỞ",
+      docCode: "MẪU",
+      title: "BÁO CÁO PHƯƠNG PHÁP THỰC HIỆN DỰ ÁN TÌNH NGUYỆN VÌ CỘNG ĐỒNG",
+      bases: [
+        "Điều lệ Đoàn TNCS Hồ Chí Minh",
+        "Nghị quyết Đại hội Đoàn TNCS Hồ Chí Minh khoá XII, nhiệm kỳ 2022 - 2027",
+        "Kế hoạch phong trào tình nguyện của đơn vị năm học hiện hành",
+      ],
+      outline: [
+        "II. THÔNG TIN CHUNG DỰ ÁN",
+        "III. MỤC TIÊU VÀ ĐỐI TƯỢNG THỤ HƯỞNG",
+        "IV. PHƯƠNG PHÁP VÀ TIẾN TRÌNH THỰC HIỆN",
+        "V. NGUỒN LỰC VÀ KINH PHÍ",
+        "VI. KẾT QUẢ, ĐÁNH GIÁ VÀ BÀI HỌC KINH NGHIỆM",
+      ],
+      signerName: session?.contactPerson ?? "…",
+      signerPosition: session?.contactPosition ?? "BÍ THƯ ĐOÀN TRƯỜNG",
+      recipients: ["Ban Thanh niên Trường học cấp trên trực tiếp", "Lưu: VT.Đoàn trường"],
+    });
+    downloadWordDoc("mau-bao-cao-du-an-tinh-nguyen.doc", data);
+    toast("Đã tải mẫu báo cáo — điền nội dung rồi đính kèm lại khi gửi dự án.", "info");
+  };
+
+  const pickReportFile = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    if (file.size > REPORT_FILE_MAX_BYTES) {
+      toast(`File "${file.name}" vượt 5MB — hãy nén hoặc chọn file nhỏ hơn.`, "warning");
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => setPReportFile({ name: file.name, dataUrl: String(reader.result) });
+      reader.onerror = () => toast(`Không đọc được file "${file.name}".`, "warning");
+      reader.readAsDataURL(file);
+    }
+    if (reportInputRef.current) reportInputRef.current.value = "";
+  };
+
   const submitProject = async () => {
     if (!session) return;
     if (pName.trim().length < 8 || pSummary.trim().length < 20) {
@@ -104,12 +168,13 @@ export default function DuAnTinhNguyenPage() {
         participants: Number(pParticipants) || 1,
         mapX: PROVINCE_PINS[pProvince]?.x ?? 25,
         mapY: PROVINCE_PINS[pProvince]?.y ?? 45,
+        reportFile: pReportFile ?? undefined,
       },
       mod
     );
     setBusy(false);
     setOpenSubmit(false);
-    setPName(""); setPSummary(""); setPBeneficiaries(""); setPParticipants("50");
+    setPName(""); setPSummary(""); setPBeneficiaries(""); setPParticipants("50"); setPReportFile(null);
     toast(
       mod.verdict === "CLEAN"
         ? "Đã tiếp nhận dự án — chờ cấp trên duyệt, được duyệt sẽ hiển thị trên bản đồ (+20 điểm)."
@@ -272,6 +337,7 @@ export default function DuAnTinhNguyenPage() {
                         {p.province} · gửi {relTime(p.createdAt)}
                         {p.aiVerdict === "FLAGGED" ? " · AI gắn cờ, chờ kiểm duyệt thủ công" : ""}
                       </p>
+                      <ReportFileChip p={p} />
                     </li>
                   ))}
                 </ul>
@@ -312,6 +378,7 @@ export default function DuAnTinhNguyenPage() {
                     </div>
                     <h3 className="mt-2.5 text-sm font-bold leading-snug text-stone-900">{p.projectName}</h3>
                     <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-stone-500">{p.summary}</p>
+                    <ReportFileChip p={p} />
                     <div className="mt-auto flex items-center gap-4 pt-3.5 text-[11px] text-slate-500">
                       <span className="inline-flex items-center gap-1">
                         <Users className="h-3.5 w-3.5 text-blue-500" /> {p.participants} đoàn viên
@@ -380,6 +447,41 @@ export default function DuAnTinhNguyenPage() {
               <Input type="number" min={1} value={pParticipants} onChange={(e) => setPParticipants(e.target.value)} />
             </Field>
           </div>
+          <Field label="File báo cáo phương pháp thực hiện (không bắt buộc)" hint=".pdf/.doc/.docx · tối đa 5MB — có thể tải mẫu về điền">
+            <div className="space-y-2">
+              <input ref={reportInputRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => pickReportFile(e.target.files)} />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => reportInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-stone-100 px-3.5 py-2 text-xs font-medium text-stone-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                >
+                  <Paperclip className="h-3.5 w-3.5" /> Chọn file báo cáo
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadTemplate}
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3.5 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                >
+                  <FileDown className="h-3.5 w-3.5" /> Tải mẫu báo cáo (.doc)
+                </button>
+              </div>
+              {pReportFile ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 py-1 pl-2.5 pr-1 text-[11px] font-medium text-blue-700">
+                  <Paperclip className="h-3 w-3" />
+                  <span className="max-w-56 truncate">{pReportFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPReportFile(null)}
+                    className="rounded-full p-0.5 text-blue-400 hover:bg-blue-100 hover:text-blue-700"
+                    aria-label="Xóa file đã chọn"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ) : null}
+            </div>
+          </Field>
           <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
             Dự án qua AI kiểm duyệt tự động, sau đó cấp trên duyệt sẽ hiển thị pin trên bản đồ toàn quốc
             và cộng 20 điểm đóng góp cho bạn.

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  ClipboardList, Activity, Megaphone, Award, Users, CheckSquare,
+  ClipboardList, Activity, Megaphone, Users, CheckSquare,
   FileBarChart, FileText, FolderOpen, ArrowRight, Rocket, QrCode, Flag,
   UserPlus, PenLine, Heart, ShieldCheck,
 } from "lucide-react";
@@ -24,7 +24,7 @@ const ROLE_STEPS: Record<Role, Step[]> = {
     { icon: ClipboardList, title: "Giao nhiệm vụ & chỉ tiêu", desc: "Chọn nhiệm vụ trong bộ tiêu chí, giao cho tỉnh/đơn vị con kèm chỉ tiêu cụ thể và hạn hoàn thành.", href: "/quan-tri/nhiem-vu" },
     { icon: FileText, title: "Phát hành văn bản", desc: "Ban hành văn bản chỉ đạo, kế hoạch tới toàn hệ thống hoặc phạm vi chọn lọc; đơn vị nhận được thông báo.", href: "/quan-tri/van-ban" },
     { icon: Megaphone, title: "Xuất bản tin bài", desc: "Tạo tin từ hoạt động đã xác nhận hoặc viết mới, xuất bản lên trang công khai.", href: "/quan-tri/xuat-ban" },
-    { icon: Award, title: "Tra cứu chứng nhận số", desc: "Tra cứu chứng nhận điện tử theo mã — công khai cho mọi người, kèm mã QR chống giả mạo.", href: "/chung-nhan/tra-cuu" },
+    { icon: Activity, title: "Duyệt đóng góp cộng đồng", desc: "Duyệt bài viết và tài nguyên đoàn viên gửi về — duyệt xong tự cộng điểm và đăng công khai.", href: "/quan-tri/dong-gop" },
   ],
   QUAN_TRI_TINH: [
     { icon: Users, title: "Tạo tài khoản đơn vị con", desc: "Khởi tạo tài khoản cho Đoàn phường/xã và trường học trực thuộc tỉnh.", href: "/quan-tri/he-thong/tai-khoan" },
@@ -49,7 +49,7 @@ const ROLE_STEPS: Record<Role, Step[]> = {
     { icon: FolderOpen, title: "Quản lý tài nguyên", desc: "Đăng tài liệu, biểu mẫu, sản phẩm truyền thông dùng chung cho toàn hệ thống.", href: "/quan-tri/tai-nguyen" },
   ],
   DOAN_VIEN: [
-    { icon: UserPlus, title: "Đăng ký tài khoản Đoàn viên", desc: "Điền họ tên, lớp và trường — tài khoản chỉ dùng để tham gia diễn đàn, không vào khu quản trị.", href: "/dang-ky" },
+    { icon: UserPlus, title: "Đăng ký tài khoản Đoàn viên", desc: "Điền họ tên, lớp, chức vụ và chọn đơn vị (Đoàn tỉnh/thành phố, Đoàn xã/phường/đặc khu hoặc Đoàn trường) — tài khoản dùng để tham gia diễn đàn.", href: "/dang-ky" },
     { icon: PenLine, title: "Đăng bài ẩn danh", desc: "Chia sẻ câu chuyện, góp ý thẳng thắn. Hệ thống tự sinh bí danh ngẫu nhiên, không ai biết bạn là ai.", href: "/dien-dan" },
     { icon: Heart, title: "Bình luận & thả cảm xúc", desc: "Thảo luận trong các bài viết, thả trái tim cho nội dung bạn thích — mỗi tài khoản thả được một lần.", href: "/dien-dan" },
     { icon: ShieldCheck, title: "AI kiểm duyệt tự động", desc: "Nội dung thô tục, spam, lừa đảo hoặc kèm thông tin cá nhân sẽ bị gắn cờ và chờ Ban biên tập duyệt trước khi hiện công khai.", href: "/dien-dan" },
@@ -130,9 +130,7 @@ export default function HuongDanPage() {
         <p className="mt-1">
           · Mọi hành động trong bản demo chỉ lưu trên trình duyệt của bạn (tải lại trang sẽ về dữ liệu mẫu).<br />
           · Sự cố kỹ thuật app Thanh niên Việt Nam / web Quản lý Đoàn gửi qua form{" "}
-          <Link href="/phan-anh" className="text-doan-600 hover:underline">Phản ánh</Link>, chọn lĩnh vực tương ứng.<br />
-          · Tra cứu chứng nhận số công khai tại{" "}
-          <Link href="/chung-nhan/tra-cuu" className="text-doan-600 hover:underline">/chung-nhan/tra-cuu</Link>.
+          <Link href="/phan-anh" className="text-doan-600 hover:underline">Phản ánh</Link>, chọn lĩnh vực tương ứng.
         </p>
       </div>
     </div>

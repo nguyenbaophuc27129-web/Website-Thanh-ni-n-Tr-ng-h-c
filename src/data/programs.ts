@@ -1,11 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { GraduationCap, HeartHandshake, MonitorPlay } from "lucide-react";
 
-/* 🔗 CỔNG DỊCH VỤ LIÊN THÔNG — website dịch vụ tách biệt chạy project "tnth-services" (port 3001).
-   Khi lên production, chỉ cần đổi 2 hằng số này sang tên miền thật. */
-export const CERT_PORTAL_URL = "http://localhost:3001/tra-cuu-chung-nhan";
-export const HS3T_PORTAL_URL = "http://localhost:3001/hoc-sinh-3-tot";
-
 export interface ProgramInfo {
   key: "HS3T" | "DU_AN_TN" | "THI_KT";
   title: string;
@@ -24,7 +19,7 @@ export const PROGRAMS: ProgramInfo[] = [
   {
     key: "HS3T",
     title: "Học sinh 3 Tốt",
-    desc: "Hồ sơ thành tích số — học sinh tự cập nhật minh chứng học tập, rèn luyện, phong trào; cấp Đoàn xét danh hiệu theo 3 mức.",
+    desc: "Hồ sơ thành tích số — học sinh tự cập nhật minh chứng học tập, rèn luyện, đạo đức theo 12 tiêu chí phụ; cấp Đoàn xét danh hiệu theo 3 mức.",
     phase: 1,
     phaseLabel: "Đang hoạt động",
     href: "/hoc-sinh-3-tot",

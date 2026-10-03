@@ -31,18 +31,23 @@ export function shuffleWithSeed<T>(arr: readonly T[], seed: number): T[] {
 }
 
 /**
- * Sinh đề theo ma trận độ khó — chọn ngẫu nhiên đúng số câu mỗi mức.
- * Trả về danh sách id câu hỏi; thiếu câu ở mức nào báo qua result.shortfall.
+ * Sinh đề theo chuyên mục (topics) + ma trận độ khó — chọn ngẫu nhiên đúng số câu mỗi mức.
+ * topics rỗng/không truyền = lấy cả ngân hàng. Trả về id câu hỏi; thiếu câu báo qua shortfall.
  */
 export function pickExamQuestions(
   bank: QuizQuestion[],
   matrix: { easy: number; medium: number; hard: number },
-  seed = Date.now()
+  seed = Date.now(),
+  topics?: string[]
 ): { ids: number[]; shortfall: number } {
   let shortfall = 0;
   const ids: number[] = [];
+  const inScope = (q: QuizQuestion) => !topics?.length || topics.includes(q.topic);
   const take = (difficulty: QuizDifficulty, n: number) => {
-    const pool = shuffleWithSeed(bank.filter((q) => q.difficulty === difficulty), seed + difficulty.length * 7);
+    const pool = shuffleWithSeed(
+      bank.filter((q) => q.difficulty === difficulty && inScope(q)),
+      seed + difficulty.length * 7
+    );
     if (pool.length < n) shortfall += n - pool.length;
     ids.push(...pool.slice(0, n).map((q) => q.id));
   };

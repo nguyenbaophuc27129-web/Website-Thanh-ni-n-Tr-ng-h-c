@@ -12,7 +12,6 @@ import {
   ChevronRight,
   HeartHandshake,
   Landmark,
-  QrCode,
   Recycle,
   Rocket,
   ShieldCheck,
@@ -65,8 +64,7 @@ const DATA_NODES: DataNode[] = [
   { code: "#DATA.04", icon: HeartHandshake, grad: "from-violet-500 to-indigo-500", value: 3500, suffix: "", label: "Tình nguyện viên trong mùa Tiếp sức mùa thi", href: "/tin-tuc/nhin-lai-tiep-suc-mua-thi-2026" },
   { code: "#DATA.05", icon: Recycle, grad: "from-emerald-500 to-teal-500", value: 500, suffix: " kg", label: "Rác thải nhựa được thu gom Chủ nhật xanh", href: "/tin-tuc/chu-nhat-xanh-tuoi-tre-hiep-thanh-500kg-rac-thai-nhua" },
   { code: "#DATA.06", icon: Star, grad: "from-blue-600 to-indigo-500", value: 95, suffix: " năm", label: "Lịch sử vẻ vang Đoàn TNCS Hồ Chí Minh", href: "/tin-tuc/95-nam-ngay-thanh-lap-doan-tncs-ho-chi-minh" },
-  { code: "#DATA.07", icon: QrCode, grad: "from-cyan-400 to-sky-500", value: 12486, suffix: "", label: "Chứng nhận số Học sinh 3 tốt đã cấp, tra cứu bằng QR", href: "/chung-nhan/tra-cuu" },
-  { code: "#DATA.08", icon: Landmark, grad: "from-indigo-500 to-blue-600", value: 28, suffix: "", label: "Đơn vị Đoàn trường cùng vận hành cổng trên toàn quốc", href: "/gioi-thieu" },
+  { code: "#DATA.07", icon: Landmark, grad: "from-indigo-500 to-blue-600", value: 28, suffix: "", label: "Đơn vị Đoàn trường cùng vận hành cổng trên toàn quốc", href: "/gioi-thieu" },
 ];
 
 /* Cột dữ liệu trang trí trên chân ấn phẩm */

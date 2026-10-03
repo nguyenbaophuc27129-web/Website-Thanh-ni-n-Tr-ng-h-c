@@ -149,9 +149,8 @@ export function SiteFooter() {
             {[
               ["/tin-tuc", "Tin tức hoạt động"],
               ["/bang-xep-hang", "Bảng xếp hạng thi đua"],
-              ["/van-ban", "Văn bản chỉ đạo"],
-              ["/tai-nguyen", "Kho tài nguyên"],
-              ["/chung-nhan/tra-cuu", "Tra cứu chứng nhận"],
+              ["/dien-dan", "Diễn đàn ẩn danh"],
+              ["/tai-nguyen", "Tài nguyên & văn bản"],
             ].map(([href, label]) => (
               <li key={href}>
                 <ColLink href={href} label={label} />

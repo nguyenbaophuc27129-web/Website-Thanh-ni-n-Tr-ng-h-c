@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  GraduationCap, ShieldAlert, Sparkles, UserPlus, Award, Trophy, Loader2, BookOpen, Dumbbell, HeartHandshake, MapPin,
+  GraduationCap, ShieldAlert, Sparkles, UserPlus, Award, Trophy, Loader2, BookOpen, Dumbbell, HeartHandshake, MapPin, ListChecks,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -235,6 +235,10 @@ export default function Hs3tAdminPage() {
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700">
                       <HeartHandshake className="h-3.5 w-3.5" /> {HS3T_CATEGORY_NAMES.PHONG_TRAO}: <b>{ev.counts.PHONG_TRAO}</b>
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-stone-100 px-2.5 py-1 text-stone-600">
+                      <ListChecks className="h-3.5 w-3.5" />
+                      {new Set(achs.filter((a) => a.sub).map((a) => a.sub)).size}/12 tiêu chí phụ
                     </span>
                     <span className="text-stone-400">— tổng {achs.length} minh chứng</span>
                   </div>

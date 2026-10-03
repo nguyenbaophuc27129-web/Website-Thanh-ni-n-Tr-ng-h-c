@@ -10,9 +10,9 @@ import {
   type ReactNode,
 } from "react";
 import type {
-  Activity, Account, AdaptiveStep, AssignmentReview, AssignmentTarget, Attendance, Certificate,
+  Activity, Account, AdaptiveStep, AssignmentReview, AssignmentTarget, Attendance,
   ContributionKind, ContributionLog, CriteriaSet,
-  DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, ForumComment, ForumThread,
+  DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, ForumComment, ForumMedia, ForumThread,
   Hs3tAchievement, Hs3tCategory, Hs3tProfile, LiveEvent, MemberContribution, ModerationResult, Notification,
   OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
   RankingEntry, RankingSnapshot, Report, Resource, Score,
@@ -32,7 +32,6 @@ import { reports as seedReports } from "@/data/reports";
 import { documents as seedDocuments, documentRecipients as seedRecipients } from "@/data/documents";
 import { notifications as seedNotifications } from "@/data/notifications";
 import { feedbacks as seedFeedbacks, feedbackMessages as seedMessages } from "@/data/feedbacks";
-import { certificates as seedCertificates } from "@/data/certificates";
 import { liveEvents as seedLiveEvents } from "@/data/live-events";
 import { resources as seedResources, systemSettings as seedSettings } from "@/data/resources";
 import { FORUM_THREADS as seedForumThreads, FORUM_COMMENTS as seedForumComments } from "@/data/forum";
@@ -139,7 +138,6 @@ interface StoreValue {
   notifications: Notification[];
   feedbacks: Feedback[];
   feedbackMessages: FeedbackMessage[];
-  certificates: Certificate[];
   attendances: Attendance[];
   attendanceOpenIds: number[];
   liveEvents: LiveEvent[];
@@ -230,8 +228,8 @@ interface StoreValue {
   /* forum ẩn danh */
   forumThreads: ForumThread[];
   forumComments: ForumComment[];
-  createForumThread: (session: Session, input: { title: string; content: string; topic?: string }, mod: ModerationResult) => number;
-  createForumComment: (session: Session, input: { threadId: number; content: string }, mod: ModerationResult) => number;
+  createForumThread: (session: Session, input: { title: string; content: string; topic?: string; media?: ForumMedia[] }, mod: ModerationResult) => number;
+  createForumComment: (session: Session, input: { threadId: number; content: string; media?: ForumMedia[] }, mod: ModerationResult) => number;
   toggleForumLike: (session: Session, kind: "THREAD" | "COMMENT", id: number) => void;
   moderateForumItem: (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => void;
 
@@ -247,11 +245,11 @@ interface StoreValue {
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
   volunteerProjects: VolunteerProject[];
-  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number }, mod: ModerationResult) => number;
+  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => number;
   moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
   quizQuestions: QuizQuestion[];
   quizExams: QuizExam[];
-  saveQuizExam: (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; status?: QuizExam["status"] }, questionIds: number[]) => number;
+  saveQuizExam: (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; topics?: string[]; status?: QuizExam["status"] }, questionIds: number[]) => number;
   setQuizExamStatus: (id: number, status: QuizExam["status"]) => void;
   quizAttempts: QuizAttempt[];
   startQuizAttempt: (examId: number, examinee: { name: string; orgText: string; accountId?: number }) => number;
@@ -260,7 +258,7 @@ interface StoreValue {
   hs3tProfiles: Hs3tProfile[];
   hs3tAchievements: Hs3tAchievement[];
   ensureHs3tProfile: (session: Session) => Hs3tProfile;
-  addHs3tAchievement: (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => void;
+  addHs3tAchievement: (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; sub?: string; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => void;
   awardHs3tLevel: (session: Session, profileId: number, level: "XA" | "TINH" | "TW") => void;
 }
 
@@ -294,7 +292,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [feedbacks, setFeedbacks] = useState(seedFeedbacks);
   const [feedbackMessages, setFeedbackMessages] = useState(seedMessages);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
-  const [certificates, setCertificates] = useState(seedCertificates);
   const [attendances, setAttendances] = useState(seedAttendances);
   const [attendanceOpenIds, setAttendanceOpenIds] = useState<number[]>([]);
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>(seedLiveEvents);
@@ -1038,7 +1035,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /* ============ Forum ẩn danh ============ */
 
   const createForumThread = useCallback(
-    (session: Session, input: { title: string; content: string; topic?: string }, mod: ModerationResult) => {
+    (session: Session, input: { title: string; content: string; topic?: string; media?: ForumMedia[] }, mod: ModerationResult) => {
       const alias = generateUniqueAlias([
         ...forumThreads.map((t) => t.alias),
         ...forumComments.map((c) => c.alias),
@@ -1051,6 +1048,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         title: input.title.trim(),
         content: input.content.trim(),
         topic: input.topic?.trim() || undefined,
+        media: input.media?.length ? input.media : undefined,
         status: mod.verdict === "CLEAN" ? "PUBLISHED" : "HIDDEN",
         likedByAccountIds: [],
         aiVerdict: mod.verdict,
@@ -1076,7 +1074,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const createForumComment = useCallback(
-    (session: Session, input: { threadId: number; content: string }, mod: ModerationResult) => {
+    (session: Session, input: { threadId: number; content: string; media?: ForumMedia[] }, mod: ModerationResult) => {
       const alias = generateUniqueAlias([
         ...forumThreads.map((t) => t.alias),
         ...forumComments.map((c) => c.alias),
@@ -1088,6 +1086,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         alias,
         authorAccountId: session.accountId,
         content: input.content.trim(),
+        media: input.media?.length ? input.media : undefined,
         status: mod.verdict === "CLEAN" ? "PUBLISHED" : "PENDING_REVIEW",
         likedByAccountIds: [],
         aiVerdict: mod.verdict,
@@ -1343,7 +1342,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const submitVolunteerProject = useCallback(
-    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number }, mod: ModerationResult) => {
+    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => {
       const id = nextId();
       const project: VolunteerProject = {
         id,
@@ -1360,6 +1359,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         mapY: input.mapY,
         aiVerdict: mod.verdict,
         aiReason: mod.reason,
+        reportFile: input.reportFile?.name ? input.reportFile : undefined,
         createdAt: nowISO(),
       };
       setVolunteerProjects((prev) => [project, ...prev]);
@@ -1420,7 +1420,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /* ============ v12 — Thi trực tuyến ============ */
 
   const saveQuizExam = useCallback(
-    (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; status?: QuizExam["status"] }, questionIds: number[]) => {
+    (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; topics?: string[]; status?: QuizExam["status"] }, questionIds: number[]) => {
       const id = nextId();
       const exam: QuizExam = {
         id,
@@ -1432,6 +1432,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         shuffleQuestions: input.shuffleQuestions,
         shuffleOptions: input.shuffleOptions,
         adaptive: input.adaptive,
+        topics: input.topics?.length ? input.topics : undefined,
         status: input.status ?? "OPEN",
         createdByAccountId: session.accountId,
         createdAt: nowISO(),
@@ -1527,7 +1528,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const addHs3tAchievement = useCallback(
-    (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => {
+    (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; sub?: string; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => {
       const profile = hs3tProfiles.find((p) => p.id === profileId);
       if (!profile) return;
       // Cán bộ trường chỉ được "bổ sung hộ" hồ sơ thuộc trường mình (kiểm tra 2 lớp)
@@ -1539,6 +1540,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           profileId,
           title: input.title.trim(),
           category: input.category,
+          sub: input.sub?.trim() || undefined,
           evidenceNames: input.evidenceNames?.length ? input.evidenceNames : undefined,
           achievedAt: input.achievedAt || nowISO().slice(0, 10),
           addedByRole: asSchool ? "SCHOOL" : "STUDENT",
@@ -1576,7 +1578,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       activities, publishedPosts, criteriaSets, tasks, taskMetrics, taskAssignments,
       assignmentTargets, taskResults, assignmentReviews, scores, rankingSnapshots, rankingEntries,
       reports, documents, documentRecipients, notifications, feedbacks, feedbackMessages,
-      certificates, attendances, attendanceOpenIds, liveEvents, liveEnabled, setLiveEnabled, resources, settings,
+      attendances, attendanceOpenIds, liveEvents, liveEnabled, setLiveEnabled, resources, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
       reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,
@@ -1613,7 +1615,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orgUnits, accounts, activities, publishedPosts, criteriaSets, tasks, taskMetrics,
       taskAssignments, assignmentTargets, taskResults, assignmentReviews, scores,
       rankingSnapshots, rankingEntries, reports, documents, documentRecipients,
-      notifications, feedbacks, feedbackMessages, certificates, attendances, attendanceOpenIds, liveEvents, liveEnabled, resources, settings,
+      notifications, feedbacks, feedbackMessages, attendances, attendanceOpenIds, liveEvents, liveEnabled, resources, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
       reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,

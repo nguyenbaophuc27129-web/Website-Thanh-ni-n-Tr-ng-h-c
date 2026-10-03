@@ -393,21 +393,6 @@ export interface EmailLog {
   sentAt: string;
 }
 
-/* ============ Chứng nhận số ============ */
-
-export interface Certificate {
-  id: number;
-  code: string; // CRT-2026-XXXXX
-  recipientName: string;
-  recipientOrgText?: string;
-  activityId?: number;
-  title: string;
-  certType: "HOAT_DONG" | "DANH_HIEU" | "KHOA_HOC" | "KHAC";
-  issuedByOrgUnitId: number;
-  issuedAt: string;
-  status: "ACTIVE" | "REVOKED";
-}
-
 /* ============ Điểm danh hoạt động ============ */
 
 export interface Attendance {
@@ -488,6 +473,13 @@ export interface ModerationResult {
   model?: string;
 }
 
+/** Ảnh/video đính kèm diễn đàn — base64 dataUrl (ảnh ≤2MB × 4, video ≤15MB × 1) */
+export interface ForumMedia {
+  kind: "image" | "video";
+  dataUrl: string;
+  name?: string;
+}
+
 export interface ForumThread {
   id: number;
   alias: string; // "Bằng Lăng Tim Xanh #2481" — sinh cứng lúc tạo, KHÔNG random lúc render
@@ -495,6 +487,7 @@ export interface ForumThread {
   title: string;
   content: string;
   topic?: string;
+  media?: ForumMedia[];
   status: "PUBLISHED" | "HIDDEN"; // chờ duyệt = FLAGGED && !moderatedByAccountId
   likedByAccountIds: number[];
   aiVerdict: "CLEAN" | "FLAGGED";
@@ -512,6 +505,7 @@ export interface ForumComment {
   alias: string;
   authorAccountId: number;
   content: string;
+  media?: ForumMedia[];
   status: "PUBLISHED" | "PENDING_REVIEW" | "REJECTED";
   likedByAccountIds: number[];
   aiVerdict: "CLEAN" | "FLAGGED";
@@ -612,6 +606,8 @@ export interface VolunteerProject {
   moderatedByAccountId?: number;
   moderatedAt?: string;
   rejectionReason?: string;
+  /** File báo cáo phương pháp thực hiện đính kèm (≤5MB) */
+  reportFile?: { name: string; dataUrl?: string };
   createdAt: string;
 }
 
@@ -649,6 +645,8 @@ export interface QuizExam {
   shuffleOptions: boolean;
   /** Adaptive: đúng → câu khó hơn, sai → câu dễ hơn */
   adaptive: boolean;
+  /** Chuyên mục đề thi — rỗng/không có = tất cả chuyên mục trong ngân hàng */
+  topics?: string[];
   status: "DRAFT" | "OPEN" | "CLOSED";
   createdByAccountId: number;
   createdAt: string;
@@ -710,6 +708,8 @@ export interface Hs3tAchievement {
   profileId: number;
   title: string;
   category: Hs3tCategory;
+  /** Tiêu chí phụ (1 trong 4 mục của nhóm) */
+  sub?: string;
   evidenceNames?: string[];
   achievedAt: string;
   addedByRole: "STUDENT" | "SCHOOL";

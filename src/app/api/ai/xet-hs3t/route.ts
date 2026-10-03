@@ -20,7 +20,7 @@ export const runtime = "nodejs";
    ════════════════════════════════════════════════════════════════════ */
 
 const SYSTEM_PROMPT =
-  "Bạn là cố vấn xét danh hiệu 'Học sinh 3 tốt' (Học tập tốt - Rèn luyện tốt - Phòng trào/Tình nguyện tốt) của Cổng Thanh niên Trường học. " +
+  "Bạn là cố vấn xét danh hiệu 'Học sinh 3 tốt' (Học tập tốt - Rèn luyện tốt - Đạo đức tốt) của Cổng Thanh niên Trường học. " +
   "Dựa trên số minh chứng từng nhóm và danh sách thành tích, hãy đề xuất cấp danh hiệu và trả về DUY NHẤT một JSON (không thêm chữ nào khác): " +
   '{"suggestedLevel":"XA"|"TINH"|"TW"|null,"reasoning":"lý do ngắn gọn tiếng Việt","missing":["điều còn thiếu"]}. ' +
   "Ngưỡng tham khảo: mỗi nhóm có ≥1 minh chứng → XA; có thành tích ở ≥2/3 nhóm → TINH; đủ cả 3 nhóm và tổng ≥10 thành tích → TW. " +
@@ -128,7 +128,9 @@ export async function POST(request: Request) {
       REN_LUYEN: achievements.filter((a) => a.category === "REN_LUYEN").length,
       PHONG_TRAO: achievements.filter((a) => a.category === "PHONG_TRAO").length,
     },
-    achievementTitles: achievements.map((a) => `[${a.category}${a.addedByRole === "SCHOOL" ? "/trường xác nhận" : ""}] ${a.title}`),
+    achievementTitles: achievements.map(
+      (a) => `[${a.category}${a.addedByRole === "SCHOOL" ? "/trường xác nhận" : ""}] ${a.title}${a.sub ? ` (${a.sub})` : ""}`
+    ),
   };
   try {
     const { suggestedLevel, reasoning, missing, model } = await evaluateWithAI(aiPayload, profile, achievements);

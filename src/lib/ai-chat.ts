@@ -20,9 +20,9 @@ export function ruleReply(input: string): ChatReply {
   if (/(phản ánh|góp ý|khiếu nại|tra cứu)/.test(q))
     return { text: "Bạn có thể gửi phản ánh không cần đăng nhập. Sau khi gửi, hệ thống cấp mã tra cứu dạng PA-2026-XXXXX để theo dõi tiến độ xử lý.", link: { href: "/phan-anh", label: "Gửi phản ánh" } };
   if (/(văn bản|chỉ thị|nghị quyết|kế hoạch)/.test(q))
-    return { text: "Kho văn bản gồm chỉ thị, kế hoạch, hướng dẫn do các cấp ban hành và công khai trên cổng.", link: { href: "/van-ban", label: "Xem văn bản" } };
+    return { text: "Văn bản chỉ đạo, kế hoạch của các cấp được gộp trong khu Tài nguyên — nhóm 'Tài nguyên văn bản'.", link: { href: "/tai-nguyen", label: "Xem tài nguyên văn bản" } };
   if (/(tài nguyên|biểu mẫu|tài liệu|tải)/.test(q))
-    return { text: "Kho tài nguyên có tài liệu hướng dẫn, biểu mẫu và sản phẩm truyền thông, tải miễn phí.", link: { href: "/tai-nguyen", label: "Vào kho tài nguyên" } };
+    return { text: "Kho tài nguyên gồm 4 nhóm: thiết kế, văn bản, truyền thông và biểu mẫu — tải miễn phí.", link: { href: "/tai-nguyen", label: "Vào kho tài nguyên" } };
   if (/(tài khoản|đăng nhập|mật khẩu)/.test(q))
     return { text: "Mỗi đơn vị Đoàn có 1 tài khoản. Bản demo có 5 tài khoản mẫu: tw.admin, bd.province, hc.hiepthanh, thpt.chanhphu, btv.tw (mật khẩu demo123).", link: { href: "/dang-nhap", label: "Trang đăng nhập" } };
   if (/(tin|hoạt động|news)/.test(q))

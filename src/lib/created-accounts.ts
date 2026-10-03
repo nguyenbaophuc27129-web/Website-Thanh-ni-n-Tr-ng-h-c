@@ -12,6 +12,8 @@ export interface CreatedAccountRecord {
   email: string;
   contactPerson: string;
   contactPosition: string;
+  /** Lớp của học sinh / đoàn viên */
+  className?: string;
   role: Role;
   status: Account["status"];
   password: string;

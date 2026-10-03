@@ -14,6 +14,21 @@ const SOFT_INPUT =
   "mt-1.5 w-full rounded-xl border border-transparent bg-slate-100/60 px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500/40 focus:bg-white focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]";
 
 const SCHOOLS = orgUnits.filter((u) => u.orgLevel === 4);
+const COMMUNES = orgUnits.filter((u) => u.orgLevel === 3);
+const PROVINCES = orgUnits.filter((u) => u.orgLevel === 2);
+
+/** Chức vụ Đoàn viên đăng ký — đúng thứ bậc từ thành viên đến lãnh đạo */
+const DV_POSITIONS = [
+  "Đoàn viên",
+  "Ủy viên Ban Chấp hành Chi Đoàn",
+  "Phó Bí thư Chi Đoàn",
+  "Bí thư Chi Đoàn",
+  "Ủy viên Ban Chấp hành Đoàn trường",
+  "Phó Bí thư Đoàn trường",
+  "Bí thư Đoàn trường",
+  "Lớp trưởng",
+  "Lớp phó",
+];
 
 export default function DangKyPage() {
   const { session, ready, login } = useAuth();
@@ -23,6 +38,7 @@ export default function DangKyPage() {
     fullName: "",
     email: "",
     className: "",
+    position: "Đoàn viên",
     orgUnitId: "",
     username: "",
     password: "",
@@ -30,6 +46,9 @@ export default function DangKyPage() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Đổi đơn vị thuộc nhóm khác thì reset chọn (value chưa tồn tại trong nhóm mới)
+  const orgGroups = [PROVINCES, COMMUNES, SCHOOLS];
 
   // Đã đăng nhập thì vào thẳng diễn đàn
   useEffect(() => {
@@ -46,8 +65,8 @@ export default function DangKyPage() {
     const email = form.email.trim();
     const username = form.username.trim().toLowerCase();
     const schoolId = Number(form.orgUnitId);
-    if (!fullName || !email || !form.className.trim() || !schoolId) {
-      setError("Hãy điền đủ họ tên, email, lớp và chọn trường.");
+    if (!fullName || !email || !schoolId) {
+      setError("Hãy điền đủ họ tên, email và chọn đơn vị.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -74,7 +93,7 @@ export default function DangKyPage() {
       return;
     }
     setSubmitting(true);
-    const school = SCHOOLS.find((s) => s.id === schoolId);
+    const school = orgUnits.find((s) => s.id === schoolId);
     const existingIds = loadCreatedAccounts().map((a) => a.id);
     const id = Math.max(900000, ...existingIds, 0) + 1;
     appendCreatedAccount({
@@ -83,7 +102,8 @@ export default function DangKyPage() {
       username,
       email,
       contactPerson: fullName,
-      contactPosition: form.className.trim(),
+      contactPosition: form.position,
+      className: form.className.trim() || undefined,
       role: "DOAN_VIEN" as Role,
       status: "ACTIVE",
       password: form.password,
@@ -137,20 +157,34 @@ export default function DangKyPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-slate-500">Lớp / Chức vụ</label>
-              <input value={form.className} onChange={set("className")} placeholder="VD: Học sinh lớp 12A1" className={SOFT_INPUT} />
+              <label className="text-sm font-medium text-slate-500">Lớp</label>
+              <input value={form.className} onChange={set("className")} placeholder="VD: 12A1" className={SOFT_INPUT} />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-500">Trường / Đơn vị</label>
-              <select value={form.orgUnitId} onChange={set("orgUnitId")} className={SOFT_INPUT}>
-                <option value="">— Chọn đơn vị —</option>
-                {SCHOOLS.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+              <label className="text-sm font-medium text-slate-500">Chức vụ</label>
+              <select value={form.position} onChange={set("position")} className={SOFT_INPUT}>
+                {DV_POSITIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-500">Trường / Đơn vị</label>
+            <select value={form.orgUnitId} onChange={set("orgUnitId")} className={SOFT_INPUT}>
+              <option value="">— Chọn đơn vị —</option>
+              {orgGroups.map((group, gi) => (
+                <optgroup key={gi} label={gi === 0 ? "Đoàn tỉnh / thành phố" : gi === 1 ? "Đoàn xã / phường / đặc khu" : "Đoàn trường / cơ sở"}>
+                  {group.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-500">Tên đăng nhập</label>

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import {
-  Newspaper, FileText, Trophy, LifeBuoy, FolderOpen, ArrowRight, Users, Activity as ActivityIcon, Landmark,
-  ArrowUpRight, GraduationCap, QrCode, Award, Heart, FlaskConical, Globe2, Flag,
+  Newspaper, MessagesSquare, Trophy, LifeBuoy, FolderOpen, ArrowRight, Users, Activity as ActivityIcon, Landmark,
+  ArrowUpRight, GraduationCap, Award, Heart, FlaskConical, Globe2, Flag,
 } from "lucide-react";
 
 import { useStore } from "@/lib/store-context";
@@ -18,7 +18,7 @@ import { StoryFlow } from "@/components/public/story-flow";
 import { SponsorStrip } from "@/components/public/sponsor-strip";
 import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { formatDate, formatNumber } from "@/lib/utils";
-import { PROGRAMS, CERT_PORTAL_URL } from "@/data/programs";
+import { PROGRAMS } from "@/data/programs";
 import { SPECIAL_CATEGORIES } from "@/data/categories";
 
 /** Icon của hệ thống nút chuyên mục đặc biệt (thứ tự khớp SPECIAL_CATEGORIES) */
@@ -34,14 +34,12 @@ const SPECIAL_TONES = [
 
 const QUICK_LINKS = [
   { href: "/tin-tuc", label: "Tin tức hoạt động", desc: "Phong trào từ các Đoàn trường, Đoàn phường", icon: Newspaper, tone: "bg-doan-50 text-doan-600" },
-  { href: "/van-ban", label: "Văn bản chỉ đạo", desc: "Chỉ thị, kế hoạch, hướng dẫn các cấp", icon: FileText, tone: "bg-sky-50 text-sky-600" },
+  { href: "/dien-dan", label: "Diễn đàn ẩn danh", desc: "Đóng góp ý kiến, câu chuyện của bạn", icon: MessagesSquare, tone: "bg-sky-50 text-sky-600" },
   { href: "/bang-xep-hang", label: "Bảng xếp hạng thi đua", desc: "Kết quả đã chốt theo kỳ", icon: Trophy, tone: "bg-amber-50 text-amber-600" },
   { href: "/phan-anh", label: "Góp ý — Phản ánh", desc: "Gửi không cần đăng nhập, có mã tra cứu", icon: LifeBuoy, tone: "bg-emerald-50 text-emerald-600" },
-  { href: "/tai-nguyen", label: "Kho tài nguyên", desc: "Tài liệu, biểu mẫu, sản phẩm truyền thông", icon: FolderOpen, tone: "bg-violet-50 text-violet-600" },
+  { href: "/tai-nguyen", label: "Tài nguyên & văn bản", desc: "Thiết kế, văn bản, truyền thông, biểu mẫu", icon: FolderOpen, tone: "bg-violet-50 text-violet-600" },
   { href: "/gioi-thieu", label: "Giới thiệu hệ thống", desc: "Về cổng và hướng dẫn sử dụng", icon: Landmark, tone: "bg-stone-100 text-stone-600" },
 ];
-
-/* 🔗 CỔNG DỊCH VỤ LIÊN THÔNG — CERT_PORTAL_URL / HS3T_PORTAL_URL chuyển sang @/data/programs */
 
 /* Icon Facebook dạng SVG nhúng (lucide đã bỏ brand icon) */
 function FbIcon({ className }: { className?: string }) {
@@ -114,7 +112,7 @@ export default function HomePage() {
 
       {/* Khối thống kê kính mờ — nổi trên ranh giới dưới hero */}
       <div className="relative z-20 mx-auto -mt-10 max-w-6xl px-4">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-3xl border border-white/15 bg-[#0b1730]/85 px-6 py-5 shadow-[0_24px_60px_-22px_rgba(8,47,73,0.55)] backdrop-blur-xl sm:grid-cols-4 sm:px-8">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-3xl border border-white/15 bg-[#0b1730]/85 px-6 py-5 shadow-[0_24px_60px_-22px_rgba(8,47,73,0.55)] backdrop-blur-xl sm:grid-cols-3 sm:px-8">
           {/* 2 ô số liệu trực tiếp từ hệ thống */}
           {[
             { label: "Hoạt động đã xác nhận", value: totalActivities, icon: ActivityIcon },
@@ -133,15 +131,13 @@ export default function HomePage() {
             </div>
           ))}
 
-          {/* 2 ô cổng dịch vụ — chứng nhận mở website riêng, HS3T là trang nội bộ */}
+          {/* Ô cổng dịch vụ nội bộ — hồ sơ Học sinh 3 tốt */}
           {[
-            { label: "Tra cứu chứng nhận TW", sub: "Học sinh 3 tốt · quét QR kiểm thực", href: CERT_PORTAL_URL, icon: QrCode, internal: false },
-            { label: "Học sinh 3 TỐT", sub: "Hồ sơ thành tích số · xét danh hiệu", href: "/hoc-sinh-3-tot", icon: GraduationCap, internal: true },
+            { label: "Học sinh 3 TỐT", sub: "Hồ sơ thành tích số · xét danh hiệu", href: "/hoc-sinh-3-tot", icon: GraduationCap },
           ].map((s) => (
             <a
               key={s.label}
               href={s.href}
-              {...(s.internal ? {} : { target: "_blank", rel: "noreferrer" })}
               className="group flex items-center gap-3 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 transition-all duration-300 hover:border-cyan-300/60 hover:bg-cyan-400/20 hover:shadow-[0_0_26px_rgba(34,211,238,0.28)]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-400/15 text-cyan-200">

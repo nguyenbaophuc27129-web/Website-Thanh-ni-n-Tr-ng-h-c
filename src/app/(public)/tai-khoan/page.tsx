@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  UserCircle, LogIn, Coins, FileEdit, FolderUp, HeartHandshake, Award, ArrowRight, MessageSquareQuote,
+  UserCircle, LogIn, LogOut, Coins, FileEdit, FolderUp, HeartHandshake, Award, ArrowRight, MessageSquareQuote,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
@@ -23,7 +24,8 @@ const KIND_META: Record<ContributionKind, { label: string; icon: typeof FileEdit
 };
 
 export default function TaiKhoanPage() {
-  const { session } = useAuth();
+  const { session, logout } = useAuth();
+  const router = useRouter();
   const store = useStore();
   const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -72,13 +74,20 @@ export default function TaiKhoanPage() {
               <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-lg font-bold text-white">
                 {session.contactPerson.slice(0, 1).toUpperCase()}
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-stone-900">{session.contactPerson}</p>
                 <p className="truncate text-xs text-stone-500">{session.orgUnitName}</p>
                 <p className="mt-1 truncate text-[11px] text-stone-400">
                   {session.email} · @{session.username}
                 </p>
               </div>
+              <button
+                onClick={() => { logout(); router.push("/"); }}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                aria-label="Đăng xuất"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Đăng xuất
+              </button>
             </CardBody>
           </Card>
 

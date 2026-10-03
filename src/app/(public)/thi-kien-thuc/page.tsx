@@ -71,6 +71,12 @@ export default function ThiKienThucPage() {
                       </Badge>
                     ) : null}
                     {e.shuffleOptions ? <Badge tone="blue">Trộn đáp án</Badge> : null}
+                    {(e.topics?.length ? e.topics : []).map((t) => (
+                      <Badge key={t} tone="orange">
+                        {t}
+                      </Badge>
+                    ))}
+                    {!e.topics?.length ? <Badge tone="gray">Tất cả chuyên mục</Badge> : null}
                   </div>
                   <h3 className="mt-2.5 text-[15px] font-bold leading-snug text-stone-900">{e.title}</h3>
                   {e.description ? (

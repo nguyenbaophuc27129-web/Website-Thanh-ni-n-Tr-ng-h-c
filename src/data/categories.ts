@@ -26,9 +26,10 @@ export const documentCategories: DocumentCategory[] = [
 ];
 
 export const resourceTypes: ResourceType[] = [
-  { id: 1, code: "TAI_LIEU", name: "Tài liệu, hướng dẫn" },
-  { id: 2, code: "BIEU_MAU", name: "Biểu mẫu, quy trình" },
-  { id: 3, code: "SAN_PHAM", name: "Sản phẩm truyền thông" },
+  { id: 1, code: "THIET_KE", name: "Tài nguyên thiết kế" },
+  { id: 2, code: "BIEU_MAU", name: "Tài nguyên biểu mẫu" },
+  { id: 3, code: "TRUYEN_THONG", name: "Tài nguyên truyền thông" },
+  { id: 4, code: "VAN_BAN", name: "Tài nguyên văn bản" },
 ];
 
 export const feedbackTopics: FeedbackTopic[] = [

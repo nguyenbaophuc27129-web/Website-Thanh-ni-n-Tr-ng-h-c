@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, X, ShieldAlert, ShieldCheck, MapPinned, Users, ExternalLink } from "lucide-react";
+import { Check, X, ShieldAlert, ShieldCheck, MapPinned, Users, ExternalLink, Paperclip } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -133,6 +133,20 @@ export default function DuAnAdminPage() {
                       <p className="mt-2 text-xs text-stone-500">
                         Người thụ hưởng: <b className="text-stone-700">{p.beneficiaries}</b> · Tham gia: {p.participants} đoàn viên
                       </p>
+                      {p.reportFile?.name ? (
+                        <p className="mt-2 text-xs">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 py-1 pl-2.5 pr-3 font-medium text-slate-600">
+                            <Paperclip className="h-3 w-3 text-slate-400" />
+                            {p.reportFile.dataUrl ? (
+                              <a href={p.reportFile.dataUrl} download={p.reportFile.name} className="max-w-56 truncate text-blue-600 hover:underline" title={`Tải ${p.reportFile.name}`}>
+                                {p.reportFile.name}
+                              </a>
+                            ) : (
+                              <span className="max-w-56 truncate">{p.reportFile.name}</span>
+                            )}
+                          </span>
+                        </p>
+                      ) : null}
                     </div>
 
                     {/* Strip kết quả kiểm duyệt AI */}

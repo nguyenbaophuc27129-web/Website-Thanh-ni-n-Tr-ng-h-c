@@ -23,6 +23,7 @@ import { formatNumber, formatDate, cn } from "@/lib/utils";
 import { EmptyState } from "@/components/public/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
+import type { Resource } from "@/types";
 
 /* Staggered fade-up — mỗi dòng lệch nhau 50ms */
 const listVariants = {
@@ -74,7 +75,33 @@ const FORMAT_FILTERS: {
 const extOf = (fileName: string) => fileName.split(".").pop()?.toLowerCase() ?? "";
 
 export default function TaiNguyenPage() {
-  const { resources, resourceTypes, downloadResource, submitResourceDraft } = useStore();
+  const { resources, resourceTypes, documents, downloadResource, submitResourceDraft } = useStore();
+  const vanBanTypeId = resourceTypes.find((t) => t.code === "VAN_BAN")?.id ?? 4;
+
+  /** Văn bản đã ban hành → dòng tài nguyên trong nhóm "Tài nguyên văn bản" (gộp Văn bản vào Tài nguyên) */
+  const docRows = useMemo<Resource[]>(
+    () =>
+      documents
+        .filter((d) => d.status === "ISSUED")
+        .map((d) => ({
+          id: 10000 + d.id,
+          resourceTypeId: vanBanTypeId,
+          title: d.title,
+          description: `${d.docNumber} · ${d.summary}`,
+          fileName: `van-ban-${d.docNumber.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "")}.pdf`,
+          fileSizeKb: 640,
+          isPublic: true,
+          downloadCount: 0,
+          publishedByOrgUnitId: d.issuingOrgUnitId,
+          publishedAt: d.createdAt,
+          status: "PUBLISHED",
+        })),
+    [documents, vanBanTypeId]
+  );
+  const publicPool = useMemo(
+    () => [...resources.filter((r) => r.status === "PUBLISHED" && r.isPublic), ...docRows],
+    [resources, docRows]
+  );
   const { session } = useAuth();
   const { toast } = useToast();
   const [type, setType] = useState<string>("all");
@@ -136,25 +163,23 @@ export default function TaiNguyenPage() {
 
   const list = useMemo(
     () =>
-      resources
-        .filter((r) => r.status === "PUBLISHED" && r.isPublic)
+      publicPool
         .filter((r) => (type === "all" ? true : r.resourceTypeId === Number(type)))
         .filter((r) => (fmt === "all" ? true : FORMAT_FILTERS.find((f) => f.key === fmt)?.match(extOf(r.fileName)) ?? true))
         .filter((r) => (q.trim() === "" ? true : r.title.toLowerCase().includes(q.toLowerCase())))
         .sort((a, b) => b.downloadCount - a.downloadCount),
-    [resources, type, fmt, q]
+    [publicPool, type, fmt, q]
   );
 
   /** Đếm theo định dạng trên nhóm đã lọc theo loại + tìm kiếm (không tính fmt) */
   const fmtCounts = useMemo(() => {
-    const pool = resources
-      .filter((r) => r.status === "PUBLISHED" && r.isPublic)
+    const pool = publicPool
       .filter((r) => (type === "all" ? true : r.resourceTypeId === Number(type)))
       .filter((r) => (q.trim() === "" ? true : r.title.toLowerCase().includes(q.toLowerCase())));
     return Object.fromEntries(
       FORMAT_FILTERS.map((f) => [f.key, pool.filter((r) => f.match(extOf(r.fileName))).length])
     );
-  }, [resources, type, q]);
+  }, [publicPool, type, q]);
 
   /** Micro-interaction tải file: spinner → check → toast */
   const handleDownload = (id: number, title: string) => {
@@ -179,7 +204,7 @@ export default function TaiNguyenPage() {
             Kho tài nguyên
           </h1>
           <p className="mt-2 max-w-xl text-sm text-slate-500">
-            Tài liệu hướng dẫn, biểu mẫu nghiệp vụ và sản phẩm truyền thông dùng chung toàn hệ thống.
+            Thiết kế, văn bản, truyền thông và biểu mẫu nghiệp vụ — dùng chung toàn hệ thống.
           </p>
         </div>
         <button
@@ -209,7 +234,7 @@ export default function TaiNguyenPage() {
       {/* ===== Dải tab phân loại — sub nhộng căn giữa, có số lượng ===== */}
       <div className="mt-5 flex items-center justify-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {([
-          { value: "all", label: "Tất cả", count: resources.filter((r) => r.status === "PUBLISHED" && r.isPublic).length },
+          { value: "all", label: "Tất cả", count: publicPool.length },
           ...resourceTypes.map((t) => ({
             value: String(t.id),
             label: t.name,

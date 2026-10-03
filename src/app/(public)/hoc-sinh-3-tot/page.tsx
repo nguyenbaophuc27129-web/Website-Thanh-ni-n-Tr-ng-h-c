@@ -12,8 +12,8 @@ import { useToast } from "@/lib/toast-context";
 import { Badge } from "@/components/ui/badge";
 import { Input, Select, Field } from "@/components/ui/input";
 import { Reveal, CountUp } from "@/components/public/reveal";
-import { ruleEvaluateHs3t, HS3T_CATEGORY_NAMES } from "@/lib/hs3t-evaluate";
-import type { Hs3tCategory } from "@/types";
+import { ruleEvaluateHs3t, HS3T_CATEGORY_NAMES, HS3T_SUB_CRITERIA } from "@/lib/hs3t-evaluate";
+import type { Hs3tAchievement, Hs3tCategory } from "@/types";
 
 const CATEGORY_META: Record<Hs3tCategory, { icon: typeof BookOpen; tone: string; bar: string }> = {
   HOC_TAP: { icon: BookOpen, tone: "bg-sky-50 text-sky-600", bar: "bg-sky-500" },
@@ -43,6 +43,7 @@ export default function HocSinh3TotPage() {
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Hs3tCategory>("HOC_TAP");
+  const [sub, setSub] = useState("");
   const [achievedAt, setAchievedAt] = useState(new Date().toISOString().slice(0, 10));
   const [evidence, setEvidence] = useState<string[]>([]);
 
@@ -123,10 +124,11 @@ export default function HocSinh3TotPage() {
     store.addHs3tAchievement(session, profile.id, {
       title,
       category,
+      sub: sub || undefined,
       evidenceNames: evidence.length > 0 ? evidence : undefined,
       achievedAt,
     });
-    setTitle(""); setEvidence([]);
+    setTitle(""); setSub(""); setEvidence([]);
     toast("Đã thêm thành tích vào hồ sơ 3 tốt — hồ sơ chỉ cộng thêm, không xóa được.");
   };
 
@@ -137,7 +139,7 @@ export default function HocSinh3TotPage() {
         Hồ sơ Học sinh 3 tốt
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-slate-500">
-        Cập nhật minh chứng học tập, rèn luyện và phong trào — cấp Đoàn xét danh hiệu theo 3 mức:
+        Cập nhật minh chứng học tập, rèn luyện và đạo đức theo 12 tiêu chí phụ — cấp Đoàn xét danh hiệu theo 3 mức:
         xã/phường, tỉnh/thành phố, trung ương.
       </p>
 
@@ -236,9 +238,23 @@ export default function HocSinh3TotPage() {
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nhập tên thành tích, giải thưởng, hoạt động…" />
               </Field>
               <Field label="Nhóm 3 tốt">
-                <Select value={category} onChange={(e) => setCategory(e.target.value as Hs3tCategory)}>
+                <Select
+                  value={category}
+                  onChange={(e) => {
+                    setCategory(e.target.value as Hs3tCategory);
+                    setSub("");
+                  }}
+                >
                   {CATEGORIES.map((c) => (
                     <option key={c} value={c}>{HS3T_CATEGORY_NAMES[c]}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Tiêu chí phụ" hint="Chọn đúng mục để thống kê theo dõi">
+                <Select value={sub} onChange={(e) => setSub(e.target.value)}>
+                  <option value="">— Chưa chọn —</option>
+                  {HS3T_SUB_CRITERIA[category].map((s) => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </Select>
               </Field>
@@ -307,28 +323,80 @@ export default function HocSinh3TotPage() {
                         Chưa có minh chứng
                       </p>
                     ) : (
-                      <ul className="mt-2.5 space-y-2">
-                        {list.map((a) => (
-                          <li key={a.id} className="rounded-lg bg-stone-50 px-2.5 py-2">
-                            <p className="line-clamp-2 text-[11px] font-medium leading-snug text-stone-700">{a.title}</p>
-                            <p className="mt-0.5 text-[10px] text-stone-400">
-                              {a.achievedAt}
-                              {a.addedByRole === "SCHOOL" ? " · trường xác nhận" : ""}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
+                      <GroupedAchievements cat={cat} list={list} />
                     )}
                   </div>
                 </Reveal>
               );
             })}
           </div>
+
+          {/* Theo dõi 12 tiêu chí phụ */}
+          <div className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-100">
+            <p className="text-sm font-bold text-stone-900">Theo dõi 12 tiêu chí phụ</p>
+            <p className="mt-0.5 text-[11px] text-stone-400">
+              Số minh chứng theo từng tiêu chí phụ — nộp đúng mục giúp cấp Đoàn xét danh hiệu nhanh hơn.
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {CATEGORIES.flatMap((cat) => HS3T_SUB_CRITERIA[cat].map((s) => ({ cat, s }))).map(({ cat, s }) => {
+                const n = achievements.filter((a) => a.category === cat && a.sub === s).length;
+                const meta = CATEGORY_META[cat];
+                return (
+                  <div
+                    key={s}
+                    className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 ${
+                      n > 0 ? "bg-emerald-50/60 ring-1 ring-emerald-100" : "bg-stone-50"
+                    }`}
+                  >
+                    <span className="min-w-0 text-[11px] font-medium leading-snug text-stone-600">
+                      <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${meta.bar}`} />
+                      {s}
+                    </span>
+                    <span className={`shrink-0 text-xs font-black ${n > 0 ? "text-emerald-600" : "text-stone-300"}`}>{n}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <p className="text-[11px] leading-relaxed text-stone-400">
             Thành tích trong hồ sơ chỉ cộng thêm, không xóa được — bảo đảm lịch sử minh chứng trung thực khi cấp trên xét danh hiệu.
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Thành tích gom theo tiêu chí phụ — mục chưa chọn sub rơi vào "Khác" */
+function GroupedAchievements({ cat, list }: { cat: Hs3tCategory; list: Hs3tAchievement[] }) {
+  const knownSubs = HS3T_SUB_CRITERIA[cat].filter((s) => list.some((a) => a.sub === s));
+  const others = list.filter((a) => !a.sub || !HS3T_SUB_CRITERIA[cat].includes(a.sub));
+  const renderItem = (a: Hs3tAchievement) => (
+    <li key={a.id} className="rounded-lg bg-stone-50 px-2.5 py-2">
+      <p className="line-clamp-2 text-[11px] font-medium leading-snug text-stone-700">{a.title}</p>
+      <p className="mt-0.5 text-[10px] text-stone-400">
+        {a.achievedAt}
+        {a.addedByRole === "SCHOOL" ? " · trường xác nhận" : ""}
+      </p>
+    </li>
+  );
+  return (
+    <div className="mt-2.5 space-y-2.5">
+      {knownSubs.map((s) => (
+        <div key={s}>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">
+            {s} <span className="text-stone-300">· {list.filter((a) => a.sub === s).length}</span>
+          </p>
+          <ul className="mt-1 space-y-1.5">{list.filter((a) => a.sub === s).map(renderItem)}</ul>
+        </div>
+      ))}
+      {others.length > 0 ? (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Khác · {others.length}</p>
+          <ul className="mt-1 space-y-1.5">{others.map(renderItem)}</ul>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -38,6 +38,8 @@ export interface DemoAccount {
   email: string;
   contactPerson: string;
   contactPosition: string;
+  /** Lớp của học sinh / đoàn viên (đăng ký từ trang Đăng ký) */
+  className?: string;
 }
 
 export const DEMO_ACCOUNTS: DemoAccount[] = [
@@ -111,7 +113,8 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     role: "DOAN_VIEN",
     email: "doanvien@thptchanhphu.edu.vn",
     contactPerson: "dv.demo",
-    contactPosition: "Học sinh lớp 12A1",
+    contactPosition: "Ủy viên Ban Chấp hành Chi Đoàn",
+    className: "12A1",
   },
 ];
 
@@ -125,6 +128,7 @@ export interface Session {
   email: string;
   contactPerson: string;
   contactPosition: string;
+  className?: string;
 }
 
 const AuthCtx = createContext<{
@@ -178,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: acc.email,
       contactPerson: acc.contactPerson,
       contactPosition: acc.contactPosition,
+      className: acc.className,
     }),
     []
   );
