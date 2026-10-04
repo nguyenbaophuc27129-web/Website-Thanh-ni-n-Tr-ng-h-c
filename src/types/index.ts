@@ -70,6 +70,7 @@ export interface Account {
   phone?: string;
   contactPerson: string;
   contactPosition: string;
+  className?: string;
   role: Role;
   status: "PENDING" | "ACTIVE" | "LOCKED" | "DISABLED";
   lastLoginAt?: string;

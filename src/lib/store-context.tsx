@@ -222,7 +222,7 @@ interface StoreValue {
   updateAccountStatus: (accountId: number, status: Account["status"]) => void;
   createAccount: (input: {
     orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
-    contactPosition: string; role: Account["role"]; status?: Account["status"]; password?: string;
+    contactPosition: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
   }) => { ok: boolean; error?: string };
 
   /* forum ẩn danh */
@@ -1013,11 +1013,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const createAccount = useCallback(
     (input: {
       orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
-      contactPosition: string; role: Account["role"]; status?: Account["status"]; password?: string;
+      contactPosition: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
     }) => {
       const username = input.username.trim();
       if (accounts.some((a) => a.username.toLowerCase() === username.toLowerCase())) {
         return { ok: false, error: "Tên đăng nhập đã tồn tại" };
+      }
+      /* Đơn vị cơ sở (cấp 2/3/4) = 01 tài khoản dùng chung — chỉ TW (cấp 1) được nhiều tài khoản */
+      const unit = orgUnits.find((u) => u.id === input.orgUnitId);
+      if (unit && unit.orgLevel >= 2 && accounts.some((a) => a.orgUnitId === input.orgUnitId && a.role !== "DOAN_VIEN")) {
+        return { ok: false, error: "Đơn vị cơ sở chỉ có 01 tài khoản dùng chung — không thể cấp thêm" };
       }
       /* Id phải vượt max của CẢ state lẫn localStorage (nơi nextId không biết tới)
          để không đâm trùng tài khoản đã tạo từ /dang-ky hoặc phiên trước */
@@ -1032,6 +1037,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         phone: input.phone?.trim() || undefined,
         contactPerson: input.contactPerson.trim(),
         contactPosition: input.contactPosition.trim() || "—",
+        className: input.className?.trim() || undefined,
         role: input.role,
         status: input.status ?? "ACTIVE",
       };
@@ -1044,7 +1050,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
       return { ok: true };
     },
-    [accounts, orgName]
+    [accounts, orgUnits, orgName]
   );
 
   /* ============ Forum ẩn danh ============ */

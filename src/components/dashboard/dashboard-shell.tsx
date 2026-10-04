@@ -58,11 +58,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     setUserOpen(false);
   }, [pathname]);
 
-  // Tài khoản quyền giới hạn đang đứng ở /quan-tri → chuyển thẳng tới phân hệ được giao
+  // Tài khoản chức danh TW quyền giới hạn đang đứng ở /quan-tri → chuyển thẳng tới phân hệ được giao
   useEffect(() => {
     if (!ready || !session) return;
     const p = effectivePermissions(session);
-    if (hasPerm(p, "*") || pathname !== "/quan-tri") return;
+    if (hasPerm(p, "*") || session.role !== "QUAN_TRI_TW" || pathname !== "/quan-tri") return;
     const first = workAreas(p)[0];
     if (first) router.replace(first.href);
   }, [ready, session, pathname, router]);
@@ -112,9 +112,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     );
   }
 
-  /* ===== Tài khoản chức danh quyền giới hạn: whitelist route + menu theo đúng quyền được cấp ===== */
+  /* ===== Tài khoản chức danh quyền giới hạn: whitelist route + menu theo đúng quyền được cấp =====
+     CHỈ áp dụng cho tài khoản thuộc quyền TW (chức danh khớp bảng, không toàn quyền) —
+     Tỉnh / Cấp 3 / Đơn vị / BTV quyền theo vai trò, không rơi vào chế độ giới hạn. */
   const perms = effectivePermissions(session);
-  const isLimited = !hasPerm(perms, "*");
+  const isLimited = session.role === "QUAN_TRI_TW" && !hasPerm(perms, "*");
   const work = workAreas(perms);
 
   if (isLimited) {

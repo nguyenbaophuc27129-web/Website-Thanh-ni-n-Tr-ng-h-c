@@ -156,6 +156,7 @@ export default function PhanQuyenPage() {
       <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-800">
         <ShieldCheck className="h-4 w-4 shrink-0" />
         Quyết định quyền: chức danh khớp bảng trên → chỉ có đúng quyền liệt kê (menu và đường dẫn đều bị chặn); không khớp → quyền theo vai trò đơn vị trong ma trận bên trên.
+        Chức danh CHỈ gán cho tài khoản cán bộ thuộc quyền TW (cấp 1) — đơn vị cơ sở (tỉnh / xã-phường / trường) dùng 01 tài khoản dùng chung, quyền theo vai trò.
         Khi tích hợp backend, 2 ma trận này ánh xạ bảng role_permissions + account_permission và được kiểm tra ở tầng API.
       </div>
     </div>

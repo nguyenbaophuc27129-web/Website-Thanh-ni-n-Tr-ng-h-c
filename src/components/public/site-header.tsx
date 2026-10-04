@@ -15,6 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { LanguageSwitcher, GoogleTranslatePlaceholder } from "@/components/public/language-switcher";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -129,6 +130,7 @@ export function SiteHeader() {
                 <u.icon className="h-4 w-4" strokeWidth={1.75} />
               </Link>
             ))}
+            <LanguageSwitcher />
             <span className="mx-1.5 h-5 w-px bg-slate-200" />
           </div>
           {session?.role === "DOAN_VIEN" ? (
@@ -197,6 +199,7 @@ export function SiteHeader() {
                   {u.label}
                 </Link>
               ))}
+              <LanguageSwitcher tile />
             </div>
             {session?.role === "DOAN_VIEN" ? (
               <Link
@@ -217,6 +220,9 @@ export function SiteHeader() {
           </motion.nav>
         ) : null}
       </AnimatePresence>
+
+      {/* Khung gadget ẩn của Google Translate — render đúng 1 lần cho cả header */}
+      <GoogleTranslatePlaceholder />
     </header>
   );
 }

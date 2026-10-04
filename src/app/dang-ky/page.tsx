@@ -9,6 +9,7 @@ import { DEMO_ACCOUNTS, useAuth, type Role } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
 import { orgUnits } from "@/data/org-units";
+import { DV_HOI_POSITION_GROUPS } from "@/data/positions";
 
 const SOFT_INPUT =
   "mt-1.5 w-full rounded-xl border border-transparent bg-slate-100/60 px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500/40 focus:bg-white focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]";
@@ -16,19 +17,6 @@ const SOFT_INPUT =
 const SCHOOLS = orgUnits.filter((u) => u.orgLevel === 4);
 const COMMUNES = orgUnits.filter((u) => u.orgLevel === 3);
 const PROVINCES = orgUnits.filter((u) => u.orgLevel === 2);
-
-/** Chức vụ Đoàn viên đăng ký — đúng thứ bậc từ thành viên đến lãnh đạo */
-const DV_POSITIONS = [
-  "Đoàn viên",
-  "Ủy viên Ban Chấp hành Chi Đoàn",
-  "Phó Bí thư Chi Đoàn",
-  "Bí thư Chi Đoàn",
-  "Ủy viên Ban Chấp hành Đoàn trường",
-  "Phó Bí thư Đoàn trường",
-  "Bí thư Đoàn trường",
-  "Lớp trưởng",
-  "Lớp phó",
-];
 
 export default function DangKyPage() {
   const { session, ready, login } = useAuth();
@@ -161,12 +149,16 @@ export default function DangKyPage() {
               <input value={form.className} onChange={set("className")} placeholder="VD: 12A1" className={SOFT_INPUT} />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-500">Chức vụ</label>
+              <label className="text-sm font-medium text-slate-500">Chức vụ Đoàn - Hội</label>
               <select value={form.position} onChange={set("position")} className={SOFT_INPUT}>
-                {DV_POSITIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
+                {DV_HOI_POSITION_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.positions.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

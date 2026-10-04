@@ -540,3 +540,13 @@ body {
     animation: none;
   }
 }
+
+/* ============ Google Translate (chức năng dịch 5 ngôn ngữ) ============ */
+/* Ẩn banner đỉnh + khung gốc của Google, chỉ dùng combo ẩn điều khiển từ dropdown riêng */
+iframe.goog-te-banner-frame,
+iframe.skiptranslate {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}

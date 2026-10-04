@@ -18,6 +18,7 @@ import { Field, Input, Select } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/utils";
 import { roleList } from "@/data/org-units";
 import { chucDanhQuyenList } from "@/data/chuc-danh-quyen";
+import { DV_HOI_POSITION_GROUPS } from "@/data/positions";
 import { chucDanhOf, effectivePermissions, hasPerm } from "@/lib/permissions";
 import type { Account } from "@/types";
 
@@ -107,7 +108,7 @@ const TEMPLATE_CSV =
   "thpt.chuyenbd,chuyenbd@bd.edu.vn,0918000111,demo123,BD-THPT-CHUYEN,Trần Đăng Khoa,Bí thư Đoàn Trường,DON_VI,ACTIVE\n" +
   "thcs.kimdong,kimdong@bd.edu.vn,0918000222,demo123,BD-HT-TH-KD,Lý Thị Hoa,Tổng phụ trách Đội,DON_VI,ACTIVE\n";
 
-const LEVEL_ROLE: Record<number, Role> = { 2: "QUAN_TRI_TINH", 3: "QUAN_TRI_CAP3", 4: "DON_VI" };
+const LEVEL_ROLE: Record<number, Role> = { 1: "QUAN_TRI_TW", 2: "QUAN_TRI_TINH", 3: "QUAN_TRI_CAP3", 4: "DON_VI" };
 
 /* ================= Page ================= */
 
@@ -134,8 +135,9 @@ export default function TaiKhoanPage() {
   const [search, setSearch] = useState("");
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [accType, setAccType] = useState<"canbo" | "doanvien">("canbo");
   const [form, setForm] = useState({
-    orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", status: "ACTIVE",
+    orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", lop: "", status: "ACTIVE",
   });
   const [customPos, setCustomPos] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -147,12 +149,19 @@ export default function TaiKhoanPage() {
   const canManage = session?.role === "QUAN_TRI_TW" || session?.role === "QUAN_TRI_TINH" || session?.role === "QUAN_TRI_CAP3";
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
 
-  /** Đơn vị được phép tạo TK: TW → từ cấp Tỉnh trở xuống · Tỉnh → Phường/Trường · Cấp 3 → Trường */
+  /**
+   * Đơn vị được phép tạo TK: TW → cả đơn vị TW (cán bộ, nhiều TK) + từ cấp Tỉnh trở xuống ·
+   * Tỉnh → Phường/Trường · Cấp 3 → Trường. Đơn vị cơ sở giới hạn 01 tài khoản dùng chung
+   * (chặn ở bước tạo, không loại khỏi danh sách).
+   */
   const creatableUnits = useMemo(() => {
     if (!session) return [];
-    const minLevel = session.role === "QUAN_TRI_TW" ? 2 : session.role === "QUAN_TRI_TINH" ? 3 : 4;
-    return store.orgUnits.filter((u) => scope.includes(u.id) && u.id !== session.orgUnitId && u.orgLevel >= minLevel && u.isActive);
+    const minLevel = session.role === "QUAN_TRI_TW" ? 1 : session.role === "QUAN_TRI_TINH" ? 3 : 4;
+    return store.orgUnits.filter((u) => scope.includes(u.id) && u.orgLevel >= minLevel && u.isActive);
   }, [session, store.orgUnits, scope]);
+
+  /** Tài khoản Đoàn viên đăng ký theo trường (đơn vị cấp 4) */
+  const dvUnits = useMemo(() => creatableUnits.filter((u) => u.orgLevel === 4), [creatableUnits]);
 
   const list = useMemo(
     () =>
@@ -182,6 +191,9 @@ export default function TaiKhoanPage() {
     return u ? LEVEL_ROLE[u.orgLevel] ?? null : null;
   };
 
+  /** Đơn vị cấp 1 = thuộc quyền TW → được gán chức danh; cấp 2/3/4 = tài khoản dùng chung của cơ sở */
+  const isTwUnit = (store.orgById(Number(form.orgUnitId) || 0)?.orgLevel ?? 0) === 1;
+
   const setStatus = (a: Account, status: Account["status"]) => {
     store.updateAccountStatus(a.id, status);
     toast(`Đã ${status === "ACTIVE" ? "kích hoạt" : status === "LOCKED" ? "khóa" : status === "PENDING" ? "đưa về chờ duyệt" : "vô hiệu hóa"} tài khoản ${a.username}.`);
@@ -190,8 +202,22 @@ export default function TaiKhoanPage() {
   /* ---------- Tạo đơn lẻ ---------- */
 
   const handleCreate = () => {
+    const isDv = accType === "doanvien";
     if (!form.orgUnitId) {
-      toast("Chọn đơn vị cho tài khoản.", "warning");
+      toast(isDv ? "Chọn trường / đơn vị cho Đoàn viên." : "Chọn đơn vị cho tài khoản.", "warning");
+      return;
+    }
+    const selUnit = store.orgById(Number(form.orgUnitId));
+    if (isDv && selUnit && selUnit.orgLevel !== 4) {
+      toast("Tài khoản Đoàn viên đăng ký theo trường (đơn vị cấp 4).", "warning");
+      return;
+    }
+    if (!isDv && selUnit && selUnit.orgLevel >= 2 && store.accounts.some((a) => a.orgUnitId === selUnit.id && a.role !== "DOAN_VIEN")) {
+      toast("Đơn vị cơ sở chỉ có 01 tài khoản dùng chung — không cấp thêm.", "warning");
+      return;
+    }
+    if (isDv && !form.chucVu) {
+      toast("Chọn chức vụ Đoàn - Hội của Đoàn viên.", "warning");
       return;
     }
     if (!/^[a-z0-9._-]{3,}$/i.test(form.username.trim())) {
@@ -209,7 +235,8 @@ export default function TaiKhoanPage() {
       phone: form.phone,
       contactPerson: form.hoTen,
       contactPosition: form.chucVu,
-      role: derivedRole(Number(form.orgUnitId)) ?? "DON_VI",
+      className: isDv ? form.lop : undefined,
+      role: isDv ? "DOAN_VIEN" : derivedRole(Number(form.orgUnitId)) ?? "DON_VI",
       status: form.status as Account["status"],
       password: form.password,
     });
@@ -220,7 +247,8 @@ export default function TaiKhoanPage() {
     toast(`Đã tạo tài khoản ${form.username} — mật khẩu ${form.password || "demo123"}, có thể đăng nhập ngay.`);
     setCreateOpen(false);
     setCustomPos(false);
-    setForm({ orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", status: "ACTIVE" });
+    setAccType("canbo");
+    setForm({ orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", lop: "", status: "ACTIVE" });
   };
 
   /* ---------- Nhập từ file ---------- */
@@ -281,7 +309,7 @@ export default function TaiKhoanPage() {
         else if (!data.password) error = "Thiếu password";
         else if (!data.org_unit_code) error = "Thiếu org_unit_code";
         else if (!unit) error = `Không tìm thấy đơn vị mã "${data.org_unit_code}" trong phạm vi của bạn`;
-        else if (store.accounts.some((a) => a.orgUnitId === unit.id)) error = `Đơn vị ${unit.shortName} đã có tài khoản (1 đơn vị = 1 tài khoản)`;
+        else if (unit.orgLevel >= 2 && store.accounts.some((a) => a.orgUnitId === unit.id && a.role !== "DOAN_VIEN")) error = `Đơn vị ${unit.shortName} đã có tài khoản dùng chung (cơ sở = 01 tài khoản)`;
 
         const roleName = unit ? ROLE_LABELS[LEVEL_ROLE[unit.orgLevel]] : (data.role_code ?? "");
         if (!error && data.role_code) {
@@ -347,7 +375,8 @@ export default function TaiKhoanPage() {
         <div>
           <h1 className="font-serif-display text-xl font-bold text-stone-900">Tài khoản</h1>
           <p className="mt-0.5 text-sm text-stone-500">
-            Tạo tài khoản cho đơn vị trong phạm vi (phường/xã, trường — kể cả trường trực thuộc tỉnh), nhập hàng loạt từ file Excel/CSV.
+            Đơn vị cơ sở (tỉnh / xã-phường / trường) dùng <b>01 tài khoản dùng chung</b> — TW cấp 1 tài khoản duy nhất cho mỗi đơn vị.
+            Riêng cán bộ thuộc quyền TW thì mỗi người 1 tài khoản, gán chức danh để phân quyền. Nhập hàng loạt từ file Excel/CSV.
           </p>
         </div>
         {canManage ? (
@@ -355,7 +384,7 @@ export default function TaiKhoanPage() {
             <Button variant="secondary" onClick={() => { setImportRows([]); setMissingCols([]); setImportOpen(true); }}>
               <FileUp className="h-4 w-4" /> Nhập từ file
             </Button>
-            <Button onClick={() => { setForm((f) => ({ ...f, orgUnitId: creatableUnits[0]?.id.toString() ?? "" })); setCreateOpen(true); }}>
+            <Button onClick={() => { setAccType("canbo"); setForm((f) => ({ ...f, orgUnitId: creatableUnits[0]?.id.toString() ?? "" })); setCreateOpen(true); }}>
               <UserPlus className="h-4 w-4" /> Thêm tài khoản
             </Button>
           </div>
@@ -399,7 +428,10 @@ export default function TaiKhoanPage() {
                 <Tr key={a.id}>
                   <Td>
                     <p className="text-sm font-semibold text-stone-800">{a.username}</p>
-                    <p className="text-[11px] text-stone-400">{a.contactPerson} · {a.email}{a.phone ? ` · ${a.phone}` : ""}</p>
+                    <p className="text-[11px] text-stone-400">
+                      {a.contactPerson} · {a.email}{a.phone ? ` · ${a.phone}` : ""}
+                      {a.role === "DOAN_VIEN" ? ` · ${a.contactPosition}${a.className ? ` · Lớp ${a.className}` : ""}` : ""}
+                    </p>
                   </Td>
                   <Td className="text-sm text-stone-600">{store.orgName(a.orgUnitId)}</Td>
                   <Td><Badge tone="blue">{ROLE_LABELS[a.role]}</Badge></Td>
@@ -452,13 +484,48 @@ export default function TaiKhoanPage() {
         }
       >
         <div className="space-y-4">
-          <Field label="Đơn vị" required hint="Vai trò tự theo cấp đơn vị: Tỉnh → Quản trị Tỉnh · Phường/Xã → Quản trị cấp 3 · Trường → Đơn vị cơ sở.">
+          <Field
+            label="Loại tài khoản"
+            hint="Cán bộ / đơn vị: vào khu quản trị · Đoàn viên: tài khoản cá nhân tham gia Diễn đàn ẩn danh."
+          >
+            <Select
+              value={accType}
+              onChange={(e) => {
+                const t = e.target.value as "canbo" | "doanvien";
+                setAccType(t);
+                setCustomPos(false);
+                setForm((f) => ({ ...f, orgUnitId: "", chucVu: "", lop: "" }));
+              }}
+            >
+              <option value="canbo">Cán bộ / tài khoản đơn vị — quản trị theo vai trò</option>
+              <option value="doanvien">Đoàn viên (cá nhân) — tham gia Diễn đàn</option>
+            </Select>
+          </Field>
+          <Field
+            label="Đơn vị"
+            required
+            hint={
+              accType === "doanvien"
+                ? "Đoàn viên đăng ký theo trường / cơ sở (đơn vị cấp 4) — mỗi trường có nhiều Đoàn viên."
+                : "Cấp 1 (TW): mỗi cán bộ 1 tài khoản + chức danh · Cấp 2/3/4 (cơ sở): 01 tài khoản dùng chung, quyền theo vai trò."
+            }
+          >
             <Select
               value={form.orgUnitId}
-              onChange={(e) => setForm((f) => ({ ...f, orgUnitId: e.target.value }))}
+              onChange={(e) => {
+                const u = store.orgById(Number(e.target.value) || 0);
+                const isTw = u?.orgLevel === 1;
+                setCustomPos(false);
+                setForm((f) => ({
+                  ...f,
+                  orgUnitId: e.target.value,
+                  /* Rời đơn vị TW → xóa chức danh TW để khỏi dính nhầm vào tài khoản cơ sở */
+                  chucVu: accType === "doanvien" ? f.chucVu : isTw ? f.chucVu : chucDanhOf(f.chucVu) ? "" : f.chucVu,
+                }));
+              }}
             >
               <option value="">— Chọn đơn vị —</option>
-              {creatableUnits.map((u) => (
+              {(accType === "doanvien" ? dvUnits : creatableUnits).map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name} (cấp {u.orgLevel})
                 </option>
@@ -466,9 +533,15 @@ export default function TaiKhoanPage() {
             </Select>
           </Field>
           {form.orgUnitId ? (
-            <p className="rounded-lg bg-sky-50 px-3.5 py-2 text-xs text-sky-800">
-              Vai trò cấp: <b>{ROLE_LABELS[derivedRole(Number(form.orgUnitId)) ?? "DON_VI"]}</b>
-            </p>
+            accType === "doanvien" ? (
+              <p className="rounded-lg bg-teal-50 px-3.5 py-2 text-xs text-teal-800">
+                Tài khoản cá nhân <b>Đoàn viên</b> — tham gia Diễn đàn ẩn danh, không vào khu quản trị. Phải khai chức vụ Đoàn - Hội.
+              </p>
+            ) : (
+              <p className="rounded-lg bg-sky-50 px-3.5 py-2 text-xs text-sky-800">
+                Vai trò cấp: <b>{ROLE_LABELS[derivedRole(Number(form.orgUnitId)) ?? "DON_VI"]}</b>
+              </p>
+            )
           ) : null}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tên đăng nhập" required>
@@ -486,8 +559,32 @@ export default function TaiKhoanPage() {
             <Field label="Số điện thoại" hint="Cột phone trong schema accounts">
               <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="09xx xxx xxx" />
             </Field>
+            {accType === "doanvien" ? (
+            <>
+            <Field label="Lớp" hint="Tùy chọn — VD: 12A1">
+              <Input value={form.lop} onChange={(e) => setForm((f) => ({ ...f, lop: e.target.value }))} placeholder="VD: 12A1" />
+            </Field>
             <Field
-              label="Chức danh / chức vụ"
+              label="Chức vụ Đoàn - Hội"
+              required
+              hint="Khai đúng chức vụ hiện tại trong Đoàn / Hội / Đội / lớp học."
+            >
+              <Select value={form.chucVu} onChange={(e) => setForm((f) => ({ ...f, chucVu: e.target.value }))}>
+                <option value="">— Chọn chức vụ —</option>
+                {DV_HOI_POSITION_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.positions.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </Field>
+            </>
+            ) : isTwUnit ? (
+            <>
+            <Field
+              label="Chức danh (thuộc quyền TW)"
               hint="Chọn chức danh TW — quyền của tài khoản tự theo bảng phân quyền chức danh, xem trước bên dưới."
             >
               <Select
@@ -542,6 +639,15 @@ export default function TaiKhoanPage() {
               }
               return null;
             })()}
+            </>
+            ) : (
+            <Field
+              label="Chức vụ người đại diện"
+              hint="Tài khoản dùng chung của đơn vị cơ sở — chức danh TW không áp dụng, quyền theo vai trò đơn vị."
+            >
+              <Input value={form.chucVu} onChange={(e) => setForm((f) => ({ ...f, chucVu: e.target.value }))} placeholder="Ví dụ: Bí thư Đoàn Trường" />
+            </Field>
+            )}
             <Field label="Trạng thái">
               <Select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
                 <option value="ACTIVE">Kích hoạt ngay</option>
@@ -660,8 +766,8 @@ export default function TaiKhoanPage() {
               </div>
               <p className="text-[11px] text-stone-400">
                 org_unit_code khớp mã đơn vị (org_units.code — VD BD-PH) hoặc tên ngắn/tên đầy đủ. role_code để trống sẽ tự theo cấp đơn vị.
-                contact_position ghi ĐÚNG tên chức danh trong bảng phân quyền TW thì quyền tự giới hạn theo chức danh đó.
-                Trạng thái để trống mặc định ACTIVE. Schema không cho phép trùng username/email (UQ) và 1 đơn vị chỉ 1 tài khoản.
+                Tài khoản TW ghi contact_position ĐÚNG tên chức danh trong bảng phân quyền thì quyền tự giới hạn; đơn vị cơ sở chỉ nhận 01 dòng (tài khoản dùng chung).
+                Trạng thái để trống mặc định ACTIVE. Schema không cho phép trùng username/email (UQ).
               </p>
             </div>
           ) : null}

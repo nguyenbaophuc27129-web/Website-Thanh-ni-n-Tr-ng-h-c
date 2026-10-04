@@ -16,14 +16,17 @@ export function chucDanhOf(position?: string) {
 
 /**
  * Quyền hiệu lực của một tài khoản:
- * - contactPosition khớp bảng "Phân quyền theo chức danh TW" → CHỈ có đúng quyền đó
- *   (toanQuyen = true → "*", false → danh sách quyền cụ thể).
- * - Không khớp chức danh nào → quyền theo vai trò đơn vị (ROLE_PERMISSIONS).
- * Áp dụng cho mọi nguồn tài khoản: đăng ký công khai, tạo thủ công, nhập từ file.
+ * - Tài khoản THUỘC QUYỀN TW (role QUAN_TRI_TW) mà contactPosition khớp bảng
+ *   "Phân quyền theo chức danh TW" → CHỈ có đúng quyền đó (toanQuyen → "*", ngược lại → danh sách cụ thể).
+ * - Còn lại (kể cả tài khoản cơ sở vô tình ghi trùng tên chức danh) → quyền theo vai trò đơn vị.
+ * Nguyên tắc: đơn vị cơ sở (tỉnh / xã-phường / trường) dùng 01 tài khoản dùng chung,
+ * CHỈ TW mới được gán chức danh cho tài khoản cán bộ của mình.
  */
 export function effectivePermissions(subject: PermissionSubject): string[] {
-  const cd = chucDanhOf(subject.contactPosition);
-  if (cd) return cd.toanQuyen ? ["*"] : cd.quyen.map((q) => q.code);
+  if (subject.role === "QUAN_TRI_TW") {
+    const cd = chucDanhOf(subject.contactPosition);
+    if (cd) return cd.toanQuyen ? ["*"] : cd.quyen.map((q) => q.code);
+  }
   return ROLE_PERMISSIONS[subject.role] ?? [];
 }
 
