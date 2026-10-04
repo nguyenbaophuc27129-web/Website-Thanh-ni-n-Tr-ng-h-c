@@ -40,7 +40,10 @@ export default function TaiNguyenAdminPage() {
     [store.resources, tab]
   );
 
-  const typeName = (id: number) => resourceTypes.find((t) => t.id === id)?.name ?? "—";
+  const typeName = (id: number) => {
+    const t = resourceTypes.find((x) => x.id === id);
+    return t?.short ?? t?.name ?? "—";
+  };
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM, resourceTypeId: resourceTypes[0]?.id.toString() ?? "" });

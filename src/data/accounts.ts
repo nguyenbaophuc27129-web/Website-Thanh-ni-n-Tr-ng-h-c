@@ -17,4 +17,9 @@ export const accounts: Account[] = [
   { id: 13, orgUnitId: 42, username: "thpt.bacgiang", email: "thptbg@bg.edu.vn", contactPerson: "Hoàng Tuấn Kiệt", contactPosition: "Bí thư Đoàn Trường", role: "DON_VI", status: "DISABLED" },
   { id: 14, orgUnitId: 14, username: "bg.province", email: "bandoan@bacgiang.doan.vn", contactPerson: "Lý Hồng Nhung", contactPosition: "Phó Bí thư Tỉnh Đoàn", role: "QUAN_TRI_TINH", status: "ACTIVE" },
   { id: 15, orgUnitId: 29, username: "hc.benghe", email: "benghe@hcm.doan.vn", contactPerson: "Ngô Thanh Trúc", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
+  /* Chức danh TW quyền giới hạn — quyền tự theo bảng phân quyền chức danh (lib/permissions.ts) */
+  { id: 16, orgUnitId: 1, username: "cv.hs3t", email: "hs3t@tnth.vn", contactPerson: "Trần Thị Thu Hà", contactPosition: "Chuyên viên phụ trách xét hồ sơ Học sinh 3 tốt", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 17, orgUnitId: 1, username: "cv.kiemtra", email: "kiemtra@tnth.vn", contactPerson: "Lê Minh Đức", contactPosition: "Chuyên viên phụ trách công tác kiểm tra", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 18, orgUnitId: 1, username: "ctv.tintuc", email: "tintuc@tnth.vn", contactPerson: "Nguyễn Hải Yến", contactPosition: "CTV phụ trách chuyên mục Tin tức", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 19, orgUnitId: 1, username: "ctv.duan", email: "duan@tnth.vn", contactPerson: "Phạm Đức Anh", contactPosition: 'CTV phụ trách chuyên mục "Mỗi trường THPT 01 dự án tình nguyện vì cộng đồng"', role: "QUAN_TRI_TW", status: "ACTIVE" },
 ];

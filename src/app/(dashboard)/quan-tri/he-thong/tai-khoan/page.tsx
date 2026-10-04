@@ -17,6 +17,8 @@ import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/utils";
 import { roleList } from "@/data/org-units";
+import { chucDanhQuyenList } from "@/data/chuc-danh-quyen";
+import { chucDanhOf, effectivePermissions, hasPerm } from "@/lib/permissions";
 import type { Account } from "@/types";
 
 /* ================= File import helpers ================= */
@@ -135,6 +137,7 @@ export default function TaiKhoanPage() {
   const [form, setForm] = useState({
     orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", status: "ACTIVE",
   });
+  const [customPos, setCustomPos] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [missingCols, setMissingCols] = useState<string[]>([]);
@@ -216,6 +219,7 @@ export default function TaiKhoanPage() {
     }
     toast(`Đã tạo tài khoản ${form.username} — mật khẩu ${form.password || "demo123"}, có thể đăng nhập ngay.`);
     setCreateOpen(false);
+    setCustomPos(false);
     setForm({ orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", status: "ACTIVE" });
   };
 
@@ -442,7 +446,7 @@ export default function TaiKhoanPage() {
         title="Thêm tài khoản mới"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setCreateOpen(false)}>Hủy</Button>
+            <Button variant="secondary" onClick={() => { setCreateOpen(false); setCustomPos(false); }}>Hủy</Button>
             <Button onClick={handleCreate}><UserPlus className="h-4 w-4" /> Tạo tài khoản</Button>
           </>
         }
@@ -482,9 +486,62 @@ export default function TaiKhoanPage() {
             <Field label="Số điện thoại" hint="Cột phone trong schema accounts">
               <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="09xx xxx xxx" />
             </Field>
-            <Field label="Chức vụ">
-              <Input value={form.chucVu} onChange={(e) => setForm((f) => ({ ...f, chucVu: e.target.value }))} placeholder="Bí thư Đoàn Trường" />
+            <Field
+              label="Chức danh / chức vụ"
+              hint="Chọn chức danh TW — quyền của tài khoản tự theo bảng phân quyền chức danh, xem trước bên dưới."
+            >
+              <Select
+                value={customPos ? "__custom" : form.chucVu}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setCustomPos(v === "__custom");
+                  setForm((f) => ({ ...f, chucVu: v === "__custom" ? "" : v }));
+                }}
+              >
+                <option value="">— Chức vụ khác (không trong danh sách) —</option>
+                <optgroup label="Chức danh TW — toàn quyền">
+                  {chucDanhQuyenList.filter((c) => c.toanQuyen).map((c) => (
+                    <option key={c.id} value={c.ten}>{c.ten}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Chức danh TW — quyền giới hạn">
+                  {chucDanhQuyenList.filter((c) => !c.toanQuyen).map((c) => (
+                    <option key={c.id} value={c.ten}>{c.ten}</option>
+                  ))}
+                </optgroup>
+              </Select>
             </Field>
+            {customPos ? (
+              <Field label="Nhập chức vụ" hint="Ví dụ: Bí thư Đoàn Trường — quyền theo vai trò đơn vị">
+                <Input value={form.chucVu} onChange={(e) => setForm((f) => ({ ...f, chucVu: e.target.value }))} placeholder="Bí thư Đoàn Trường" />
+              </Field>
+            ) : null}
+            {(() => {
+              const cd = chucDanhOf(form.chucVu);
+              if (cd) {
+                return cd.toanQuyen ? (
+                  <p className="col-span-2 rounded-lg bg-emerald-50 px-3.5 py-2.5 text-xs leading-relaxed text-emerald-800">
+                    <b>{cd.ten}</b> — <b>toàn quyền hệ thống</b> (Tất cả chức năng hiện nay).
+                  </p>
+                ) : (
+                  <div className="col-span-2 rounded-lg bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-900">
+                    <p><b>Quyền giới hạn</b> — tài khoản này CHỈ có:</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                      {cd.quyen.map((q) => <li key={q.code}>{q.ten}</li>)}
+                    </ul>
+                  </div>
+                );
+              }
+              const role0 = form.orgUnitId ? derivedRole(Number(form.orgUnitId)) ?? "DON_VI" : "DON_VI";
+              if (hasPerm(effectivePermissions({ role: role0 }), "*")) {
+                return (
+                  <p className="col-span-2 rounded-lg bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800">
+                    Quyền theo vai trò đơn vị — <b>{ROLE_LABELS[role0]}</b> (toàn quyền trong phạm vi).
+                  </p>
+                );
+              }
+              return null;
+            })()}
             <Field label="Trạng thái">
               <Select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
                 <option value="ACTIVE">Kích hoạt ngay</option>
@@ -603,6 +660,7 @@ export default function TaiKhoanPage() {
               </div>
               <p className="text-[11px] text-stone-400">
                 org_unit_code khớp mã đơn vị (org_units.code — VD BD-PH) hoặc tên ngắn/tên đầy đủ. role_code để trống sẽ tự theo cấp đơn vị.
+                contact_position ghi ĐÚNG tên chức danh trong bảng phân quyền TW thì quyền tự giới hạn theo chức danh đó.
                 Trạng thái để trống mặc định ACTIVE. Schema không cho phép trùng username/email (UQ) và 1 đơn vị chỉ 1 tài khoản.
               </p>
             </div>

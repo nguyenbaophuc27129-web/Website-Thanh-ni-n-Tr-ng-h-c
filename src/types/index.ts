@@ -424,6 +424,8 @@ export interface ResourceType {
   id: number;
   code: string;
   name: string;
+  /** Tên ngắn gọn hiển thị tab/label khi name quá dài */
+  short?: string;
 }
 
 export interface Resource {
@@ -439,6 +441,8 @@ export interface Resource {
   publishedAt: string;
   /** Tài nguyên do Đoàn viên đóng góp — id tài khoản chờ Ban TNTH duyệt */
   submittedByAccountId?: number;
+  /** Link YouTube (watch hoặc embed videoseries) — tài nguyên xem trực tuyến thay vì tải file */
+  videoUrl?: string;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
 }
 

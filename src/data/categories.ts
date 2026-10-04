@@ -30,6 +30,12 @@ export const resourceTypes: ResourceType[] = [
   { id: 2, code: "BIEU_MAU", name: "Tài nguyên biểu mẫu" },
   { id: 3, code: "TRUYEN_THONG", name: "Tài nguyên truyền thông" },
   { id: 4, code: "VAN_BAN", name: "Tài nguyên văn bản" },
+  {
+    id: 5, code: "CLIP_TINH_BAN",
+    name: "Clip tuyên truyền Xây dựng tình bạn đẹp, nói không với bạo lực học đường",
+    short: "Clip tuyên truyền tình bạn đẹp",
+  },
+  { id: 6, code: "THONG_DIEP", name: "Thông điệp tuổi trẻ" },
 ];
 
 export const feedbackTopics: FeedbackTopic[] = [

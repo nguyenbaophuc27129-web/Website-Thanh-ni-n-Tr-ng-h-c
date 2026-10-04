@@ -13,6 +13,7 @@ import {
 import { useAuth, ROLE_LABELS } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
 import { useAssignmentReminders } from "@/lib/use-assignment-reminders";
+import { effectivePermissions, hasPerm } from "@/lib/permissions";
 import { cn, formatDateTime } from "@/lib/utils";
 
 interface NavItem {
@@ -25,6 +26,15 @@ interface NavGroup {
   title: string;
   items: NavItem[];
 }
+
+/** Các phân hệ ánh xạ quyền chức danh TW — tài khoản quyền giới hạn chỉ thấy đúng mục được giao */
+const WORK_AREAS: { code: string; href: string; label: string; icon: typeof LayoutDashboard }[] = [
+  { code: "hs3t.view", href: "/quan-tri/hs3t", label: "Hồ sơ Học sinh 3 tốt", icon: GraduationCap },
+  { code: "feedback.view", href: "/quan-tri/phan-anh", label: "Phản ánh, kiến nghị", icon: LifeBuoy },
+  { code: "post.manage", href: "/quan-tri/xuat-ban", label: "Xuất bản tin bài", icon: Megaphone },
+  { code: "project.manage", href: "/quan-tri/du-an", label: "Dự án tình nguyện", icon: MapPinned },
+];
+const workAreas = (perms: string[]) => WORK_AREAS.filter((a) => hasPerm(perms, a.code));
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const { session, ready, logout } = useAuth();
@@ -47,6 +57,15 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     setBellOpen(false);
     setUserOpen(false);
   }, [pathname]);
+
+  // Tài khoản quyền giới hạn đang đứng ở /quan-tri → chuyển thẳng tới phân hệ được giao
+  useEffect(() => {
+    if (!ready || !session) return;
+    const p = effectivePermissions(session);
+    if (hasPerm(p, "*") || pathname !== "/quan-tri") return;
+    const first = workAreas(p)[0];
+    if (first) router.replace(first.href);
+  }, [ready, session, pathname, router]);
 
   if (!ready || !session) {
     return (
@@ -91,6 +110,61 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  /* ===== Tài khoản chức danh quyền giới hạn: whitelist route + menu theo đúng quyền được cấp ===== */
+  const perms = effectivePermissions(session);
+  const isLimited = !hasPerm(perms, "*");
+  const work = workAreas(perms);
+
+  if (isLimited) {
+    const pathOk =
+      pathname === "/quan-tri" ||
+      pathname.startsWith("/quan-tri/thong-bao") ||
+      work.some((w) => pathname.startsWith(w.href));
+
+    if (!pathOk) {
+      const W0 = work[0];
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-5">
+          <div className="w-full max-w-md rounded-3xl bg-white p-9 text-center shadow-[0_24px_80px_rgb(15,23,42,0.10)]">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+              <ShieldCheck className="h-6 w-6" strokeWidth={1.75} />
+            </span>
+            <h1 className="mt-4 text-xl font-bold text-slate-900">Không có quyền truy cập khu này</h1>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+              Tài khoản của bạn được phân quyền theo chức danh{" "}
+              <b className="text-slate-700">“{session.contactPosition}”</b> — chỉ thấy
+              {work.length > 0 ? `: ${work.map((w) => w.label).join(", ")}.` : " các phân hệ được Ban TNTH giao."}
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              {W0 ? (
+                <Link
+                  href={W0.href}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all hover:brightness-110"
+                >
+                  <W0.icon className="h-4 w-4" /> Đến {W0.label}
+                </Link>
+              ) : null}
+              <button
+                onClick={() => { logout(); router.push("/"); }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                <LogOut className="h-4 w-4" /> Đăng xuất
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (pathname === "/quan-tri") {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+          <p className="text-sm text-stone-500">Đang chuyển tới phân hệ của bạn…</p>
+        </div>
+      );
+    }
   }
 
   const role = session.role;
@@ -198,6 +272,26 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         ...(role === "QUAN_TRI_TW" ? [{ href: "/quan-tri/he-thong/cai-dat", label: "Cài đặt", icon: Settings }] : []),
       ],
     });
+  }
+
+  // Quyền giới hạn: menu chỉ còn Thông báo + đúng các phân hệ được giao theo chức danh
+  if (isLimited) {
+    groups.length = 0;
+    groups.push({
+      title: "Tổng quan",
+      items: [{ href: "/quan-tri/thong-bao", label: "Thông báo", icon: BellRing, badge: unreadCount || undefined }],
+    });
+    if (work.length > 0) {
+      groups.push({
+        title: "Nhiệm vụ được phân công",
+        items: work.map((w) => ({
+          href: w.href,
+          label: w.label,
+          icon: w.icon,
+          badge: w.href === "/quan-tri/du-an" ? pendingProjects || undefined : undefined,
+        })),
+      });
+    }
   }
 
   const isActive = (href: string) =>

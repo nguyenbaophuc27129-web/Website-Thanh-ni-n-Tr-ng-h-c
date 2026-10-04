@@ -1,13 +1,14 @@
 "use client";
 
 import { Fragment, useMemo } from "react";
-import { ShieldCheck, Check, Minus } from "lucide-react";
+import { ShieldCheck, Check, Minus, UserCog, Crown, CircleCheck } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TableWrap, THead, Th, Tr, Td } from "@/components/ui/table";
 import { ROLE_PERMISSIONS } from "@/types";
 import { roleList, permissionsList } from "@/data/org-units";
+import { chucDanhQuyenList } from "@/data/chuc-danh-quyen";
 
 export default function PhanQuyenPage() {
   const store = useStore();
@@ -96,9 +97,66 @@ export default function PhanQuyenPage() {
         </CardBody>
       </Card>
 
+      <Card>
+        <CardHeader
+          title="Phân quyền theo chức danh Ban Thường vụ Trung ương Đoàn"
+          subtitle={`Theo file "quyền của từng người trong các chức vụ" — áp dụng NGAY khi đăng nhập: ${chucDanhQuyenList.filter((c) => c.toanQuyen).length} chức danh toàn quyền, ${chucDanhQuyenList.filter((c) => !c.toanQuyen).length} chức danh chỉ thấy đúng phân hệ được giao`}
+        />
+        <CardBody className="p-0">
+          <div className="divide-y divide-stone-100">
+            {chucDanhQuyenList.map((cd) => (
+              <div key={cd.id} className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <span
+                    className={
+                      cd.toanQuyen
+                        ? "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600"
+                        : "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-500"
+                    }
+                  >
+                    {cd.toanQuyen ? <Crown className="h-4 w-4" strokeWidth={1.75} /> : <UserCog className="h-4 w-4" strokeWidth={1.75} />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-stone-800">{cd.ten}</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-stone-400">{cd.moTa}</p>
+                  </div>
+                </div>
+                <div className="shrink-0 sm:max-w-md">
+                  {cd.toanQuyen ? (
+                    <Badge tone="green">
+                      <span className="inline-flex items-center gap-1">
+                        <CircleCheck className="h-3 w-3" /> Toàn quyền
+                      </span>
+                    </Badge>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {cd.quyen.map((q) => (
+                        <span
+                          key={q.code}
+                          title={q.code}
+                          className="inline-flex items-center rounded-full bg-doan-50 px-2.5 py-1 text-[11px] font-medium text-doan-700 ring-1 ring-inset ring-doan-200"
+                        >
+                          {q.ten}
+                        </span>
+                      ))}
+                      {cd.demoUser ? (
+                        <code className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-500">
+                          Thử: {cd.demoUser} / demo123
+                        </code>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardBody>
+      </Card>
+
       <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-800">
         <ShieldCheck className="h-4 w-4 shrink-0" />
-        Phân quyền trong prototype là tĩnh (đọc từ cấu hình mock). Khi tích hợp backend, ma trận này ánh xạ bảng role_permissions và được kiểm tra ở tầng API.
+        Quyết định quyền: chức danh khớp bảng trên → chỉ có đúng quyền liệt kê (menu và đường dẫn đều bị chặn); không khớp → quyền theo vai trò đơn vị trong ma trận bên trên.
+        Khi tích hợp backend, 2 ma trận này ánh xạ bảng role_permissions + account_permission và được kiểm tra ở tầng API.
       </div>
     </div>
   );

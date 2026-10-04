@@ -315,16 +315,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hs3tAchievements, setHs3tAchievements] = useState<Hs3tAchievement[]>(seedHs3tAchievements);
   const [hs3tUnitStandards, setHs3tUnitStandards] = useState<Hs3tUnitStandard[]>(seedHs3tUnitStandards);
 
-  // Khôi phục tài khoản đã tạo từ localStorage (để khớp với đăng nhập)
+  // Khôi phục tài khoản đã tạo từ localStorage (để khớp với đăng nhập) — chặn trùng username lẫn id,
+  // kể cả trùng NỘI BỘ danh sách đã lưu (bản cũ từng sinh id nextId() đè lên id của /dang-ky)
   useEffect(() => {
     const created = loadCreatedAccounts();
     if (created.length > 0) {
       setAccounts((prev) => {
         const known = new Set(prev.map((a) => a.username.toLowerCase()));
-        const restored = created
-          .filter((c) => !known.has(c.username.toLowerCase()))
-          .map(({ password: _pw, displayName: _dn, orgUnitName: _on, ...acc }) => acc as Account);
-        return [...prev, ...restored];
+        const knownIds = new Set(prev.map((a) => a.id));
+        const restored: Account[] = [];
+        for (const c of created) {
+          if (known.has(c.username.toLowerCase()) || knownIds.has(c.id)) continue;
+          known.add(c.username.toLowerCase());
+          knownIds.add(c.id);
+          const { password: _pw, displayName: _dn, orgUnitName: _on, ...acc } = c;
+          restored.push(acc as Account);
+        }
+        return restored.length > 0 ? [...prev, ...restored] : prev;
       });
     }
   }, []);
@@ -1012,7 +1019,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (accounts.some((a) => a.username.toLowerCase() === username.toLowerCase())) {
         return { ok: false, error: "Tên đăng nhập đã tồn tại" };
       }
-      const id = nextId();
+      /* Id phải vượt max của CẢ state lẫn localStorage (nơi nextId không biết tới)
+         để không đâm trùng tài khoản đã tạo từ /dang-ky hoặc phiên trước */
+      const storedMax = loadCreatedAccounts().reduce((m, c) => Math.max(m, c.id), 0);
+      const memoryMax = accounts.reduce((m, a) => Math.max(m, a.id), 0);
+      const id = Math.max(900000, storedMax, memoryMax) + 1;
       const account: Account = {
         id,
         orgUnitId: input.orgUnitId,

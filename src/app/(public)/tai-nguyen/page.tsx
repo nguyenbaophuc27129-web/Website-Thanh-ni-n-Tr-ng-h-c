@@ -15,6 +15,8 @@ import {
   Loader2,
   CalendarDays,
   Upload,
+  Play,
+  ExternalLink,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -74,6 +76,27 @@ const FORMAT_FILTERS: {
 
 const extOf = (fileName: string) => fileName.split(".").pop()?.toLowerCase() ?? "";
 
+/** videoId từ link YouTube (watch/youtu.be/shorts) — trả null nếu là playlist */
+function ytVideoId(url: string): string | null {
+  return url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/)?.[1] ?? null;
+}
+/** Ảnh thumbnail clip YouTube, null nếu không lấy được (playlist) */
+function ytThumb(url: string): string | null {
+  const id = ytVideoId(url);
+  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+}
+/** Link nhúng phát được — giữ nguyên link embed (playlist), watch → embed + autoplay */
+function ytEmbedSrc(url: string): string {
+  if (url.includes("/embed/")) return `${url}${url.includes("?") ? "&" : "?"}autoplay=1&rel=0`;
+  const id = ytVideoId(url);
+  return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0` : url;
+}
+/** Link mở trên YouTube */
+function ytWatchUrl(url: string): string {
+  const id = ytVideoId(url);
+  return id ? `https://www.youtube.com/watch?v=${id}` : url;
+}
+
 export default function TaiNguyenPage() {
   const { resources, resourceTypes, documents, downloadResource, submitResourceDraft } = useStore();
   const vanBanTypeId = resourceTypes.find((t) => t.code === "VAN_BAN")?.id ?? 4;
@@ -109,6 +132,7 @@ export default function TaiNguyenPage() {
   const [q, setQ] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [doneId, setDoneId] = useState<number | null>(null);
+  const [playing, setPlaying] = useState<Resource | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   /* ===== Đóng góp tài nguyên (login-gated) ===== */
@@ -237,7 +261,7 @@ export default function TaiNguyenPage() {
           { value: "all", label: "Tất cả", count: publicPool.length },
           ...resourceTypes.map((t) => ({
             value: String(t.id),
-            label: t.name,
+            label: t.short ?? t.name,
             count: resources.filter((r) => r.status === "PUBLISHED" && r.isPublic && r.resourceTypeId === t.id).length,
           })),
         ] as { value: string; label: string; count: number }[]).map((t) => (
@@ -333,24 +357,42 @@ export default function TaiNguyenPage() {
             {list.map((r) => {
               const fm = formatMeta(r.fileName);
               const FmIcon = fm.icon;
-              const typeName = resourceTypes.find((t) => t.id === r.resourceTypeId)?.name;
+              const typeName = resourceTypes.find((t) => t.id === r.resourceTypeId)?.short ?? resourceTypes.find((t) => t.id === r.resourceTypeId)?.name;
               const busy = busyId === r.id;
               const done = doneId === r.id;
+              const thumb = r.videoUrl ? ytThumb(r.videoUrl) : null;
               return (
                 <motion.div
                   key={r.id}
                   variants={itemVariants}
                   className="group flex items-center gap-4 px-5 py-4 transition-colors duration-200 hover:bg-slate-50 sm:px-6"
                 >
-                  {/* Icon định dạng file — nền màu nhạt tương ứng, đẩy nhẹ khi hover */}
-                  <span
-                    className={cn(
-                      "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:translate-x-0.5",
-                      fm.tint
-                    )}
-                  >
-                    <FmIcon className="h-5 w-5" strokeWidth={1.5} />
-                  </span>
+                  {/* Icon định dạng file — clip YouTube hiển thị thumbnail thật với nút play đè */}
+                  {thumb ? (
+                    <button
+                      type="button"
+                      onClick={() => setPlaying(r)}
+                      className="relative h-12 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-900 transition-transform duration-300 group-hover:translate-x-0.5"
+                      aria-label={`Xem clip: ${r.title}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={thumb} alt="" className="h-full w-full object-cover opacity-90" />
+                      <span className="absolute inset-0 flex items-center justify-center bg-slate-900/25 transition-colors group-hover:bg-slate-900/10">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-600/40">
+                          <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />
+                        </span>
+                      </span>
+                    </button>
+                  ) : (
+                    <span
+                      className={cn(
+                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:translate-x-0.5",
+                        fm.tint
+                      )}
+                    >
+                      <FmIcon className="h-5 w-5" strokeWidth={1.5} />
+                    </span>
+                  )}
 
                   {/* Nội dung chính */}
                   <div className="min-w-0 flex-1">
@@ -365,7 +407,7 @@ export default function TaiNguyenPage() {
                         .{fm.label}
                       </span>
                       <span className="hidden text-[11px] font-light text-slate-400 sm:inline">
-                        {(r.fileSizeKb / 1024).toFixed(1)} MB
+                        {r.videoUrl ? "Xem trực tuyến" : `${(r.fileSizeKb / 1024).toFixed(1)} MB`}
                       </span>
                     </div>
                     <h2 className="mt-1 truncate text-sm font-semibold text-slate-900 transition-colors group-hover:text-blue-600">
@@ -379,34 +421,45 @@ export default function TaiNguyenPage() {
                   {/* Meta phải */}
                   <div className="hidden shrink-0 flex-col items-end gap-0.5 text-[11px] font-light text-slate-400 lg:flex">
                     <span className="inline-flex items-center gap-1">
-                      <Download className="h-3 w-3" strokeWidth={1.5} /> {formatNumber(r.downloadCount)} lượt tải
+                      <Download className="h-3 w-3" strokeWidth={1.5} /> {formatNumber(r.downloadCount)} {r.videoUrl ? "lượt xem" : "lượt tải"}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <CalendarDays className="h-3 w-3" strokeWidth={1.5} /> {formatDate(r.publishedAt)}
                     </span>
                   </div>
 
-                  {/* Hành động — ẩn mờ, hiện rõ khi hover dòng */}
+                  {/* Hành động — clip mở trình phát, tài liệu tải xuống; ẩn mờ, hiện rõ khi hover dòng */}
                   <div className="flex shrink-0 items-center opacity-100 transition-all duration-300 sm:translate-x-1 sm:opacity-0 sm:group-hover:translate-x-0 sm:group-hover:opacity-100">
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(r.id, r.title)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11px] font-semibold text-white transition-colors",
-                        done ? "bg-emerald-500" : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110"
-                      )}
-                    >
-                      {busy ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : done ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : (
-                        <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      )}
-                      <span className="hidden md:inline">
-                        {busy ? "Đang tải…" : done ? "Đã tải" : "Tải xuống"}
-                      </span>
-                    </button>
+                    {r.videoUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setPlaying(r)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-rose-500 to-rose-600 px-3.5 py-2 text-[11px] font-semibold text-white transition-colors hover:brightness-110"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                        <span className="hidden md:inline">Xem clip</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(r.id, r.title)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11px] font-semibold text-white transition-colors",
+                          done ? "bg-emerald-500" : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110"
+                        )}
+                      >
+                        {busy ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : done ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        )}
+                        <span className="hidden md:inline">
+                          {busy ? "Đang tải…" : done ? "Đã tải" : "Tải xuống"}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -416,11 +469,55 @@ export default function TaiNguyenPage() {
       ) : (
         <div className="mt-8">
           <EmptyState
-            message={fmt === "all" ? "Chưa có tài nguyên công khai ở danh mục này." : "Chưa có tài nguyên công khai ở định dạng này."}
+            message={
+              type === String(resourceTypes.find((t) => t.code === "THONG_DIEP")?.id ?? -1)
+                ? "Nhóm dành cho các thông điệp tuổi trẻ (slogan, quote, sản phẩm truyền thông) — nội dung sẽ sớm được cập nhật."
+                : fmt === "all"
+                  ? "Chưa có tài nguyên công khai ở danh mục này."
+                  : "Chưa có tài nguyên công khai ở định dạng này."
+            }
             icon={FolderOpen}
           />
         </div>
       )}
+
+      {/* ===== Modal phát clip YouTube ===== */}
+      <Modal
+        open={playing !== null}
+        onClose={() => setPlaying(null)}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Play className="h-4 w-4 fill-rose-600 text-rose-600" /> {playing?.title ?? ""}
+          </span>
+        }
+        wide
+        footer={
+          <a
+            href={playing ? ytWatchUrl(playing.videoUrl ?? "") : "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50"
+          >
+            <ExternalLink className="h-4 w-4" /> Mở trên YouTube
+          </a>
+        }
+      >
+        {playing?.videoUrl && (
+          <div className="overflow-hidden rounded-2xl bg-slate-950 shadow-xl">
+            <div className="aspect-video w-full">
+              <iframe
+                key={playing.id}
+                src={ytEmbedSrc(playing.videoUrl)}
+                title={playing.title}
+                className="h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        )}
+        {playing && <p className="mt-3 text-sm leading-relaxed text-stone-500">{playing.description}</p>}
+      </Modal>
 
       {/* ===== Modal đóng góp tài nguyên ===== */}
       <Modal
