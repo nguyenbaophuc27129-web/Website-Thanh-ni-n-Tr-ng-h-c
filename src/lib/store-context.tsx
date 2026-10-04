@@ -13,7 +13,7 @@ import type {
   Activity, Account, AdaptiveStep, AssignmentReview, AssignmentTarget, Attendance,
   ContributionKind, ContributionLog, CriteriaSet,
   DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, ForumComment, ForumMedia, ForumThread,
-  Hs3tAchievement, Hs3tCategory, Hs3tProfile, LiveEvent, MemberContribution, ModerationResult, Notification,
+  Hs3tAchievement, Hs3tCategory, Hs3tProfile, Hs3tUnitStandard, LiveEvent, MemberContribution, ModerationResult, Notification,
   OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
   RankingEntry, RankingSnapshot, Report, Resource, Score,
   Sponsor, SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
@@ -40,7 +40,7 @@ import { orgDirectories as seedDirectories } from "@/data/directory";
 import { volunteerProjects as seedVolunteerProjects } from "@/data/volunteer-projects";
 import { quizQuestions as seedQuizQuestions } from "@/data/quiz-bank";
 import { quizExams as seedQuizExams } from "@/data/quiz-exams";
-import { hs3tProfiles as seedHs3tProfiles, hs3tAchievements as seedHs3tAchievements } from "@/data/hs3t";
+import { hs3tProfiles as seedHs3tProfiles, hs3tAchievements as seedHs3tAchievements, hs3tUnitStandards as seedHs3tUnitStandards } from "@/data/hs3t";
 import { generateUniqueAlias } from "@/lib/forum-alias";
 import type { Session } from "@/lib/auth-context";
 import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
@@ -257,9 +257,12 @@ interface StoreValue {
   gradeQuizAttempt: (session: Session, attemptId: number, manualPoints: number) => void;
   hs3tProfiles: Hs3tProfile[];
   hs3tAchievements: Hs3tAchievement[];
+  hs3tUnitStandards: Hs3tUnitStandard[];
   ensureHs3tProfile: (session: Session) => Hs3tProfile;
   addHs3tAchievement: (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; sub?: string; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => void;
   awardHs3tLevel: (session: Session, profileId: number, level: "XA" | "TINH" | "TW") => void;
+  /** Điều 5 — lưu tiêu chuẩn danh hiệu của đơn vị (không cao hơn chuẩn TW) */
+  saveHs3tUnitStandard: (session: Session, input: { applyTw: boolean; daoDuc?: string; hocTap?: string; theLuc?: string; thanhTichKhac?: string; note?: string }) => void;
 }
 
 const StoreCtx = createContext<StoreValue | null>(null);
@@ -310,6 +313,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
   const [hs3tProfiles, setHs3tProfiles] = useState<Hs3tProfile[]>(seedHs3tProfiles);
   const [hs3tAchievements, setHs3tAchievements] = useState<Hs3tAchievement[]>(seedHs3tAchievements);
+  const [hs3tUnitStandards, setHs3tUnitStandards] = useState<Hs3tUnitStandard[]>(seedHs3tUnitStandards);
 
   // Khôi phục tài khoản đã tạo từ localStorage (để khớp với đăng nhập)
   useEffect(() => {
@@ -1572,6 +1576,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [hs3tProfiles, awardContribution, addNotification]
   );
 
+  /** Điều 5 Quy chế TW — đơn vị lưu tiêu chuẩn riêng (bắt buộc xác nhận không cao hơn chuẩn TW phía UI) */
+  const saveHs3tUnitStandard = useCallback(
+    (session: Session, input: { applyTw: boolean; daoDuc?: string; hocTap?: string; theLuc?: string; thanhTichKhac?: string; note?: string }) => {
+      setHs3tUnitStandards((prev) => {
+        const existing = prev.find((s) => s.orgUnitId === session.orgUnitId);
+        const record: Hs3tUnitStandard = {
+          id: existing?.id ?? nextId(),
+          orgUnitId: session.orgUnitId,
+          applyTw: input.applyTw,
+          daoDuc: input.applyTw ? undefined : input.daoDuc?.trim() || undefined,
+          hocTap: input.applyTw ? undefined : input.hocTap?.trim() || undefined,
+          theLuc: input.applyTw ? undefined : input.theLuc?.trim() || undefined,
+          thanhTichKhac: input.applyTw ? undefined : input.thanhTichKhac?.trim() || undefined,
+          note: input.note?.trim() || undefined,
+          confirmedByAccountId: session.accountId,
+          updatedAt: nowISO(),
+        };
+        return existing
+          ? prev.map((s) => (s.orgUnitId === session.orgUnitId ? record : s))
+          : [record, ...prev];
+      });
+    },
+    []
+  );
+
   const value: StoreValue = useMemo(
     () => ({
       orgUnits, accounts, contentCategories, documentCategories, resourceTypes, feedbackTopics,
@@ -1600,7 +1629,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
       quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
       startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,
-      hs3tProfiles, hs3tAchievements, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel,
+      hs3tProfiles, hs3tAchievements, hs3tUnitStandards, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel, saveHs3tUnitStandard,
     }),
     [
       forumThreads, forumComments,
@@ -1611,7 +1640,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
       quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
       startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,
-      hs3tProfiles, hs3tAchievements, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel,
+      hs3tProfiles, hs3tAchievements, hs3tUnitStandards, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel, saveHs3tUnitStandard,
       orgUnits, accounts, activities, publishedPosts, criteriaSets, tasks, taskMetrics,
       taskAssignments, assignmentTargets, taskResults, assignmentReviews, scores,
       rankingSnapshots, rankingEntries, reports, documents, documentRecipients,

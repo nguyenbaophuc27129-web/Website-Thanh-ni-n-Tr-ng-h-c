@@ -700,7 +700,29 @@ export interface Hs3tProfile {
   createdAt: string;
 }
 
-export type Hs3tCategory = "HOC_TAP" | "REN_LUYEN" | "PHONG_TRAO";
+/**
+ * Nhóm tiêu chuẩn HS3T theo Quy chế QĐ 317-QĐ/TWĐTN-TNTH (điều chỉnh TB 630 10/2025):
+ * PHONG_TRAO = Đạo đức tốt · HOC_TAP = Học tập tốt · REN_LUYEN = Thể lực tốt · KHAC = Thành tích khác (bổ sung hồ sơ).
+ */
+export type Hs3tCategory = "HOC_TAP" | "REN_LUYEN" | "PHONG_TRAO" | "KHAC";
+
+/**
+ * Điều 5 Quy chế — đơn vị xây dựng tiêu chuẩn riêng phù hợp thực tiễn,
+ * KHÔNG được cao hơn chuẩn Trung ương.
+ */
+export interface Hs3tUnitStandard {
+  id: number;
+  orgUnitId: number;
+  /** true = áp dụng nguyên chuẩn TW; false = đã điều chỉnh theo thực tiễn */
+  applyTw: boolean;
+  daoDuc?: string;
+  hocTap?: string;
+  theLuc?: string;
+  thanhTichKhac?: string;
+  note?: string;
+  confirmedByAccountId?: number;
+  updatedAt?: string;
+}
 
 /** Thành tích hồ sơ 3 tốt — append-only, không xóa */
 export interface Hs3tAchievement {

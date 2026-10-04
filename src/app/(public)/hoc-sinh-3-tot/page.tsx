@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
 import {
-  GraduationCap, BookOpen, Dumbbell, HeartHandshake, Plus, Paperclip, X, Award, Landmark, ArrowRight, CheckCircle2,
+  GraduationCap, BookOpen, Dumbbell, HeartHandshake, Medal, Plus, Paperclip, X, Award, Landmark, ArrowRight, CheckCircle2, Scale,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -12,21 +12,41 @@ import { useToast } from "@/lib/toast-context";
 import { Badge } from "@/components/ui/badge";
 import { Input, Select, Field } from "@/components/ui/input";
 import { Reveal, CountUp } from "@/components/public/reveal";
-import { ruleEvaluateHs3t, HS3T_CATEGORY_NAMES, HS3T_SUB_CRITERIA } from "@/lib/hs3t-evaluate";
-import type { Hs3tAchievement, Hs3tCategory } from "@/types";
+import {
+  ruleEvaluateHs3t, HS3T_CATEGORY_NAMES, HS3T_SUB_CRITERIA, HS3T_MAIN_CATEGORIES, HS3T_ALL_CATEGORIES,
+} from "@/lib/hs3t-evaluate";
+import type { Hs3tAchievement, Hs3tCategory, Hs3tUnitStandard } from "@/types";
 
 const CATEGORY_META: Record<Hs3tCategory, { icon: typeof BookOpen; tone: string; bar: string }> = {
+  PHONG_TRAO: { icon: HeartHandshake, tone: "bg-emerald-50 text-emerald-600", bar: "bg-emerald-500" },
   HOC_TAP: { icon: BookOpen, tone: "bg-sky-50 text-sky-600", bar: "bg-sky-500" },
   REN_LUYEN: { icon: Dumbbell, tone: "bg-violet-50 text-violet-600", bar: "bg-violet-500" },
-  PHONG_TRAO: { icon: HeartHandshake, tone: "bg-emerald-50 text-emerald-600", bar: "bg-emerald-500" },
+  KHAC: { icon: Medal, tone: "bg-amber-50 text-amber-600", bar: "bg-amber-500" },
 };
-const CATEGORIES: Hs3tCategory[] = ["HOC_TAP", "REN_LUYEN", "PHONG_TRAO"];
 
 const LEVEL_LABEL: Record<string, string> = {
   XA: "Danh hiệu cấp Xã/Phường",
   TINH: "Danh hiệu cấp Tỉnh/Thành phố",
   TW: "Danh hiệu cấp Trung ương",
 };
+
+/** Điều 5 — tiêu chuẩn đơn vị áp dụng: leo lên cây đơn vị nếu trường chưa tự điều chỉnh */
+function unitStandardOf(
+  orgUnits: { id: number; parentId: number | null }[],
+  standards: Hs3tUnitStandard[],
+  orgUnitId: number
+): Hs3tUnitStandard | null {
+  let cur = orgUnits.find((o) => o.id === orgUnitId);
+  while (cur) {
+    const unit = cur;
+    const found = standards.find((s) => s.orgUnitId === unit.id && !s.applyTw);
+    if (found) return found;
+    if (unit.parentId == null) break;
+    const parentId: number = unit.parentId;
+    cur = orgUnits.find((o) => o.id === parentId);
+  }
+  return null;
+}
 
 export default function HocSinh3TotPage() {
   const store = useStore();
@@ -99,6 +119,7 @@ export default function HocSinh3TotPage() {
 
   const achievements = store.hs3tAchievements.filter((a) => a.profileId === profile.id);
   const evaluation = ruleEvaluateHs3t(profile, achievements);
+  const unitStandard = unitStandardOf(store.orgUnits, store.hs3tUnitStandards, profile.schoolOrgUnitId);
 
   const addEvidence = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -139,9 +160,34 @@ export default function HocSinh3TotPage() {
         Hồ sơ Học sinh 3 tốt
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-slate-500">
-        Cập nhật minh chứng học tập, rèn luyện và đạo đức theo 12 tiêu chí phụ — cấp Đoàn xét danh hiệu theo 3 mức:
-        xã/phường, tỉnh/thành phố, trung ương.
+        Cập nhật minh chứng đạo đức, học tập, thể lực theo 12 tiêu chí phụ chuẩn Trung ương (QĐ 317-QĐ/TWĐTN-TNTH)
+        — cộng thêm nhóm Thành tích khác (công bố khoa học, chứng chỉ ngoại ngữ, tin học, SAT…).
       </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link
+          href="/hoc-sinh-3-tot/quy-che"
+          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+        >
+          <Scale className="h-3.5 w-3.5" /> Quy chế chuẩn TW (QĐ 317 + điều chỉnh 10/2025)
+        </Link>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-medium text-stone-500">
+          Thành tích tính từ 01/9 năm trước đến hết 31/8 năm xét trao
+        </span>
+      </div>
+
+      {unitStandard ? (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="flex items-center gap-2 text-xs font-bold text-amber-800">
+            <Scale className="h-3.5 w-3.5" /> Tiêu chuẩn áp dụng tại {store.orgName(unitStandard.orgUnitId)} — điều chỉnh theo Điều 5 (không cao hơn chuẩn TW)
+          </p>
+          <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-amber-900/85">
+            {unitStandard.daoDuc ? <li>• <b>Đạo đức tốt:</b> {unitStandard.daoDuc}</li> : null}
+            {unitStandard.hocTap ? <li>• <b>Học tập tốt:</b> {unitStandard.hocTap}</li> : null}
+            {unitStandard.theLuc ? <li>• <b>Thể lực tốt:</b> {unitStandard.theLuc}</li> : null}
+          </ul>
+          {unitStandard.note ? <p className="mt-1.5 text-[10px] italic text-amber-700/80">{unitStandard.note}</p> : null}
+        </div>
+      ) : null}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-5">
         {/* ===== Hồ sơ + QR ===== */}
@@ -181,7 +227,7 @@ export default function HocSinh3TotPage() {
           <div className="rounded-3xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-200">
             <p className="text-sm font-bold text-stone-900">Tiến độ 3 tốt</p>
             <div className="mt-4 space-y-4">
-              {CATEGORIES.map((cat) => {
+              {HS3T_MAIN_CATEGORIES.map((cat) => {
                 const meta = CATEGORY_META[cat];
                 const n = evaluation.counts[cat];
                 return (
@@ -195,7 +241,7 @@ export default function HocSinh3TotPage() {
                     <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-stone-100">
                       <div
                         className={`h-full rounded-full ${meta.bar} transition-all duration-500`}
-                        style={{ width: `${Math.min(100, (n / 4) * 100)}%` }}
+                        style={{ width: `${Math.min(100, (n / HS3T_SUB_CRITERIA[cat].length) * 100)}%` }}
                       />
                     </div>
                   </div>
@@ -237,7 +283,7 @@ export default function HocSinh3TotPage() {
               <Field label="Tên thành tích" required className="sm:col-span-2" hint="VD: Giải Ba Học sinh giỏi Tin học cấp tỉnh">
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nhập tên thành tích, giải thưởng, hoạt động…" />
               </Field>
-              <Field label="Nhóm 3 tốt">
+              <Field label="Nhóm tiêu chuẩn">
                 <Select
                   value={category}
                   onChange={(e) => {
@@ -245,12 +291,15 @@ export default function HocSinh3TotPage() {
                     setSub("");
                   }}
                 >
-                  {CATEGORIES.map((c) => (
+                  {HS3T_ALL_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{HS3T_CATEGORY_NAMES[c]}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Tiêu chí phụ" hint="Chọn đúng mục để thống kê theo dõi">
+              <Field
+                label="Tiêu chí phụ"
+                hint={category === "KHAC" ? "Bổ sung hồ sơ — không tính vào ngưỡng xét 3 nhóm" : "Chọn đúng mục để thống kê theo dõi"}
+              >
                 <Select value={sub} onChange={(e) => setSub(e.target.value)}>
                   <option value="">— Chưa chọn —</option>
                   {HS3T_SUB_CRITERIA[category].map((s) => (
@@ -301,9 +350,9 @@ export default function HocSinh3TotPage() {
             </button>
           </div>
 
-          {/* 3 cột thành tích theo nhóm */}
+          {/* 3 cột thành tích theo nhóm chuẩn TW */}
           <div className="grid gap-4 md:grid-cols-3">
-            {CATEGORIES.map((cat, i) => {
+            {HS3T_MAIN_CATEGORIES.map((cat, i) => {
               const meta = CATEGORY_META[cat];
               const list = achievements.filter((a) => a.category === cat);
               return (
@@ -331,14 +380,36 @@ export default function HocSinh3TotPage() {
             })}
           </div>
 
-          {/* Theo dõi 12 tiêu chí phụ */}
+          {/* Thành tích khác — bổ sung hồ sơ, không tính ngưỡng 3 nhóm */}
+          <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-[0_8px_30px_rgb(15,23,42,0.04)]">
+            <div className="flex items-center justify-between">
+              <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${CATEGORY_META.KHAC.tone}`}>
+                <Medal className="h-4 w-4" />
+              </span>
+              <span className="text-2xl font-black text-stone-900">
+                <CountUp value={achievements.filter((a) => a.category === "KHAC").length} />
+              </span>
+            </div>
+            <p className="mt-2 text-xs font-bold text-stone-800">
+              Thành tích khác <span className="font-normal text-stone-400">— công bố khoa học, chứng chỉ ngoại ngữ, tin học văn phòng, SAT…</span>
+            </p>
+            {achievements.filter((a) => a.category === "KHAC").length === 0 ? (
+              <p className="mt-2 rounded-lg bg-stone-50 px-2.5 py-3 text-center text-[11px] text-stone-400">
+                Chưa có — nhóm này bổ sung hồ sơ, không tính vào ngưỡng xét 3 nhóm tiêu chuẩn.
+              </p>
+            ) : (
+              <GroupedAchievements cat="KHAC" list={achievements.filter((a) => a.category === "KHAC")} />
+            )}
+          </div>
+
+          {/* Theo dõi 12 tiêu chí phụ chuẩn TW */}
           <div className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-100">
-            <p className="text-sm font-bold text-stone-900">Theo dõi 12 tiêu chí phụ</p>
+            <p className="text-sm font-bold text-stone-900">Theo dõi 12 tiêu chí phụ chuẩn TW</p>
             <p className="mt-0.5 text-[11px] text-stone-400">
-              Số minh chứng theo từng tiêu chí phụ — nộp đúng mục giúp cấp Đoàn xét danh hiệu nhanh hơn.
+              Đạo đức 6 · Học tập 3 · Thể lực 3 (Điều 4 Quy chế, đã hợp nhất điều chỉnh 10/2025) — nộp đúng mục giúp cấp Đoàn xét nhanh hơn.
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {CATEGORIES.flatMap((cat) => HS3T_SUB_CRITERIA[cat].map((s) => ({ cat, s }))).map(({ cat, s }) => {
+              {HS3T_MAIN_CATEGORIES.flatMap((cat) => HS3T_SUB_CRITERIA[cat].map((s) => ({ cat, s }))).map(({ cat, s }) => {
                 const n = achievements.filter((a) => a.category === cat && a.sub === s).length;
                 const meta = CATEGORY_META[cat];
                 return (

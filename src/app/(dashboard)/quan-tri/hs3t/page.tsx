@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
-  GraduationCap, ShieldAlert, Sparkles, UserPlus, Award, Trophy, Loader2, BookOpen, Dumbbell, HeartHandshake, MapPin, ListChecks,
+  GraduationCap, ShieldAlert, Sparkles, UserPlus, Award, Trophy, Loader2, BookOpen, Dumbbell, HeartHandshake, MapPin, ListChecks, Medal, Scale,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -13,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Select, Field } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { TableWrap, THead, Th, Tr, Td, EmptyRow } from "@/components/ui/table";
-import { ruleEvaluateHs3t, HS3T_CATEGORY_NAMES } from "@/lib/hs3t-evaluate";
+import { ruleEvaluateHs3t, HS3T_CATEGORY_NAMES, HS3T_MAIN_CATEGORIES, HS3T_ALL_CATEGORIES } from "@/lib/hs3t-evaluate";
 import { formatDateTime } from "@/lib/utils";
 import type { Hs3tAchievement, Hs3tCategory, Hs3tProfile } from "@/types";
 
@@ -22,7 +23,7 @@ const LEVEL_LABEL: Record<"XA" | "TINH" | "TW", string> = {
   TINH: "Cấp Tỉnh/TP",
   TW: "Cấp Trung ương",
 };
-const CATEGORIES: Hs3tCategory[] = ["HOC_TAP", "REN_LUYEN", "PHONG_TRAO"];
+const CATEGORIES: Hs3tCategory[] = HS3T_MAIN_CATEGORIES;
 
 interface AiResult {
   profileId: number;
@@ -43,6 +44,18 @@ export default function Hs3tAdminPage() {
   const [achDraft, setAchDraft] = useState<{ title: string; category: Hs3tCategory; achievedAt: string }>({
     title: "", category: "HOC_TAP", achievedAt: new Date().toISOString().slice(0, 10),
   });
+
+  // ===== Điều 5 — tiêu chuẩn đơn vị =====
+  const stdMine = session ? store.hs3tUnitStandards.find((s) => s.orgUnitId === session.orgUnitId) : undefined;
+  const [stdApplyTw, setStdApplyTw] = useState(stdMine ? stdMine.applyTw : true);
+  const [stdDraft, setStdDraft] = useState({
+    daoDuc: stdMine?.daoDuc ?? "",
+    hocTap: stdMine?.hocTap ?? "",
+    theLuc: stdMine?.theLuc ?? "",
+    thanhTichKhac: stdMine?.thanhTichKhac ?? "",
+    note: stdMine?.note ?? "",
+  });
+  const [stdConfirm, setStdConfirm] = useState(false);
 
   const isTW = session?.role === "QUAN_TRI_TW";
   const isSchool = session?.role === "DON_VI";
@@ -174,6 +187,27 @@ export default function Hs3tAdminPage() {
     <span className={`inline-flex items-center gap-1 text-xs font-bold ${n >= ok ? "text-emerald-600" : "text-stone-400"}`}>{n}</span>
   );
 
+  const submitStandard = () => {
+    if (!stdApplyTw && !stdConfirm) {
+      toast("Cần xác nhận tiêu chuẩn điều chỉnh KHÔNG cao hơn chuẩn Trung ương (Điều 5).", "warning");
+      return;
+    }
+    if (
+      !stdApplyTw &&
+      !stdDraft.daoDuc.trim() && !stdDraft.hocTap.trim() && !stdDraft.theLuc.trim() && !stdDraft.thanhTichKhac.trim()
+    ) {
+      toast("Nhập ít nhất một nhóm tiêu chuẩn điều chỉnh, hoặc chọn 'Áp dụng nguyên chuẩn TW'.", "warning");
+      return;
+    }
+    store.saveHs3tUnitStandard(session, { applyTw: stdApplyTw, ...stdDraft });
+    toast(
+      stdApplyTw
+        ? "Đã lưu — đơn vị áp dụng nguyên chuẩn Trung ương."
+        : "Đã lưu tiêu chuẩn điều chỉnh của đơn vị (Điều 5 Quy chế TW).",
+      "success"
+    );
+  };
+
   const aiTarget = aiResult ? store.hs3tProfiles.find((p) => p.id === aiResult.profileId) : undefined;
 
   return (
@@ -190,8 +224,113 @@ export default function Hs3tAdminPage() {
       </div>
 
       <p className="rounded-lg bg-sky-50 px-4 py-2.5 text-xs text-sky-700">
-        Ngưỡng xét: mỗi nhóm có ≥1 minh chứng → Xã/Phường · ≥2 nhóm → Tỉnh/TP · đủ cả 3 nhóm và tổng ≥10 → Trung ương. Bấm “AI xét” để có nhận định chi tiết trước khi chốt.
+        Ngưỡng xét: mỗi nhóm có ≥1 minh chứng → Xã/Phường · ≥2 nhóm → Tỉnh/TP · đủ cả 3 nhóm (Đạo đức · Học tập · Thể lực) và tổng ≥10 → Trung ương.
+        Tiêu chuẩn theo <Link href="/hoc-sinh-3-tot/quy-che" target="_blank" className="font-bold underline">Quy chế TW (QĐ 317 + điều chỉnh 10/2025)</Link>. Bấm “AI xét” để có nhận định chi tiết trước khi chốt.
       </p>
+
+      {/* ===== Điều 5 — tiêu chuẩn danh hiệu tại đơn vị ===== */}
+      {isTW ? (
+        <p className="rounded-lg bg-stone-100 px-4 py-2.5 text-xs text-stone-500">
+          Trung ương ban hành chuẩn gốc (QĐ 317-QĐ/TWĐTN-TNTH) — các tỉnh, thành đoàn và Đoàn trường tự xây dựng tiêu chuẩn phù hợp thực tiễn theo Điều 5, không cao hơn chuẩn TW.
+        </p>
+      ) : (
+        <Card className="border-amber-100">
+          <CardBody className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-sm font-bold text-stone-900">
+                <Scale className="h-4 w-4 text-amber-600" /> Tiêu chuẩn danh hiệu tại {store.orgName(session.orgUnitId)}
+              </p>
+              <Link href="/hoc-sinh-3-tot/quy-che" target="_blank" className="text-xs font-semibold text-doan-600 hover:underline">
+                Xem toàn văn quy chế TW →
+              </Link>
+            </div>
+            <p className="text-xs leading-relaxed text-stone-500">
+              Điều 5 Quy chế: đơn vị xây dựng tiêu chuẩn riêng phù hợp thực tiễn — <b className="text-amber-700">không được cao hơn chuẩn Trung ương</b>.
+              {stdMine?.updatedAt ? (
+                <span className="text-stone-400"> · Cập nhật {formatDateTime(stdMine.updatedAt)}</span>
+              ) : null}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { applyTw: true, label: "Áp dụng nguyên chuẩn TW" },
+                { applyTw: false, label: "Điều chỉnh theo thực tiễn" },
+              ].map((opt) => (
+                <button
+                  key={String(opt.applyTw)}
+                  type="button"
+                  onClick={() => setStdApplyTw(opt.applyTw)}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                    stdApplyTw === opt.applyTw
+                      ? "bg-amber-600 text-white shadow-sm shadow-amber-600/30"
+                      : "bg-stone-100 text-stone-500 hover:bg-amber-50 hover:text-amber-700"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {!stdApplyTw ? (
+              <div className="space-y-3">
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <Field label="Điều chỉnh — Đạo đức tốt">
+                    <textarea
+                      value={stdDraft.daoDuc}
+                      onChange={(e) => setStdDraft({ ...stdDraft, daoDuc: e.target.value })}
+                      rows={3}
+                      placeholder="VD: khen thưởng tình nguyện/giải cuộc thi từ cấp trường trở lên (TW: cấp trên trực tiếp cơ sở trở lên)"
+                      className="w-full rounded-lg border border-stone-200 px-3 py-2 text-xs leading-relaxed text-stone-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                    />
+                  </Field>
+                  <Field label="Điều chỉnh — Học tập tốt">
+                    <textarea
+                      value={stdDraft.hocTap}
+                      onChange={(e) => setStdDraft({ ...stdDraft, hocTap: e.target.value })}
+                      rows={3}
+                      placeholder="VD: giải HSG/KHKT từ cấp trường trở lên (TW: cấp tỉnh trở lên)"
+                      className="w-full rounded-lg border border-stone-200 px-3 py-2 text-xs leading-relaxed text-stone-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                    />
+                  </Field>
+                  <Field label="Điều chỉnh — Thể lực tốt">
+                    <textarea
+                      value={stdDraft.theLuc}
+                      onChange={(e) => setStdDraft({ ...stdDraft, theLuc: e.target.value })}
+                      rows={3}
+                      placeholder="VD: áp dụng nguyên chuẩn TW, bổ sung giải TDTT cấp lớp"
+                      className="w-full rounded-lg border border-stone-200 px-3 py-2 text-xs leading-relaxed text-stone-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                    />
+                  </Field>
+                </div>
+                <Field label="Quy định Thành tích khác (tùy chọn)">
+                  <textarea
+                    value={stdDraft.thanhTichKhac}
+                    onChange={(e) => setStdDraft({ ...stdDraft, thanhTichKhac: e.target.value })}
+                    rows={2}
+                    placeholder="VD: ghi nhận công bố khoa học, chứng chỉ ngoại ngữ/tin học/SAT vào hồ sơ bổ sung"
+                    className="w-full rounded-lg border border-stone-200 px-3 py-2 text-xs leading-relaxed text-stone-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                  />
+                </Field>
+                <Field label="Ghi chú (tùy chọn)">
+                  <Input value={stdDraft.note} onChange={(e) => setStdDraft({ ...stdDraft, note: e.target.value })} placeholder="VD: Điều chỉnh thấp hơn cho phù hợp học sinh vùng khó" />
+                </Field>
+                <label className="flex cursor-pointer items-start gap-2 rounded-lg bg-amber-50 px-3.5 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={stdConfirm}
+                    onChange={(e) => setStdConfirm(e.target.checked)}
+                    className="mt-0.5 accent-amber-600"
+                  />
+                  <span className="text-xs leading-relaxed text-amber-800">
+                    Tôi xác nhận tiêu chuẩn điều chỉnh <b>không cao hơn</b> chuẩn Trung ương ban hành tại QĐ 317-QĐ/TWĐTN-TNTH (Điều 5).
+                  </span>
+                </label>
+              </div>
+            ) : null}
+            <Button variant="outline" onClick={submitStandard}>
+              <Scale className="h-4 w-4" /> Lưu tiêu chuẩn của đơn vị
+            </Button>
+          </CardBody>
+        </Card>
+      )}
 
       {/* ===== Cấp trường: bảng từng học sinh ===== */}
       {isSchool || (!isTW && profiles.length <= 12) ? (
@@ -227,18 +366,21 @@ export default function Hs3tAdminPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700">
+                      <HeartHandshake className="h-3.5 w-3.5" /> {HS3T_CATEGORY_NAMES.PHONG_TRAO}: <b>{ev.counts.PHONG_TRAO}</b>
+                    </span>
                     <span className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2.5 py-1 text-sky-700">
                       <BookOpen className="h-3.5 w-3.5" /> {HS3T_CATEGORY_NAMES.HOC_TAP}: <b>{ev.counts.HOC_TAP}</b>
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2.5 py-1 text-violet-700">
                       <Dumbbell className="h-3.5 w-3.5" /> {HS3T_CATEGORY_NAMES.REN_LUYEN}: <b>{ev.counts.REN_LUYEN}</b>
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700">
-                      <HeartHandshake className="h-3.5 w-3.5" /> {HS3T_CATEGORY_NAMES.PHONG_TRAO}: <b>{ev.counts.PHONG_TRAO}</b>
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-amber-700">
+                      <Medal className="h-3.5 w-3.5" /> Khác: <b>{ev.counts.KHAC}</b>
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-lg bg-stone-100 px-2.5 py-1 text-stone-600">
                       <ListChecks className="h-3.5 w-3.5" />
-                      {new Set(achs.filter((a) => a.sub).map((a) => a.sub)).size}/12 tiêu chí phụ
+                      {new Set(achs.filter((a) => a.sub && a.category !== "KHAC").map((a) => a.sub)).size}/12 tiêu chí phụ chuẩn TW
                     </span>
                     <span className="text-stone-400">— tổng {achs.length} minh chứng</span>
                   </div>
@@ -407,9 +549,9 @@ export default function Hs3tAdminPage() {
             <Input value={achDraft.title} onChange={(e) => setAchDraft({ ...achDraft, title: e.target.value })} placeholder="VD: Đạt danh hiệu Lao động tiên phong cuối cấp" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Nhóm 3 tốt">
+            <Field label="Nhóm tiêu chuẩn">
               <Select value={achDraft.category} onChange={(e) => setAchDraft({ ...achDraft, category: e.target.value as Hs3tCategory })}>
-                {CATEGORIES.map((c) => (
+                {HS3T_ALL_CATEGORIES.map((c) => (
                   <option key={c} value={c}>{HS3T_CATEGORY_NAMES[c]}</option>
                 ))}
               </Select>

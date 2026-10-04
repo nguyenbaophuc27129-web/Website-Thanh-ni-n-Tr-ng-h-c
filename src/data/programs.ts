@@ -19,7 +19,7 @@ export const PROGRAMS: ProgramInfo[] = [
   {
     key: "HS3T",
     title: "Học sinh 3 Tốt",
-    desc: "Hồ sơ thành tích số — học sinh tự cập nhật minh chứng học tập, rèn luyện, đạo đức theo 12 tiêu chí phụ; cấp Đoàn xét danh hiệu theo 3 mức.",
+    desc: "Hồ sơ thành tích số theo Quy chế TW (QĐ 317) — đạo đức, học tập, thể lực theo 12 tiêu chí phụ, cộng Thành tích khác (khoa học, chứng chỉ); cấp Đoàn xét theo 3 mức.",
     phase: 1,
     phaseLabel: "Đang hoạt động",
     href: "/hoc-sinh-3-tot",

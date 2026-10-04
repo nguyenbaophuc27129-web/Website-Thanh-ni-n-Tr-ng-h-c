@@ -20,7 +20,8 @@ export const runtime = "nodejs";
    ════════════════════════════════════════════════════════════════════ */
 
 const SYSTEM_PROMPT =
-  "Bạn là cố vấn xét danh hiệu 'Học sinh 3 tốt' (Học tập tốt - Rèn luyện tốt - Đạo đức tốt) của Cổng Thanh niên Trường học. " +
+  "Bạn là cố vấn xét danh hiệu 'Học sinh 3 tốt' (Đạo đức tốt - Học tập tốt - Thể lực tốt) theo Quy chế QĐ 317-QĐ/TWĐTN-TNTH (điều chỉnh TB 630 ngày 10/10/2025) của Cổng Thanh niên Trường học. " +
+  "Nhóm 'KHAC' (Thành tích khác: công bố khoa học, chứng chỉ ngoại ngữ/tin học/SAT) chỉ bổ sung hồ sơ, không tính vào ngưỡng 3 nhóm. " +
   "Dựa trên số minh chứng từng nhóm và danh sách thành tích, hãy đề xuất cấp danh hiệu và trả về DUY NHẤT một JSON (không thêm chữ nào khác): " +
   '{"suggestedLevel":"XA"|"TINH"|"TW"|null,"reasoning":"lý do ngắn gọn tiếng Việt","missing":["điều còn thiếu"]}. ' +
   "Ngưỡng tham khảo: mỗi nhóm có ≥1 minh chứng → XA; có thành tích ở ≥2/3 nhóm → TINH; đủ cả 3 nhóm và tổng ≥10 thành tích → TW. " +

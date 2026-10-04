@@ -39,10 +39,10 @@ export const publishedPosts: PublishedPost[] = [
   {
     id: 5003, activityId: null, slug: "hoi-thi-hoc-sinh-3-tot-cap-tinh-2026-binh-duong",
     title: "Hội thi Học sinh 3 tốt cấp tỉnh 2026: 1.200 thí sinh Bình Dương tranh tài ở ba nội dung",
-    excerpt: "Giai đoạn cấp tỉnh Hội thi Học sinh 3 tốt năm học 2026-2027 thu hút 1.200 thí sinh đến từ 120 trường học, cạnh tranh ở ba nội dung: học tập tốt, rèn luyện tốt, tình nguyện tốt.",
+    excerpt: "Giai đoạn cấp tỉnh Hội thi Học sinh 3 tốt năm học 2026-2027 thu hút 1.200 thí sinh đến từ 120 trường học, cạnh tranh theo ba tiêu chuẩn quy chế Trung ương: đạo đức tốt, học tập tốt, thể lực tốt.",
     content: CONTENT([
       "Hội thi Học sinh 3 tốt cấp tỉnh Bình Dương năm học 2026-2027 đã chính thức khởi tranh với sự tham gia của 1.200 thí sinh xuất sắc từ vòng cấp trường.",
-      "Nội dung 'Học tập tốt' kiểm tra kiến thức các môn học và kỹ năng tư duy; 'Rèn luyện tốt' đánh giá kỹ năng sống, thể thao, văn nghệ; 'Tình nguyện tốt' xét hồ sơ các hoạt động cộng đồng mà thí sinh tham gia trong năm.",
+      "Tiêu chuẩn 'Học tập tốt' kiểm tra kiến thức các môn học và kỹ năng tư duy; 'Thể lực tốt' đánh giá thể thao, sức khỏe; 'Đạo đức tốt' xét hạnh kiểm, chất lượng đoàn viên và các hoạt động cộng đồng mà thí sinh tham gia trong năm — theo đúng Quy chế QĐ 317-QĐ/TWĐTN-TNTH.",
       "Điểm mới năm nay là hồ sơ thành tích tình nguyện của thí sinh được đối chiếu trực tiếp với dữ liệu hoạt động trên Cổng TNTH, bảo đảm công bằng và minh bạch.",
       "80 thí sinh xuất sắc nhất sẽ vào chung kết, dự kiến diễn ra vào giữa tháng 10 và được truyền hình trực tiếp trên fanpage Tỉnh Đoàn.",
     ]),
