@@ -1,20 +1,15 @@
 import { NextResponse } from "next/server";
-import { ruleModerate } from "@/lib/ai-moderation";
+import { callAI } from "@/lib/ai-client";
 
 export const runtime = "nodejs";
 
 /* ════════════════════════════════════════════════════════════════════
-   ⭐ NỐI AI THẬT CHO "KIỂM DUYỆT DIỄN ĐÀN" — 1 HÀM DƯỚI ĐÂY
+   AI THẬT CHO "KIỂM DUYỆT DIỄN ĐÀN" — ĐÃ GẮN qua lib/ai-client.ts
    ════════════════════════════════════════════════════════════════════
-   Cách nối:
-   1. .env.local thêm: AI_API_KEY / AI_BASE_URL / AI_MODEL (xem route
-      phan-tich-cong-van để biết chi tiết).
-   2. Trong hàm moderateWithAI: XOÁ return ruleModerate(text) và BỎ
-      COMMENT mẫu A (OpenAI-compatible) hoặc mẫu B (Anthropic).
-   3. Yêu cầu AI trả JSON: {"verdict":"CLEAN"|"FLAGGED","reason":"..."} —
-      route đã tự parse + cắt bỏ khối ```json nếu model trả kèm.
-   4. Client luôn có fallback ruleModerate cục bộ khi API lỗi nên demo
-      không bao giờ gãy.
+   Kích hoạt: .env.local thêm key (Gemini free hoặc Claude trả phí) —
+   xem hướng dẫn đầy đủ trong src/lib/ai-client.ts.
+   Chưa có key → route trả 502 → CLIENT tự fallback ruleModerate cục bộ
+   (lib/ai-moderation.ts) nên demo không bao giờ gãy.
    ════════════════════════════════════════════════════════════════════ */
 
 const SYSTEM_PROMPT =
@@ -44,52 +39,13 @@ function parseVerdict(raw: string): { verdict: "CLEAN" | "FLAGGED"; reason?: str
 }
 
 async function moderateWithAI(text: string): Promise<{ verdict: "CLEAN" | "FLAGGED"; reason?: string; model?: string }> {
-  // ---- MẶC ĐỊNH (demo): bộ quy tắc theo từ khoá trên máy chủ ----
-  return ruleModerate(text);
-
-  /* ---- MẪU A: API tương thích OpenAI ----
-  const res = await fetch(`${process.env.AI_BASE_URL ?? "https://api.openai.com/v1"}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.AI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: process.env.AI_MODEL ?? "gpt-4o-mini",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text },
-      ],
-      temperature: 0,
-      max_tokens: 200,
-    }),
+  const { text: raw, model } = await callAI({
+    system: SYSTEM_PROMPT,
+    user: text,
+    maxTokens: 300,
+    temperature: 0,
   });
-  if (!res.ok) throw new Error(`AI HTTP ${res.status}`);
-  const data = await res.json();
-  const raw = (data.choices?.[0]?.message?.content ?? "").trim();
-  return { ...parseVerdict(raw), model: process.env.AI_MODEL ?? "gpt-4o-mini" };
-  ---------------------------------------------------------------- */
-
-  /* ---- MẪU B: Anthropic (Claude) ----
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.AI_API_KEY ?? "",
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: process.env.AI_MODEL ?? "claude-haiku-4-5-20251001",
-      max_tokens: 200,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: text }],
-    }),
-  });
-  if (!res.ok) throw new Error(`AI HTTP ${res.status}`);
-  const data = await res.json();
-  const raw = (data.content?.[0]?.text ?? "").trim();
-  return { ...parseVerdict(raw), model: process.env.AI_MODEL ?? "claude-haiku" };
-  ---------------------------------------------------------------- */
+  return { ...parseVerdict(raw), model };
 }
 
 /** POST /api/ai/kiem-duyet — { text } → { ok, verdict, reason, model } */
