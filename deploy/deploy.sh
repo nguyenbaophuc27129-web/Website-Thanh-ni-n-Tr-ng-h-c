@@ -16,6 +16,7 @@ docker tag "tnth-web:$tag" tnth-web:current
 [[ "$(tail -n1 "$history" 2>/dev/null)" == "$tag" ]] || echo "$tag" >> "$history"
 
 echo "==> Khởi động"
+docker compose up -d --no-build --wait --force-recreate web
 docker compose up -d --no-build --wait
 
 # Giữ 5 bản gần nhất để rollback, xóa image cũ hơn

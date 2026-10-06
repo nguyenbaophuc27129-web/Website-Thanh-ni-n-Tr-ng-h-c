@@ -16,5 +16,6 @@ echo "==> Quay về tnth-web:$target (đang chạy: $current)"
 docker tag "tnth-web:$target" tnth-web:current
 grep -vx "$target" "$history" > "$history.tmp" || true
 echo "$target" >> "$history.tmp" && mv "$history.tmp" "$history"
+docker compose up -d --no-build --wait --force-recreate web
 docker compose up -d --no-build --wait
 docker compose ps
