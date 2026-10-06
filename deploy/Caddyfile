@@ -1,0 +1,22 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Diễn đàn gửi ảnh/video dạng base64 qua API kiểm duyệt — giới hạn thân request
+	request_body {
+		max_size 30MB
+	}
+
+	reverse_proxy web:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

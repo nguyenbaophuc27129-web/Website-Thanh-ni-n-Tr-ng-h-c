@@ -1,0 +1,50 @@
+# Triển khai production trên 1 máy: Caddy (cổng 80/443) → web (Next.js, không mở cổng ra ngoài).
+# Vận hành bằng deploy/deploy.sh và deploy/rollback.sh — xem DEPLOY.md.
+name: tnth
+
+services:
+  web:
+    image: tnth-web:current
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:uid=1000,gid=1000
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    networks: [internal]
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      # Chưa có tên miền: ":80". Có tên miền: đặt SITE_ADDRESS trong .env để Caddy tự cấp HTTPS.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 256m
+    networks: [internal]
+
+  # Khi có backend thật: thêm service "db" (postgres:16) tại đây, chỉ nối mạng internal,
+  # không khai báo "ports", dữ liệu nằm trong volume riêng — xem DEPLOY.md mục PostgreSQL.
+
+networks:
+  internal:
+
+volumes:
+  caddy_data:
+  caddy_config:
