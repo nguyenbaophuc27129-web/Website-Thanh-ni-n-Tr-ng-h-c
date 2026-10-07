@@ -42,3 +42,6 @@ next-env.d.ts
 
 # deploy
 /deploy/.releases
+
+# bí mật trên máy chủ (mật khẩu DB)
+/secrets/

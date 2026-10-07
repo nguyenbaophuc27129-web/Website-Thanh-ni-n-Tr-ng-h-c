@@ -8,3 +8,5 @@ scripts
 *.md
 Dockerfile
 docker-compose.yml
+secrets
+db

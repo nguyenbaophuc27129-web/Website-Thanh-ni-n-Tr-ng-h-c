@@ -6,6 +6,7 @@ Tài liệu cho người vận hành và người phát triển. Toàn bộ webs
 
 ```
 Internet ──► cổng 80/443 ──► proxy (Caddy) ──► web (Next.js, cổng 3000 nội bộ)
+SSH tunnel (cổng 24700) ───────────────────────► db (PostgreSQL, 127.0.0.1:5432)
 ```
 
 | Thành phần | Chi tiết |
@@ -14,7 +15,7 @@ Internet ──► cổng 80/443 ──► proxy (Caddy) ──► web (Next.js,
 | Thư mục mã nguồn | `/root/Website-Thanh-ni-n-Tr-ng-h-c` |
 | `web` | Image `tnth-web:current`, build từ `Dockerfile` (Next.js `output: "standalone"`), chạy bằng user `node`, hệ thống file chỉ đọc |
 | `proxy` | `caddy:2-alpine`, cấu hình tại `deploy/Caddyfile`, là dịch vụ duy nhất mở cổng ra ngoài |
-| Database | **Chưa có** — bản demo lưu dữ liệu trên trình duyệt người dùng, máy chủ không giữ dữ liệu nào |
+| `db` | `postgres:16-alpine`, chỉ nghe ở `127.0.0.1:5432`. **Web hiện chưa dùng database**: bản demo vẫn lưu dữ liệu trên trình duyệt người dùng |
 
 Cả hai container có `restart: unless-stopped` và Docker tự bật cùng máy, nên web tự lên lại sau khi máy khởi động lại hoặc tiến trình bị lỗi.
 
@@ -59,28 +60,37 @@ Lưu ý trước khi bật:
 
 Caddy tự xin chứng chỉ Let's Encrypt, tự gia hạn và tự chuyển HTTP sang HTTPS. Chứng chỉ nằm trong volume `tnth_caddy_data`.
 
-## Thêm PostgreSQL (khi có backend thật)
+## PostgreSQL
 
-Thêm service vào `docker-compose.yml`:
+Service `db` (`postgres:16-alpine`) chạy cùng Compose, dữ liệu nằm trong volume `tnth_db_data`. Cổng 5432 chỉ gắn vào `127.0.0.1` của máy chủ; từ xa chỉ vào được qua SSH tunnel.
 
-```yaml
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: tnth
-      POSTGRES_USER: tnth
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    networks: [internal]
-    # KHÔNG khai báo "ports" — chỉ service web truy cập được qua tên "db"
-```
+| Database | Chủ sở hữu | Ai dùng |
+|---|---|---|
+| `tnth_prod` | `tnth_app` | Web chính thức (khi có backend). `coder_readonly` được đọc. |
+| `tnth_dev` | `coder_dev` | Lập trình viên, toàn quyền trong database này. |
 
-Việc bắt buộc đi kèm:
-- Khai báo volume `db_data` và secret mật khẩu.
-- Sao lưu `pg_dump` hằng đêm bằng cron, giữ 14 bản, **chép một bản ra ngoài máy này**.
-- Thử khôi phục từ bản sao lưu ít nhất một lần trước khi đưa cho người dùng thật.
+Mật khẩu nằm trong `secrets/db.env`; bảng tổng hợp để gửi cho coder ở `secrets/TAI-KHOAN-DB.md`. Thư mục `secrets/` chỉ root đọc được và không được commit.
+
+| Việc | Lệnh |
+|---|---|
+| Khởi tạo lại tài khoản, quyền, schema (chạy lại an toàn) | `deploy/db-init.sh` |
+| Đổi mật khẩu | Sửa `secrets/db.env` rồi chạy `deploy/db-init.sh` |
+| Sao lưu ngay | `deploy/db-backup.sh` |
+| Khôi phục một database (xoá nội dung hiện có) | `deploy/db-restore.sh <tnth_dev\|tnth_prod> <file.dump>` |
+| Đưa `tnth_dev` về schema v1 sạch | `deploy/db-restore.sh tnth_dev /var/backups/tnth/baseline/tnth_dev-schema_v1.dump` |
+| Chép dữ liệu thật sang `tnth_dev` | `deploy/db-clone-prod-to-dev.sh` |
+| Mở dòng lệnh SQL quản trị | `docker compose exec db psql -U postgres -d tnth_prod` |
+| Cho coder quyền mở tunnel | `deploy/setup-ssh-tunnel-user.sh "<khoá công khai của coder>"` |
+| Thu hồi quyền tunnel | Xoá dòng khoá trong `/home/tnth-tunnel/.ssh/authorized_keys` |
+
+Sao lưu:
+- Cron `/etc/cron.d/tnth-db` chạy `deploy/db-backup.sh` lúc 02:30 mỗi đêm, giữ 14 ngày tại `/var/backups/tnth/`, log ở `/var/log/tnth-db-backup.log`.
+- Cùng lúc đó tạo trước phân vùng tháng cho `post_views` và `audit_logs`.
+- **Bản sao lưu đang nằm cùng máy với database.** Hỏng đĩa hoặc mất máy là mất cả hai. Trước khi có dữ liệu thật cần chép thêm ra nơi khác (object storage hoặc máy thứ hai).
+
+Schema: `db/schema_v1.sql` (43 bảng), kiểm thử `db/test_schema.sql`. Hướng dẫn cho lập trình viên: `docs/huong-dan-ket-noi-db.md`.
+
+Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<mật khẩu>@db:5432/tnth_prod` vào `.env.production` (trong mạng Compose, host là `db`).
 
 ## Bảo mật đã thiết lập
 
@@ -93,7 +103,7 @@ Việc bắt buộc đi kèm:
 
 Chưa làm, nên cân nhắc:
 - SSH vẫn cho đăng nhập `root` bằng mật khẩu. An toàn hơn là dùng khoá SSH rồi tắt mật khẩu.
-- Docker tự mở cổng xuyên qua `ufw`. Không thêm `ports:` cho service nào ngoài `proxy`.
+- Docker tự mở cổng xuyên qua `ufw`. Chỉ `proxy` được mở cổng công khai; `db` phải giữ tiền tố `127.0.0.1:` trong `ports:`.
 
 ## Chuyển sang máy khác
 
@@ -102,7 +112,7 @@ Chưa làm, nên cân nhắc:
 3. `deploy/deploy.sh`
 4. Mở cổng 80, 443; trỏ bản ghi A về IP mới.
 
-Khi đã có PostgreSQL: khôi phục thêm bản `pg_dump` mới nhất trước bước 3.
+Kèm database: chép thêm thư mục `secrets/` và bản sao lưu mới nhất, chạy `docker compose up -d db`, `deploy/db-init.sh`, rồi `deploy/db-restore.sh` cho từng database.
 
 ## Xử lý sự cố
 

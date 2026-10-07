@@ -1,4 +1,4 @@
-# Triển khai production trên 1 máy: Caddy (cổng 80/443) → web (Next.js, không mở cổng ra ngoài).
+# Triển khai production trên 1 máy: Caddy (cổng 80/443) → web (Next.js, không mở cổng ra ngoài) + db (PostgreSQL).
 # Vận hành bằng deploy/deploy.sh và deploy/rollback.sh — xem DEPLOY.md.
 name: tnth
 
@@ -39,12 +39,33 @@ services:
     mem_limit: 256m
     networks: [internal]
 
-  # Khi có backend thật: thêm service "db" (postgres:16) tại đây, chỉ nối mạng internal,
-  # không khai báo "ports", dữ liệu nằm trong volume riêng — xem DEPLOY.md mục PostgreSQL.
+  # PostgreSQL: chỉ nghe ở 127.0.0.1 của máy chủ (truy cập từ xa qua SSH tunnel) và mạng internal.
+  # KHÔNG đổi "127.0.0.1:" thành cổng công khai — Docker mở cổng xuyên qua ufw.
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - secrets/db.env
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+    command: ["postgres", "-c", "password_encryption=scram-sha-256", "-c", "log_connections=on", "-c", "log_min_duration_statement=2000"]
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    shm_size: 256m
+    mem_limit: 1500m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -q"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks: [internal]
 
 networks:
   internal:
 
 volumes:
+  db_data:
   caddy_data:
   caddy_config:
