@@ -26,8 +26,8 @@ services:
       web:
         condition: service_healthy
     environment:
-      # Chưa có tên miền: ":80". Có tên miền: đặt SITE_ADDRESS trong .env để Caddy tự cấp HTTPS.
-      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      # Tên miền chính (không kèm www), đặt trong .env. Xem deploy/Caddyfile.
+      DOMAIN: ${DOMAIN:-localhost}
     ports:
       - "80:80"
       - "443:443"

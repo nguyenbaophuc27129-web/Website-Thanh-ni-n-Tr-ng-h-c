@@ -48,17 +48,30 @@ Chạy tại thư mục mã nguồn.
 Lưu ý trước khi bật:
 - `/api/ai/*` và `/api/send-email` **không yêu cầu đăng nhập**. Bật AI mà không giới hạn tần suất thì người ngoài có thể đốt hạn mức; bật SMTP thì người ngoài gửi được thư tuỳ ý qua hộp thư của đơn vị. Cần thêm xác thực hoặc giới hạn tần suất trước.
 
-## Gắn tên miền và HTTPS
+## Tên miền và HTTPS
 
-Điều kiện: `thanhnientruonghoc.io.vn` đã được cấp phát và có hai bản ghi A (`@` và `www`) trỏ về `103.216.116.242`.
+Tên miền `thanhnientruonghoc.io.vn` đi qua lớp bảo vệ OneShield (DNS + WAF) của nhà cung cấp:
 
-1. Tạo file `.env` ở thư mục mã nguồn với nội dung:
-   ```
-   SITE_ADDRESS=thanhnientruonghoc.io.vn, www.thanhnientruonghoc.io.vn
-   ```
-2. `docker compose up -d`
+```
+Người dùng ──HTTPS──► OneShield ──HTTPS, cổng 443──► proxy (Caddy) ──► web
+```
 
-Caddy tự xin chứng chỉ Let's Encrypt, tự gia hạn và tự chuyển HTTP sang HTTPS. Chứng chỉ nằm trong volume `tnth_caddy_data`.
+- Bản ghi A của `@` và `www` trỏ về `103.216.116.242`, cột "Bảo vệ" đang bật. Vì vậy tra DNS từ ngoài sẽ thấy IP của OneShield chứ không thấy IP máy chủ; đó là bình thường.
+- Chứng chỉ công khai (Let's Encrypt) do OneShield cấp và gia hạn. OneShield cũng tự chuyển HTTP sang HTTPS.
+- Caddy dùng chứng chỉ tự ký (`tls internal`) cho chặng OneShield → máy chủ. Tên miền đặt bằng `DOMAIN=` trong file `.env`.
+- **Không dùng NGINX, Sites, SSL trên OneDash cho website này.** NGINX đòi cổng 80/443 mà Caddy đang giữ.
+
+Nếu tắt "Bảo vệ" ở bản ghi DNS, trình duyệt sẽ gặp chứng chỉ tự ký và báo không an toàn. Khi đó sửa `tls internal` trong `deploy/Caddyfile` thành `tls <email>` để Caddy tự xin Let's Encrypt.
+
+## Google (Search Console)
+
+- `https://thanhnientruonghoc.io.vn/sitemap.xml` sinh từ `src/app/sitemap.ts`, `robots.txt` từ `src/app/robots.ts`. Địa chỉ chính thức là bản không `www`; bản `www` tự chuyển về (301).
+- **Đang tạm chỉ cho lập chỉ mục trang chủ.** Mọi trang khác được gắn `X-Robots-Tag: noindex` trong `deploy/Caddyfile` vì nội dung còn là dữ liệu mẫu.
+- Khi có nội dung thật từ database:
+  1. Sửa `getSitemapPosts()` trong `src/lib/seo.ts` để đọc `slug`, `updated_at` của bài đã xuất bản từ PostgreSQL.
+  2. Xoá hai dòng `@noindex` trong `deploy/Caddyfile`, chạy `docker compose restart proxy`.
+  3. Sitemap tự làm mới tối đa 5 phút một lần; Google tự đọc lại định kỳ, không cần nộp lại.
+- Lưu ý khi build: Docker build không có kết nối database. Nếu `sitemap.ts` truy vấn database thì thêm `export const dynamic = "force-dynamic"` (hoặc bắt lỗi và trả danh sách rỗng) để build không hỏng.
 
 ## PostgreSQL
 
@@ -110,7 +123,7 @@ Chưa làm, nên cân nhắc:
 1. Cài Docker Engine và plugin Compose.
 2. `git clone` repo, chép `.env` và `.env.production` (nếu có) từ máy cũ.
 3. `deploy/deploy.sh`
-4. Mở cổng 80, 443; trỏ bản ghi A về IP mới.
+4. Mở cổng 80, 443; sửa bản ghi A của `@` và `www` về IP mới.
 
 Kèm database: chép thêm thư mục `secrets/` và bản sao lưu mới nhất, chạy `docker compose up -d db`, `deploy/db-init.sh`, rồi `deploy/db-restore.sh` cho từng database.
 
@@ -118,6 +131,7 @@ Kèm database: chép thêm thư mục `secrets/` và bản sao lưu mới nhất
 
 | Triệu chứng | Kiểm tra |
 |---|---|
+| Vào tên miền báo 502 Bad Gateway | OneShield không gọi được cổng 443 của máy chủ: `docker compose ps` xem `proxy` có chạy không, `ss -ltnp \| grep :443` xem có chương trình khác chiếm cổng không |
 | Không vào được web từ ngoài, `curl http://127.0.0.1/` trên máy vẫn 200 | Tường lửa của nhà cung cấp cloud chưa mở cổng 80/443 |
 | `docker compose ps` báo `unhealthy` hoặc `restarting` | `docker compose logs --tail 100 web` |
 | Build lỗi `npm ci ... not in sync` | `package-lock.json` lệch với `package.json`; chạy `npm install` ở máy phát triển rồi commit file lock |

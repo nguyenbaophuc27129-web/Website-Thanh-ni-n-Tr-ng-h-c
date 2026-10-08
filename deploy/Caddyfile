@@ -1,4 +1,13 @@
-{$SITE_ADDRESS} {
+# Tên miền đi qua lớp bảo vệ OneShield (DNS + WAF) của nhà cung cấp:
+#   Người dùng ──HTTPS (chứng chỉ Let's Encrypt của OneShield)──► OneShield ──HTTPS:443──► Caddy ──► web
+# OneShield đã lo chứng chỉ công khai và chuyển HTTP sang HTTPS, nên ở đây Caddy chỉ cần
+# một chứng chỉ tự ký để mã hoá chặng OneShield → máy chủ.
+{
+	auto_https disable_redirects
+	default_sni {$DOMAIN:localhost}
+}
+
+(app) {
 	encode zstd gzip
 
 	header {
@@ -19,4 +28,28 @@
 		output stdout
 		format console
 	}
+}
+
+# Truy cập thẳng bằng IP (http://103.216.116.242) — không cho máy tìm kiếm lập chỉ mục địa chỉ IP
+http:// {
+	header X-Robots-Tag "noindex"
+	import app
+}
+
+# Địa chỉ chính thức, đặt DOMAIN trong .env
+https://{$DOMAIN:localhost} {
+	tls internal
+
+	# TẠM THỜI: chỉ cho máy tìm kiếm lập chỉ mục trang chủ, vì nội dung còn là dữ liệu mẫu.
+	# Khi có nội dung thật: xoá 2 dòng dưới rồi chạy `docker compose restart proxy`.
+	@noindex not path / /robots.txt /sitemap.xml
+	header @noindex X-Robots-Tag "noindex"
+
+	import app
+}
+
+# Bản www chuyển hẳn về địa chỉ chính để Google không coi là hai website
+https://www.{$DOMAIN:localhost} {
+	tls internal
+	redir https://{$DOMAIN:localhost}{uri} permanent
 }
