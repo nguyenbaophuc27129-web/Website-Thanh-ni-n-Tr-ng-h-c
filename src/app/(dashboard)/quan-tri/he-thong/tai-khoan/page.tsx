@@ -201,7 +201,7 @@ export default function TaiKhoanPage() {
 
   /* ---------- Tạo đơn lẻ ---------- */
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const isDv = accType === "doanvien";
     if (!form.orgUnitId) {
       toast(isDv ? "Chọn trường / đơn vị cho Đoàn viên." : "Chọn đơn vị cho tài khoản.", "warning");
@@ -228,7 +228,7 @@ export default function TaiKhoanPage() {
       toast("Nhập họ tên người đại diện và email.", "warning");
       return;
     }
-    const res = store.createAccount({
+    const res = await store.createAccount({
       orgUnitId: Number(form.orgUnitId),
       username: form.username,
       email: form.email,
@@ -336,12 +336,12 @@ export default function TaiKhoanPage() {
   };
 
   const validRows = importRows.filter((r) => !r.error);
-  const doImport = () => {
+  const doImport = async () => {
     let ok = 0;
     for (const r of validRows) {
       const unit = resolveUnit(r.data.org_unit_code);
       if (!unit) continue;
-      const res = store.createAccount({
+      const res = await store.createAccount({
         orgUnitId: unit.id,
         username: r.data.username,
         email: r.data.email,

@@ -82,22 +82,51 @@ export default function DangKyPage() {
     }
     setSubmitting(true);
     const school = orgUnits.find((s) => s.id === schoolId);
-    const existingIds = loadCreatedAccounts().map((a) => a.id);
-    const id = Math.max(900000, ...existingIds, 0) + 1;
-    appendCreatedAccount({
-      id,
-      orgUnitId: schoolId,
-      username,
-      email,
-      contactPerson: fullName,
-      contactPosition: form.position,
-      className: form.className.trim() || undefined,
-      role: "DOAN_VIEN" as Role,
-      status: "ACTIVE",
-      password: form.password,
-      displayName: username,
-      orgUnitName: school?.name ?? `Đơn vị #${schoolId}`,
-    });
+    // Ghi DB qua API công khai; lỗi mạng/5xx thì rơi xuống lưu local để demo không gãy
+    let registered = false;
+    try {
+      const r = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          password: form.password,
+          email,
+          fullName,
+          position: form.position,
+          className: form.className.trim() || undefined,
+          orgUnitId: schoolId,
+        }),
+      });
+      const j = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (r.ok && j?.ok) {
+        registered = true;
+      } else if (r.status < 500) {
+        setSubmitting(false);
+        setError(j?.error ?? "Không đăng ký được. Vui lòng thử lại.");
+        return;
+      }
+    } catch {
+      /* offline → lưu local */
+    }
+    if (!registered) {
+      const existingIds = loadCreatedAccounts().map((a) => a.id);
+      const id = Math.max(900000, ...existingIds, 0) + 1;
+      appendCreatedAccount({
+        id,
+        orgUnitId: schoolId,
+        username,
+        email,
+        contactPerson: fullName,
+        contactPosition: form.position,
+        className: form.className.trim() || undefined,
+        role: "DOAN_VIEN" as Role,
+        status: "ACTIVE",
+        password: form.password,
+        displayName: username,
+        orgUnitName: school?.name ?? `Đơn vị #${schoolId}`,
+      });
+    }
     await login(username, form.password);
     toast("Đăng ký thành công! Chào mừng bạn đến với Diễn đàn Đoàn viên.");
     router.push("/dien-dan");
