@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -111,6 +112,47 @@ const seedAttendances: Attendance[] = [
   { id: 3, activityId: 101, memberName: "Lê Thanh Trúc", memberClass: "10A2", orgUnitId: 31, checkedInAt: "2026-08-15T01:15:00Z" },
   { id: 4, activityId: 102, memberName: "Phạm Mỹ Duyên", memberClass: "12A5", orgUnitId: 31, checkedInAt: "2026-08-02T02:30:00Z" },
 ];
+
+/* ---------------- v15 — Đồng bộ PostgreSQL qua /api/store ----------------
+ * Mỗi entity ghi từ UI được đánh dấu "bẩn" rồi gộp nhóm gửi POST /api/store
+ * (xoá toàn bộ + insert lại trong 1 transaction phía server). Nhóm phải đóng
+ * kín phụ thuộc FK: xoá bảng cha bắt buộc xoá luôn bảng con trong cùng POST. */
+const G_TASK = [
+  "criteriaSets", "tasks", "taskMetrics", "taskAssignments", "assignmentTargets",
+  "taskResults", "assignmentReviews", "scores",
+];
+const ENTITY_SYNC_GROUP: Record<string, string[]> = {
+  criteriaSets: G_TASK, tasks: G_TASK, taskMetrics: G_TASK, taskAssignments: G_TASK,
+  assignmentTargets: G_TASK, taskResults: G_TASK, assignmentReviews: G_TASK, scores: G_TASK,
+  activities: ["activities", "activityCategories", "activityLinks", "attendances", "publishedPosts"],
+  activityCategories: ["activityCategories"],
+  activityLinks: ["activityLinks"],
+  attendances: ["attendances"],
+  publishedPosts: ["publishedPosts"],
+  reports: ["reports"],
+  documents: ["documents", "documentRecipients"],
+  documentRecipients: ["documentRecipients"],
+  notifications: ["notifications"],
+  feedbacks: ["feedbacks", "feedbackMessages"],
+  feedbackMessages: ["feedbackMessages"],
+  emailLogs: ["emailLogs"],
+  liveEvents: ["liveEvents"],
+  resources: ["resources"],
+  settings: ["settings"],
+  forumThreads: ["forumThreads", "forumComments"],
+  forumComments: ["forumComments"],
+  hs3tProfiles: ["hs3tProfiles", "hs3tAchievements"],
+  hs3tAchievements: ["hs3tAchievements"],
+  hs3tUnitStandards: ["hs3tUnitStandards"],
+  quizQuestions: ["quizQuestions"],
+  quizExams: ["quizExams", "quizAttempts"],
+  quizAttempts: ["quizAttempts"],
+  volunteerProjects: ["volunteerProjects"],
+  sponsors: ["sponsors"],
+  orgDirectories: ["orgDirectories"],
+  memberContributions: ["memberContributions"],
+  contributions: ["contributions"],
+};
 
 interface StoreValue {
   /* data */
@@ -223,7 +265,7 @@ interface StoreValue {
   createAccount: (input: {
     orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
     contactPosition: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
-  }) => { ok: boolean; error?: string };
+  }) => Promise<{ ok: boolean; error?: string }>;
 
   /* forum ẩn danh */
   forumThreads: ForumThread[];
@@ -278,7 +320,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState(seedAccounts);
   const [activities, setActivities] = useState(seedActivities);
   const [publishedPosts, setPublishedPosts] = useState(seedPosts);
-  const [criteriaSets] = useState(seedCriteriaSets);
+  const [criteriaSets, setCriteriaSets] = useState(seedCriteriaSets);
   const [tasks, setTasks] = useState(seedTasks);
   const [taskMetrics, setTaskMetrics] = useState(seedTaskMetrics);
   const [taskAssignments, setTaskAssignments] = useState(seedAssignments);
@@ -335,6 +377,227 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
     }
   }, []);
+
+  /* ============ v15 — Sync DB: boot merge + theo dõi ghi ============ */
+
+  // Ảnh state mới nhất để sync đọc lúc bắn (tránh closure cũ)
+  const syncedStateRef = useRef<Record<string, unknown[]>>({});
+  syncedStateRef.current = {
+    criteriaSets, tasks, taskMetrics, taskAssignments, assignmentTargets, taskResults,
+    assignmentReviews, scores, activities, publishedPosts, attendances, reports,
+    documents, documentRecipients, notifications, feedbacks, feedbackMessages, emailLogs,
+    liveEvents, resources, settings, forumThreads, forumComments,
+    hs3tProfiles, hs3tAchievements, hs3tUnitStandards,
+    quizQuestions, quizExams, quizAttempts, volunteerProjects, sponsors,
+    orgDirectories, memberContributions, contributions,
+  };
+
+  /** activityCategories/activityLinks tách từ Activity (links + categoryIds lồng nhau) */
+  const snapshotEntity = useCallback((entity: string): unknown[] | null => {
+    if (entity === "activityCategories") {
+      return ((syncedStateRef.current.activities ?? []) as Activity[]).flatMap((a) =>
+        a.categoryIds.map((categoryId) => ({ activityId: a.id, categoryId })),
+      );
+    }
+    if (entity === "activityLinks") {
+      return ((syncedStateRef.current.activities ?? []) as Activity[]).flatMap((a) => a.links);
+    }
+    return syncedStateRef.current[entity] ?? null;
+  }, []);
+
+  const dirtyRef = useRef<Set<string>>(new Set());
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushSync = useCallback(async () => {
+    const names = new Set<string>();
+    for (const e of dirtyRef.current) for (const g of ENTITY_SYNC_GROUP[e] ?? [e]) names.add(g);
+    dirtyRef.current.clear();
+    if (names.size === 0) return;
+    const entities: Record<string, unknown[]> = {};
+    for (const n of names) {
+      const rows = snapshotEntity(n);
+      if (rows) entities[n] = rows;
+    }
+    try {
+      const r = await fetch("/api/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entities }),
+      });
+      if (!r.ok) {
+        console.warn("[TNTH][STORE] Sync bị từ chối (HTTP", r.status, ") — dữ liệu vẫn giữ tại máy.");
+      }
+    } catch {
+      console.warn("[TNTH][STORE] Không tới được máy chủ — giữ dữ liệu tại máy, thử lại ở lần ghi sau.");
+      for (const n of Object.keys(entities)) dirtyRef.current.add(n);
+    }
+  }, [snapshotEntity]);
+
+  const markDirty = useCallback(
+    (entities: string[]) => {
+      for (const e of entities) dirtyRef.current.add(e);
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = setTimeout(() => void flushSync(), 1200);
+    },
+    [flushSync],
+  );
+
+  // Những mảng vừa được nạp từ DB — lần render đầu sau nạp không gửi ngược lại
+  const hydratedRefs = useRef<Map<string, unknown[]>>(new Map());
+
+  // Nạp snapshot DB lúc khởi động: DB có dữ liệu thì DB thắng, bảng nào trống mà
+  // máy có dữ liệu mẫu thì đẩy mẫu lên DB (chỉ khi đã đăng nhập — scope "full")
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/store");
+        if (!r.ok) return;
+        const j = (await r.json()) as
+          | { ok?: boolean; scope?: string; data?: Record<string, unknown[]> }
+          | null;
+        if (cancelled || !j?.ok || !j.data) return;
+        const d = j.data;
+        const raw = (k: string): unknown[] => (Array.isArray(d[k]) ? d[k] : []);
+        const has = (k: string) => raw(k).length > 0;
+        const hydrate = (k: string, rows: unknown[]) => hydratedRefs.current.set(k, rows);
+        let maxId = 900000;
+        const bumpMax = (rows: unknown[]) => {
+          for (const row of rows) {
+            const id = Number((row as { id?: unknown }).id);
+            if (Number.isFinite(id) && id > maxId) maxId = id;
+          }
+        };
+
+        if (has("activities")) {
+          const links = raw("activityLinks") as Activity["links"];
+          const cats = raw("activityCategories") as { activityId: number; categoryId: number }[];
+          const acts = (raw("activities") as Activity[]).map((a) => ({
+            ...a,
+            links: links.filter((l) => l.activityId === a.id),
+            categoryIds: cats.filter((c) => c.activityId === a.id).map((c) => c.categoryId),
+          }));
+          bumpMax(acts); hydrate("activities", acts); setActivities(acts);
+        }
+        if (has("criteriaSets")) { const rows = raw("criteriaSets"); bumpMax(rows); hydrate("criteriaSets", rows); setCriteriaSets(rows as CriteriaSet[]); }
+        if (has("tasks")) { const rows = raw("tasks"); bumpMax(rows); hydrate("tasks", rows); setTasks(rows as Task[]); }
+        if (has("taskMetrics")) { const rows = raw("taskMetrics"); bumpMax(rows); hydrate("taskMetrics", rows); setTaskMetrics(rows as TaskMetric[]); }
+        if (has("taskAssignments")) { const rows = raw("taskAssignments"); bumpMax(rows); hydrate("taskAssignments", rows); setTaskAssignments(rows as TaskAssignment[]); }
+        if (has("assignmentTargets")) { const rows = raw("assignmentTargets"); bumpMax(rows); hydrate("assignmentTargets", rows); setAssignmentTargets(rows as AssignmentTarget[]); }
+        if (has("taskResults")) { const rows = raw("taskResults"); bumpMax(rows); hydrate("taskResults", rows); setTaskResults(rows as TaskResult[]); }
+        if (has("assignmentReviews")) { const rows = raw("assignmentReviews"); bumpMax(rows); hydrate("assignmentReviews", rows); setAssignmentReviews(rows as AssignmentReview[]); }
+        if (has("scores")) { const rows = raw("scores"); bumpMax(rows); hydrate("scores", rows); setScores(rows as Score[]); }
+        if (has("publishedPosts")) { const rows = raw("publishedPosts"); bumpMax(rows); hydrate("publishedPosts", rows); setPublishedPosts(rows as PublishedPost[]); }
+        if (has("reports")) {
+          // report_exports chưa đồng bộ — mặc định danh sách xuất trống
+          const rows = (raw("reports") as Report[]).map((rp) => ({ ...rp, exports: [] as Report["exports"] }));
+          bumpMax(rows); hydrate("reports", rows); setReports(rows);
+        }
+        if (has("documents")) { const rows = raw("documents"); bumpMax(rows); hydrate("documents", rows); setDocuments(rows as DocumentRecord[]); }
+        if (has("documentRecipients")) { const rows = raw("documentRecipients"); hydrate("documentRecipients", rows); setDocumentRecipients(rows as DocumentRecipient[]); }
+        if (has("notifications")) { const rows = raw("notifications"); hydrate("notifications", rows); setNotifications(rows as Notification[]); }
+        if (has("feedbacks")) { const rows = raw("feedbacks"); bumpMax(rows); hydrate("feedbacks", rows); setFeedbacks(rows as Feedback[]); }
+        if (has("feedbackMessages")) { const rows = raw("feedbackMessages"); bumpMax(rows); hydrate("feedbackMessages", rows); setFeedbackMessages(rows as FeedbackMessage[]); }
+        if (has("emailLogs")) { const rows = raw("emailLogs"); bumpMax(rows); hydrate("emailLogs", rows); setEmailLogs(rows as EmailLog[]); }
+        if (has("attendances")) { const rows = raw("attendances"); bumpMax(rows); hydrate("attendances", rows); setAttendances(rows as Attendance[]); }
+        if (has("liveEvents")) { const rows = raw("liveEvents"); bumpMax(rows); hydrate("liveEvents", rows); setLiveEvents(rows as LiveEvent[]); }
+        if (has("resources")) { const rows = raw("resources"); bumpMax(rows); hydrate("resources", rows); setResources(rows as Resource[]); }
+        if (has("settings")) { hydrate("settings", raw("settings")); setSettings(raw("settings") as SystemSetting[]); }
+        if (has("forumThreads")) { const rows = raw("forumThreads"); bumpMax(rows); hydrate("forumThreads", rows); setForumThreads(rows as ForumThread[]); }
+        if (has("forumComments")) { const rows = raw("forumComments"); bumpMax(rows); hydrate("forumComments", rows); setForumComments(rows as ForumComment[]); }
+        if (has("hs3tProfiles")) { const rows = raw("hs3tProfiles"); bumpMax(rows); hydrate("hs3tProfiles", rows); setHs3tProfiles(rows as Hs3tProfile[]); }
+        if (has("hs3tAchievements")) { const rows = raw("hs3tAchievements"); bumpMax(rows); hydrate("hs3tAchievements", rows); setHs3tAchievements(rows as Hs3tAchievement[]); }
+        if (has("hs3tUnitStandards")) { const rows = raw("hs3tUnitStandards"); bumpMax(rows); hydrate("hs3tUnitStandards", rows); setHs3tUnitStandards(rows as Hs3tUnitStandard[]); }
+        if (has("quizQuestions")) { const rows = raw("quizQuestions"); bumpMax(rows); hydrate("quizQuestions", rows); setQuizQuestions(rows as QuizQuestion[]); }
+        if (has("quizExams")) { const rows = raw("quizExams"); bumpMax(rows); hydrate("quizExams", rows); setQuizExams(rows as QuizExam[]); }
+        if (has("quizAttempts")) { const rows = raw("quizAttempts"); bumpMax(rows); hydrate("quizAttempts", rows); setQuizAttempts(rows as QuizAttempt[]); }
+        if (has("volunteerProjects")) {
+          const rows = raw("volunteerProjects").map((p0) => {
+            const { reportFileName, reportFileData, ...p } = p0 as VolunteerProject & {
+              reportFileName?: string | null; reportFileData?: string | null;
+            };
+            return {
+              ...p,
+              reportFile: reportFileName ? { name: reportFileName, dataUrl: reportFileData ?? undefined } : undefined,
+            } as VolunteerProject;
+          });
+          bumpMax(rows); hydrate("volunteerProjects", rows); setVolunteerProjects(rows);
+        }
+        if (has("sponsors")) { const rows = raw("sponsors"); bumpMax(rows); hydrate("sponsors", rows); setSponsors(rows as Sponsor[]); }
+        if (has("orgDirectories")) { const rows = raw("orgDirectories"); bumpMax(rows); hydrate("orgDirectories", rows); setOrgDirectories(rows as OrgDirectory[]); }
+        if (has("memberContributions")) { const rows = raw("memberContributions"); bumpMax(rows); hydrate("memberContributions", rows); setMemberContributions(rows as MemberContribution[]); }
+        if (has("contributions")) { const rows = raw("contributions"); bumpMax(rows); hydrate("contributions", rows); setContributions(rows as ContributionLog[]); }
+
+        // Chống đụng id: bộ đếm nextId() phải vượt id lớn nhất vừa nạp từ DB
+        if (maxId > uid) uid = maxId;
+
+        // Bảng DB còn trống mà máy có dữ liệu gốc → đẩy dữ liệu mẫu lên DB lần đầu
+        if (j.scope === "full") {
+          const seedPush: string[] = [];
+          const pushIfEmpty = (k: string, rows: unknown[]) => {
+            if (!has(k) && rows.length > 0) seedPush.push(k);
+          };
+          pushIfEmpty("criteriaSets", criteriaSets);
+          pushIfEmpty("tasks", tasks);
+          pushIfEmpty("taskMetrics", taskMetrics);
+          pushIfEmpty("taskAssignments", taskAssignments);
+          pushIfEmpty("assignmentTargets", assignmentTargets);
+          pushIfEmpty("taskResults", taskResults);
+          pushIfEmpty("assignmentReviews", assignmentReviews);
+          pushIfEmpty("scores", scores);
+          pushIfEmpty("activities", activities);
+          pushIfEmpty("publishedPosts", publishedPosts);
+          pushIfEmpty("attendances", attendances);
+          pushIfEmpty("reports", reports);
+          pushIfEmpty("documents", documents);
+          pushIfEmpty("notifications", notifications);
+          pushIfEmpty("feedbacks", feedbacks);
+          pushIfEmpty("feedbackMessages", feedbackMessages);
+          pushIfEmpty("liveEvents", liveEvents);
+          pushIfEmpty("resources", resources);
+          pushIfEmpty("settings", settings);
+          pushIfEmpty("forumThreads", forumThreads);
+          pushIfEmpty("forumComments", forumComments);
+          pushIfEmpty("hs3tProfiles", hs3tProfiles);
+          pushIfEmpty("hs3tAchievements", hs3tAchievements);
+          pushIfEmpty("hs3tUnitStandards", hs3tUnitStandards);
+          pushIfEmpty("quizQuestions", quizQuestions);
+          pushIfEmpty("quizExams", quizExams);
+          pushIfEmpty("volunteerProjects", volunteerProjects);
+          pushIfEmpty("sponsors", sponsors);
+          pushIfEmpty("orgDirectories", orgDirectories);
+          if (seedPush.length > 0) {
+            for (const e of seedPush) dirtyRef.current.add(e);
+            void flushSync();
+          }
+        }
+      } catch {
+        /* DB chưa nối được — chạy chế độ dữ liệu mẫu local như cũ */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Theo dõi thay đổi state → đánh dấu sync (bỏ qua lần chạy đầu và mảng vừa nạp từ DB)
+  const firstWatchRef = useRef(true);
+  const prevSnapRef = useRef<Record<string, unknown[]>>({});
+  useEffect(() => {
+    const snap = syncedStateRef.current;
+    if (firstWatchRef.current) {
+      firstWatchRef.current = false;
+      prevSnapRef.current = { ...snap };
+      return;
+    }
+    const changed: string[] = [];
+    for (const k of Object.keys(snap)) {
+      if (prevSnapRef.current[k] !== snap[k] && !hydratedRefs.current.delete(k)) changed.push(k);
+    }
+    prevSnapRef.current = { ...snap };
+    if (changed.length > 0) markDirty(changed);
+  });
 
   // Ticker mô phỏng realtime — mặc định TẮT, đệ quy setTimeout 8–15s, cap 40 sự kiện
   useEffect(() => {
@@ -1007,11 +1270,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateAccountStatus = useCallback((accountId: number, status: Account["status"]) => {
     setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, status } : a)));
+    // Đổi trạng thái ở DB — khoá/vô hiệu sẽ thu hồi phiên đăng nhập đang chạy
+    void fetch(`/api/accounts/${accountId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    })
+      .then(async (r) => {
+        if (!r.ok) console.warn("[TNTH][AUTH] Đổi trạng thái tài khoản trên DB thất bại (HTTP", r.status, ")");
+      })
+      .catch(() => {});
   }, []);
 
-  /* Tạo tài khoản mới (đơn lẻ hoặc từ import) — lưu kèm mật khẩu vào localStorage để đăng nhập được */
+  /* Tạo tài khoản mới (đơn lẻ hoặc từ import) — ghi DB qua /api/accounts, lỗi mạng thì lưu local */
   const createAccount = useCallback(
-    (input: {
+    async (input: {
       orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
       contactPosition: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
     }) => {
@@ -1024,8 +1297,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (unit && unit.orgLevel >= 2 && accounts.some((a) => a.orgUnitId === input.orgUnitId && a.role !== "DOAN_VIEN")) {
         return { ok: false, error: "Đơn vị cơ sở chỉ có 01 tài khoản dùng chung — không thể cấp thêm" };
       }
-      /* Id phải vượt max của CẢ state lẫn localStorage (nơi nextId không biết tới)
-         để không đâm trùng tài khoản đã tạo từ /dang-ky hoặc phiên trước */
+      const password = input.password?.trim() || "demo123";
+      try {
+        const r = await fetch("/api/accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accounts: [{
+              orgUnitId: input.orgUnitId, username, email: input.email.trim(), phone: input.phone?.trim() || undefined,
+              contactPerson: input.contactPerson.trim(), contactPosition: input.contactPosition.trim(),
+              className: input.className?.trim() || undefined, role: input.role, status: input.status ?? "ACTIVE",
+              password,
+            }],
+          }),
+        });
+        const j = (await r.json().catch(() => null)) as
+          | { ok?: boolean; created?: unknown[]; error?: string; errors?: { error: string }[] }
+          | null;
+        if (r.ok && j?.ok && Array.isArray(j.created) && j.created.length > 0) {
+          const account: Account = {
+            id: Number(j.created[0]),
+            orgUnitId: input.orgUnitId,
+            username,
+            email: input.email.trim(),
+            phone: input.phone?.trim() || undefined,
+            contactPerson: input.contactPerson.trim(),
+            contactPosition: input.contactPosition.trim() || "—",
+            className: input.className?.trim() || undefined,
+            role: input.role,
+            status: input.status ?? "ACTIVE",
+          };
+          setAccounts((prev) => [...prev, account]);
+          appendCreatedAccount({
+            ...account,
+            password,
+            displayName: username,
+            orgUnitName: orgName(input.orgUnitId),
+          });
+          return { ok: true };
+        }
+        if (r.status < 500) {
+          return { ok: false, error: j?.errors?.[0]?.error ?? j?.error ?? "Không tạo được tài khoản trên hệ thống." };
+        }
+      } catch {
+        /* Mất kết nối DB — rơi xuống lưu local để demo không gãy */
+      }
+      /* Fallback local: id phải vượt max của CẢ state lẫn localStorage (nơi nextId không biết tới) */
       const storedMax = loadCreatedAccounts().reduce((m, c) => Math.max(m, c.id), 0);
       const memoryMax = accounts.reduce((m, a) => Math.max(m, a.id), 0);
       const id = Math.max(900000, storedMax, memoryMax) + 1;
@@ -1044,7 +1361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAccounts((prev) => [...prev, account]);
       appendCreatedAccount({
         ...account,
-        password: input.password?.trim() || "demo123",
+        password,
         displayName: username,
         orgUnitName: orgName(input.orgUnitId),
       });

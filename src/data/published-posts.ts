@@ -101,7 +101,7 @@ export const publishedPosts: PublishedPost[] = [
       "Đêm nhạc cũng là hoạt động khép lại chuỗi sự kiện 'Trải nghiệm di sản' mùa thu 2026.",
     ]),
     coverSeed: 13, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-14T02:00:00Z",
-    viewCount: 2450, authorOrgUnitName: "Đoàn Phường Bến Nghé", editorAccountId: 15,
+    viewCount: 2450, authorOrgUnitName: "Đoàn Phường Bến Nghé", editorAccountId: 4,
     categoryNames: ["Lịch sử, truyền thống, hành trình đỏ"], createdAt: "2026-09-14T01:00:00Z",
   },
   {
@@ -141,7 +141,7 @@ export const publishedPosts: PublishedPost[] = [
       "Năm nay ngoài học bổng, các bạn trẻ còn trao 100 cặp sách và đồ dùng học tập cho học sinh vùng lũ lân cận.",
     ]),
     coverSeed: 11, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-08T02:00:00Z",
-    viewCount: 1743, authorOrgUnitName: "Đoàn Phường Phú Hòa", editorAccountId: 7,
+    viewCount: 1743, authorOrgUnitName: "Đoàn Phường Phú Hòa", editorAccountId: 2,
     categoryNames: ["Tình nguyện, cộng đồng", "Mỗi tuần một câu chuyện đẹp"], createdAt: "2026-09-08T01:00:00Z",
   },
   {
@@ -192,7 +192,7 @@ export const publishedPosts: PublishedPost[] = [
       "Các Đoàn trường đăng ký quyên góp trực tuyến và cập nhật số liệu tiến độ hằng tuần trên cổng thông tin.",
     ]),
     coverSeed: 28, status: "SCHEDULED", isFeatured: false, publishedAt: "2026-09-30T01:00:00Z",
-    viewCount: 0, authorOrgUnitName: "Tỉnh Đoàn Bắc Giang", editorAccountId: 14,
+    viewCount: 0, authorOrgUnitName: "Tỉnh Đoàn Bắc Giang", editorAccountId: 3,
     categoryNames: ["Áo ấm mùa đông, đồng dao vùng cao", "Áo ấm mùa đông"], createdAt: "2026-09-25T01:00:00Z",
   },
   {
