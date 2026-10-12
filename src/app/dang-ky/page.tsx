@@ -46,7 +46,7 @@ export default function DangKyPage() {
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError("");
     const fullName = form.fullName.trim();
@@ -98,7 +98,7 @@ export default function DangKyPage() {
       displayName: username,
       orgUnitName: school?.name ?? `Đơn vị #${schoolId}`,
     });
-    login(username, form.password);
+    await login(username, form.password);
     toast("Đăng ký thành công! Chào mừng bạn đến với Diễn đàn Đoàn viên.");
     router.push("/dien-dan");
   };

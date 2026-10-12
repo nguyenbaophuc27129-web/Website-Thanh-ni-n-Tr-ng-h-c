@@ -48,7 +48,7 @@ const fadeUp = {
 };
 
 export default function DangNhapPage() {
-  const { login, loginAs, session, ready } = useAuth();
+  const { login, session, ready } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -59,18 +59,21 @@ export default function DangNhapPage() {
     if (ready && session) router.replace(destFor(session.role));
   }, [ready, session, router]);
 
-  const handleLogin = (e?: React.FormEvent) => {
+  const handleLogin = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError("");
-    if (!login(username, password)) {
+    if (!(await login(username, password))) {
       setError("Tên đăng nhập hoặc mật khẩu không đúng. Hãy chọn nhanh một tài khoản demo bên dưới.");
     }
   };
 
-  const quickLogin = (acc: DemoAccount) => {
-    loginAs(acc);
-    toast(`Đã đăng nhập với tư cách ${ROLE_LABELS[acc.role]} — ${acc.orgUnitName}`);
-    router.push(destFor(acc.role));
+  const quickLogin = async (acc: DemoAccount) => {
+    if (await login(acc.username, acc.password)) {
+      toast(`Đã đăng nhập với tư cách ${ROLE_LABELS[acc.role]} — ${acc.orgUnitName}`);
+      router.push(destFor(acc.role));
+    } else {
+      setError("Không đăng nhập được tài khoản demo này.");
+    }
   };
 
   return (

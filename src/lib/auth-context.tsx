@@ -183,13 +183,13 @@ export interface Session {
 const AuthCtx = createContext<{
   session: Session | null;
   ready: boolean;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   loginAs: (account: DemoAccount) => void;
   logout: () => void;
 }>({
   session: null,
   ready: false,
-  login: () => false,
+  login: async () => false,
   loginAs: () => {},
   logout: () => {},
 });
@@ -237,8 +237,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const login = useCallback(
-    (username: string, password: string) => {
+    async (username: string, password: string) => {
       const uname = username.trim().toLowerCase();
+      // 1) Đăng nhập bằng DB thật qua API — server xác minh bảng accounts và
+      //    cấp cookie phiên httpOnly (bảng auth_sessions).
+      try {
+        const r = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: uname, password }),
+        });
+        if (r.ok) {
+          const data = (await r.json()) as { session: Session };
+          persist(data.session);
+          return true;
+        }
+        if (r.status < 500) {
+          // Server từ chối rõ ràng (sai mật khẩu / khoá / chưa kích hoạt)
+          return false;
+        }
+        // >= 500: DB chưa cấu hình hoặc tunnel chưa mở → chế độ demo bên dưới
+      } catch {
+        // Không gọi được API → chế độ demo bên dưới
+      }
+      // 2) Fallback localStorage — tài khoản demo + tài khoản đã tạo trên máy này
       const acc = DEMO_ACCOUNTS.find((a) => a.username.toLowerCase() === uname);
       if (acc) {
         if (acc.password !== password) return false;
@@ -261,7 +283,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [persist, toSession]
   );
 
-  const logout = useCallback(() => persist(null), [persist]);
+  const logout = useCallback(() => {
+    // Thu hồi phiên phía DB (bỏ qua lỗi — cookie/localStorage vẫn xoá)
+    void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    persist(null);
+  }, [persist]);
 
   return (
     <AuthCtx.Provider value={{ session, ready, login, loginAs, logout }}>
