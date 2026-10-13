@@ -18,6 +18,8 @@ commit trên repo, không có gì chỉ tồn tại trong tnth_dev.
 | `0009_seed_danh_muc.sql` | Seed danh mục: `school_types` 5 loại, `resource_types` 6 nhóm, `roles` 6 vai trò (khớp `src/data/`) — idempotent ON CONFLICT DO NOTHING |
 | `0010_bo_sung_cot_store.sql` | Bổ sung cột cho sync store: `attendances.org_unit_id`, `member_contributions.*`, `feedbacks.tracking_code` UNIQUE… — đáp ứng đầy đủ các trường client đang dùng |
 | `0011_seed_danh_muc_noi_dung.sql` | Seed danh mục nội dung id khớp app: `content_categories` 8, `document_categories` 6, `feedback_topics` 7 — id tường minh + ON CONFLICT (code) DO UPDATE, idempotent |
+| `0012_xoa_nha_tai_tro.sql` | **Bãi bỏ chức năng nhà tài trợ** (quyết định giai đoạn 01) — drop bảng `sponsors`; web đã xoá toàn bộ trang quản trị + dải hiển thị tương ứng |
+| `0013_task_metrics_name_text.sql` | Nới `task_metrics.name` varchar(255) → text — BTS 2027 có tên chỉ tiêu dài 269–376 ký tự (trích nguyên văn Excel phân tích KPI), AI lượng hoá công văn cũng tạo tên dài tương tự |
 
 ## 2. Cách chạy trên tnth_prod
 
@@ -30,6 +32,19 @@ node scripts/db-migrate.mjs --list   # xem trạng thái đã áp
 - Mỗi file chạy trong 1 transaction; mọi file đều viết idempotent — chạy lại không lỗi.
 - Chỉ nên dùng tài khoản **coder_readonly để đối chiếu**; chạy migration cần tài khoản
   có quyền DDL trên tnth_prod (chủ dự án).
+
+### 2.1. Nạp dữ liệu ban đầu (chạy 1 LẦN khi khởi tạo)
+
+CSDL prod khởi tạo trống (chưa có cây đơn vị) → web chưa đăng nhập được qua DB
+và chức năng đồng bộ chưa chạy. Nạp cây 4 cấp + tài khoản ban đầu:
+
+```bash
+node scripts/db-seed-dev.mts     # idempotent — chỉ nên chạy 1 lần lúc khởi tạo
+```
+
+Script nạp: 28 đơn vị 4 cấp, tài khoản `tw.admin` + các TK demo (`demo123`),
+2 học sinh mô phỏng `hs.mophong1/2` (ids 901/902 — hồ sơ HS3T mẫu gắn vào đây).
+Sau khi vận hành thật **không chạy lại** (sẽ đè mật khẩu đã đổi).
 
 ## 3. Thay đổi so với schema ban đầu (điểm cần biết)
 
@@ -54,12 +69,16 @@ node scripts/db-migrate.mjs --list   # xem trạng thái đã áp
   localStorage khi chưa nối DB nên demo không gãy.
 - ✅ **Toàn bộ store dữ liệu ↔ DB** qua API `api/store` (GET snapshot /
   POST sync 35 entity trong 1 transaction): phản ánh, diễn đàn, HS3T, thi,
-  hoạt động, xuất bản, công văn, dự án TN, tài nguyên… Khi web mở lên,
-  `store-context` nạp snapshot từ DB (DB thắng khi có dữ liệu); mọi thay đổi
-  phía client tự đẩy về DB theo nhóm kín khoá ngoại sau 1,2 giây.
-  Lần đăng nhập đầu trên DB còn trống, app tự đẩy seed dữ liệu mẫu lên
-  (chỉ khi đăng nhập bằng tài khoản quản trị) — tnth_prod sẽ tự đầy đủ dữ
-  liệu demo sau lần truy cập đầu, không cần bước nạp tay nào khác.
+  hoạt động, xuất bản, công văn/thi đua 8 bảng, văn bản, thông báo, dự án TN,
+  tài nguyên… Khi web mở lên, `store-context` nạp snapshot từ DB (DB thắng khi
+  có dữ liệu); mọi thay đổi phía client tự đẩy về DB theo nhóm kín khoá ngoại
+  sau 1,2 giây. Nếu DB còn trống và đăng nhập bằng quản trị, app tự đẩy dữ
+  liệu mẫu lên trong lần truy cập đầu (điều kiện: đã nạp tài khoản ban đầu —
+  mục 2.1, vì đồng bộ cần phiên đăng nhập qua DB).
+- ✅ **Đã kiểm chứng tròn chuyến 35/35 entity** trên tnth_dev:
+  `node scripts/db-smoke-sync.mts [port]` — 28 bước (login, sync toàn bộ,
+  roundtrip kiểu dữ liệu, ghi công khai của khách, đăng ký + khoá TK),
+  thoát mã 1 nếu fail.
 - ✅ **Tài khoản**: tạo TK quản trị qua `api/accounts` (batch), đăng ký đoàn
   viên công khai qua `api/auth/register`, khoá/mở TK qua PATCH `api/accounts/[id]`.
 - ✅ Nạp cây đơn vị + tài khoản mẫu cho tnth_dev: `node scripts/db-seed-dev.mts`
