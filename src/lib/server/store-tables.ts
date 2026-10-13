@@ -414,14 +414,6 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       createdAt: f("created_at", "ts"),
     },
   },
-  sponsors: {
-    table: "sponsors",
-    fields: {
-      id: f("id", "int"), name: f("name", "str"), tier: f("tier", "str"),
-      websiteUrl: f("website_url", "str"), note: f("note", "str"),
-      sinceYear: f("since_year", "int"), isActive: f("is_active", "bool"),
-    },
-  },
   orgDirectories: {
     table: "org_directory",
     fields: {
@@ -467,7 +459,7 @@ export const ENTITY_ORDER: string[] = [
   "forumThreads", "forumComments",
   "hs3tProfiles", "hs3tAchievements", "hs3tUnitStandards",
   "quizQuestions", "quizExams", "quizAttempts",
-  "volunteerProjects", "sponsors", "orgDirectories", "memberContributions", "contributions",
+  "volunteerProjects", "orgDirectories", "memberContributions", "contributions",
 ];
 
 /** Entity khách vãng lai (chưa đăng nhập) được phép ghi qua sync */
@@ -479,7 +471,7 @@ export const PUBLIC_WRITE_ENTITIES = new Set([
 export const PUBLIC_READ_ENTITIES = new Set([
   "orgUnits", "publishedPosts", "activities", "activityCategories", "activityLinks",
   "documents", "documentRecipients", "resources", "settings",
-  "forumThreads", "forumComments", "sponsors", "orgDirectories", "volunteerProjects",
+  "forumThreads", "forumComments", "orgDirectories", "volunteerProjects",
   "quizQuestions", "quizExams", "liveEvents", "hs3tUnitStandards",
 ]);
 
@@ -511,7 +503,11 @@ function coerceOut(value: unknown, type: FieldType): unknown {
     case "ts":
       return value instanceof Date ? value.toISOString() : String(value);
     case "date":
-      return String(value).slice(0, 10);
+      // pg trả DATE (date-only) là Date lúc 00:00 giờ địa phương — lấy theo
+      // lịch địa phương, KHÔNG toISOString (dồn về ngày trước với +07:00)
+      return value instanceof Date
+        ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+        : String(value).slice(0, 10);
     case "bigintarr":
       // pg trả bigint[] về string[] — client cần number[]
       return Array.isArray(value) ? value.map((v) => Number(v)) : value;

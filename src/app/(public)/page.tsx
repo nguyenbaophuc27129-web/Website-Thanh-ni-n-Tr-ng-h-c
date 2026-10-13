@@ -15,7 +15,6 @@ import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { GlowCarousel } from "@/components/public/glow-carousel";
 import { SpotlightBento } from "@/components/public/spotlight-bento";
 import { StoryFlow } from "@/components/public/story-flow";
-import { SponsorStrip } from "@/components/public/sponsor-strip";
 import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { PROGRAMS } from "@/data/programs";
@@ -429,8 +428,6 @@ export default function HomePage() {
           </section>
         </Reveal>
       </div>
-
-      <SponsorStrip />
     </>
   );
 }

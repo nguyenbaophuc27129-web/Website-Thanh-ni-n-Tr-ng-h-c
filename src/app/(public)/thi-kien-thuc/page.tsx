@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { MonitorPlay, Timer, ListChecks, Shuffle, Sparkles, ArrowRight, LogIn, Clock3, Award } from "lucide-react";
 import { Reveal, CountUp } from "@/components/public/reveal";
-import { SponsorStrip } from "@/components/public/sponsor-strip";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -155,8 +154,6 @@ export default function ThiKienThucPage() {
           </div>
         ) : null}
       </div>
-
-      <SponsorStrip />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 // Smoke test vòng đời sync DB — chạy SAU khi `npm start` (mặc định soi port 3110):
 //   node scripts/db-smoke-sync.mts [port]
-// Kiểm tra: đăng nhập demo, sync 12 entity nặng FK, roundtrip kiểu dữ liệu,
-// ghi công khai của khách vãng lai, đăng ký đoàn viên, khoá tài khoản.
+// Kiểm tra: đăng nhập demo, sync TOÀN BỘ 35 entity (đủ nhóm thi đua, văn bản,
+// thông báo, tài nguyên…), roundtrip kiểu dữ liệu, ghi công khai của khách
+// vãng lai, đăng ký đoàn viên, khoá tài khoản.
 // Yêu cầu tunnel DB đang mở (ssh -N tnth-db) và DATABASE_URL trong .env.local.
 import { activities } from "../src/data/activities.ts";
 import { publishedPosts } from "../src/data/published-posts.ts";
@@ -10,6 +11,15 @@ import { FORUM_THREADS, FORUM_COMMENTS } from "../src/data/forum.ts";
 import { quizQuestions } from "../src/data/quiz-bank.ts";
 import { quizExams } from "../src/data/quiz-exams.ts";
 import { volunteerProjects } from "../src/data/volunteer-projects.ts";
+import { criteriaSets, tasks, taskMetrics } from "../src/data/criteria-tasks.ts";
+import { taskAssignments, assignmentTargets, taskResults, assignmentReviews } from "../src/data/task-assignments.ts";
+import { documents, documentRecipients } from "../src/data/documents.ts";
+import { notifications as seedNotifications } from "../src/data/notifications.ts";
+import { reports } from "../src/data/reports.ts";
+import { resources, systemSettings } from "../src/data/resources.ts";
+import { liveEvents } from "../src/data/live-events.ts";
+import { orgDirectories } from "../src/data/directory.ts";
+import { hs3tProfiles, hs3tAchievements, hs3tUnitStandards } from "../src/data/hs3t.ts";
 
 const BASE = `http://127.0.0.1:${process.argv[2] ?? "3110"}`;
 const results: string[] = [];
@@ -34,7 +44,7 @@ const cookie = (loginRes.headers.getSetCookie() ?? [])[0]?.split(";")[0] ?? "";
 const authHeaders = { "Content-Type": "application/json", Cookie: cookie };
 check("login tw.admin", loginRes.ok && cookie.includes("tnth_session="), `status ${loginRes.status}`);
 
-// 2) Sync nhóm FK nặng (đúng cấu trúc client gửi)
+// 2) Sync TOÀN BỘ entity (đúng cấu trúc client gửi — 1 transaction như seed-push)
 const entities: Record<string, unknown> = {
   activities,
   activityCategories: activities.flatMap((a) => a.categoryIds.map((categoryId) => ({ activityId: a.id, categoryId }))),
@@ -48,6 +58,31 @@ const entities: Record<string, unknown> = {
   quizQuestions,
   quizExams,
   volunteerProjects,
+  // Nhóm thi đua (nhắc việc + KPI công văn)
+  criteriaSets,
+  tasks,
+  taskMetrics,
+  taskAssignments,
+  assignmentTargets,
+  taskResults,
+  assignmentReviews,
+  scores: (await import("../src/data/scores.ts")).scores,
+  // Văn bản + thông báo (nhắc văn bản mới)
+  documents,
+  documentRecipients,
+  notifications: seedNotifications,
+  reports,
+  // Cộng đồng + tài nguyên + danh bạ + HS3T
+  emailLogs: [],
+  liveEvents,
+  resources,
+  settings: systemSettings,
+  hs3tProfiles,
+  hs3tAchievements,
+  hs3tUnitStandards,
+  orgDirectories,
+  memberContributions: [],
+  contributions: [],
 };
 const syncRes = await fetch(`${BASE}/api/store`, {
   method: "POST",
@@ -55,7 +90,7 @@ const syncRes = await fetch(`${BASE}/api/store`, {
   body: JSON.stringify({ entities }),
 });
 const syncJson = (await syncRes.json().catch(() => null)) as { ok?: boolean; counts?: Record<string, number>; error?: string } | null;
-check("POST /api/store (sync 12 entity)", syncRes.ok && syncJson?.ok === true, syncJson?.error ?? JSON.stringify(syncJson?.counts ?? {}));
+check("POST /api/store (sync toàn bộ 35 entity)", syncRes.ok && syncJson?.ok === true, syncJson?.error ?? JSON.stringify(syncJson?.counts ?? {}));
 
 // 3) GET ngược — xác nhận roundtrip giữ đúng kiểu dữ liệu
 const getRes = await fetch(`${BASE}/api/store`, { headers: { Cookie: cookie } });
@@ -80,6 +115,37 @@ check("quizExams questionIds là number[]", Array.isArray(qids) && qids.every((x
 const vpDb = d.volunteerProjects ?? [];
 check("volunteerProjects roundtrip", vpDb.length === volunteerProjects.length, `${vpDb.length}/${volunteerProjects.length}`);
 check("quizAttempts trống đọc về ổn", Array.isArray(d.quizAttempts) && d.quizAttempts.length === 0);
+
+// 3b) Kiểm nhóm thi đua + văn bản + thông báo + tài nguyên (Giai đoạn 01)
+const csDb = d.criteriaSets ?? [];
+check("criteriaSets roundtrip (BTS 2026/2025/2027)", csDb.length >= criteriaSets.length, `${csDb.length}/${criteriaSets.length}`);
+const tDb = d.tasks ?? [];
+check("tasks roundtrip (nhóm I/II/III + BTS 2027)", tDb.length >= tasks.length, `${tDb.length}/${tasks.length}`);
+const tmDb = d.taskMetrics ?? [];
+check("taskMetrics roundtrip", tmDb.length >= taskMetrics.length, `${tmDb.length}/${taskMetrics.length}`);
+const scDb = d.scores ?? [];
+const scPoints = scDb[0]?.points;
+check("scores roundtrip + points là number", scDb.length >= 54 && typeof scPoints === "number", `${scDb.length} dòng, points=${scPoints}`);
+const docDb = d.documents ?? [];
+check("documents roundtrip (công văn chỉ đạo)", docDb.length >= documents.length, `${docDb.length}/${documents.length}`);
+const drDb = d.documentRecipients ?? [];
+check("documentRecipients roundtrip (đã đọc)", drDb.length >= documentRecipients.length, `${drDb.length}/${documentRecipients.length}`);
+const ntDb = d.notifications ?? [];
+check("notifications roundtrip (nhắc việc/văn bản mới)", ntDb.length >= seedNotifications.length, `${ntDb.length}/${seedNotifications.length}`);
+const rpDb = d.reports ?? [];
+const rpPeriod = rpDb[0]?.periodStart;
+check("reports roundtrip + periodStart giữ kiểu date", rpDb.length >= reports.length && rpPeriod === reports[0]?.periodStart, `${rpDb.length}/${reports.length} periodStart=${rpPeriod}`);
+const rsDb = d.resources ?? [];
+check("resources roundtrip", rsDb.length >= resources.length, `${rsDb.length}/${resources.length}`);
+check("systemSettings roundtrip", (d.settings ?? []).length >= systemSettings.length, `${(d.settings ?? []).length}/${systemSettings.length}`);
+const hpDb = d.hs3tProfiles ?? [];
+const haDb = d.hs3tAchievements ?? [];
+check("hs3t roundtrip (profiles/achievements/standards)", hpDb.length === hs3tProfiles.length && haDb.length >= hs3tAchievements.length && (d.hs3tUnitStandards ?? []).length === hs3tUnitStandards.length,
+  `${hpDb.length}/${haDb.length}/${(d.hs3tUnitStandards ?? []).length}`);
+check("orgDirectories roundtrip", (d.orgDirectories ?? []).length >= orgDirectories.length, `${(d.orgDirectories ?? []).length}/${orgDirectories.length}`);
+check("emailLogs/memberContributions/contributions trống đọc về ổn",
+  d.emailLogs?.length === 0 && d.memberContributions?.length === 0 && d.contributions?.length === 0,
+  `${d.emailLogs?.length}/${d.memberContributions?.length}/${d.contributions?.length}`);
 
 // 4) Khách vãng lai ghi phản ánh (nhóm public)
 const anonFeedback = [

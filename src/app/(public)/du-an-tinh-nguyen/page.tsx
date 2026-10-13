@@ -6,7 +6,6 @@ import {
   MapPin, HeartHandshake, Users, Send, Loader2, Clock, Plus, MapPinned, HandHeart, Landmark, FileDown, Paperclip, X,
 } from "lucide-react";
 import { Reveal, CountUp } from "@/components/public/reveal";
-import { SponsorStrip } from "@/components/public/sponsor-strip";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -488,8 +487,6 @@ export default function DuAnTinhNguyenPage() {
           </p>
         </div>
       </Modal>
-
-      <SponsorStrip />
     </div>
   );
 }
