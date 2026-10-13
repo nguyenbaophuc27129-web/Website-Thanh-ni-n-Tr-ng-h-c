@@ -1,5 +1,5 @@
 import type { CriteriaSet, Task, TaskMetric } from "@/types";
-import { criteriaSet2027, tasks2027, taskMetrics2027 } from "./tieuchi-2027";
+import { criteriaSet2027, tasks2027, taskMetrics2027 } from "./tieuchi-2027.ts";
 
 export const criteriaSets: CriteriaSet[] = [
   {

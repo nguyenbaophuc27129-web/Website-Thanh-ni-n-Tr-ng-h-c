@@ -8,6 +8,8 @@
 //   - accounts: 10 tài khoản demo đăng nhập (ids khớp DEMO_ACCOUNTS trong
 //     src/lib/auth-context.tsx: 1–6, 16–19) + các tài khoản minh hoạ khác của trang
 //     Hệ thống (ids 101+) — bóc từ src/data/accounts.ts. Mật khẩu chung: demo123.
+//   - 901/902: 2 tài khoản học sinh mô phỏng trường 31 — hồ sơ HS3T mẫu
+//     (src/data/hs3t.ts) gắn accountId 901/902 nên bắt buộc phải tồn tại.
 import { existsSync, readFileSync } from "node:fs";
 import { randomBytes, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";
@@ -87,6 +89,12 @@ const extraAccounts: SeedAccount[] = [
   { id: 110, orgUnitId: 29, username: "hc.benghe", email: "benghe@hcm.doan.vn", contactPerson: "Ngô Thanh Trúc", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
 ];
 
+// Học sinh mô phỏng cùng trường 31 — hồ sơ HS3T mẫu 942/943 trỏ accountId 901/902
+const hs3tStudentAccounts: SeedAccount[] = [
+  { id: 901, orgUnitId: 31, username: "hs.mophong1", email: "hsmophong1@thptchanhphu.edu.vn", contactPerson: "Trần Hoàng Phú", contactPosition: "Đoàn viên", role: "DOAN_VIEN", status: "ACTIVE", className: "11A3" },
+  { id: 902, orgUnitId: 31, username: "hs.mophong2", email: "hsmophong2@thptchanhphu.edu.vn", contactPerson: "Lê Thanh Trúc", contactPosition: "Đoàn viên", role: "DOAN_VIEN", status: "ACTIVE", className: "12A5" },
+];
+
 const client = new Client({ connectionString: url, connectionTimeoutMillis: 8000 });
 await client.connect();
 
@@ -146,7 +154,7 @@ try {
 
   // 3) accounts — mật khẩu chung demo123, kích hoạt sẵn (must_change_password = false)
   const passwordHash = await hashPassword("demo123");
-  for (const acc of [...demoAccounts, ...extraAccounts]) {
+  for (const acc of [...demoAccounts, ...extraAccounts, ...hs3tStudentAccounts]) {
     await client.query(
       `INSERT INTO accounts (id, org_unit_id, username, email, password_hash, contact_person,
          contact_position, status, role_code, class_name, must_change_password, password_changed_at)

@@ -17,7 +17,7 @@ import type {
   Hs3tAchievement, Hs3tCategory, Hs3tProfile, Hs3tUnitStandard, LiveEvent, MemberContribution, ModerationResult, Notification,
   OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
   RankingEntry, RankingSnapshot, Report, Resource, Score,
-  Sponsor, SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
+  SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
 } from "@/types";
 import { CONTRIBUTION_POINTS } from "@/types";
 import { orgUnits as seedOrgUnits, descendantIds } from "@/data/org-units";
@@ -36,7 +36,6 @@ import { feedbacks as seedFeedbacks, feedbackMessages as seedMessages } from "@/
 import { liveEvents as seedLiveEvents } from "@/data/live-events";
 import { resources as seedResources, systemSettings as seedSettings } from "@/data/resources";
 import { FORUM_THREADS as seedForumThreads, FORUM_COMMENTS as seedForumComments } from "@/data/forum";
-import { sponsors as seedSponsors } from "@/data/sponsors";
 import { orgDirectories as seedDirectories } from "@/data/directory";
 import { volunteerProjects as seedVolunteerProjects } from "@/data/volunteer-projects";
 import { quizQuestions as seedQuizQuestions } from "@/data/quiz-bank";
@@ -148,7 +147,6 @@ const ENTITY_SYNC_GROUP: Record<string, string[]> = {
   quizExams: ["quizExams", "quizAttempts"],
   quizAttempts: ["quizAttempts"],
   volunteerProjects: ["volunteerProjects"],
-  sponsors: ["sponsors"],
   orgDirectories: ["orgDirectories"],
   memberContributions: ["memberContributions"],
   contributions: ["contributions"],
@@ -282,8 +280,6 @@ interface StoreValue {
   moderateMemberContribution: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => number | undefined;
   submitResourceDraft: (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number }) => number;
   moderateResourceContribution: (session: Session, id: number, action: "APPROVE" | "REJECT") => void;
-  sponsors: Sponsor[];
-  saveSponsor: (input: Omit<Sponsor, "id">, id?: number) => void;
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
   volunteerProjects: VolunteerProject[];
@@ -347,7 +343,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [forumComments, setForumComments] = useState<ForumComment[]>(seedForumComments);
   const [contributions, setContributions] = useState<ContributionLog[]>([]);
   const [memberContributions, setMemberContributions] = useState<MemberContribution[]>([]);
-  const [sponsors, setSponsors] = useState<Sponsor[]>(seedSponsors);
   const [orgDirectories, setOrgDirectories] = useState<OrgDirectory[]>(seedDirectories);
   const [volunteerProjects, setVolunteerProjects] = useState<VolunteerProject[]>(seedVolunteerProjects);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(seedQuizQuestions);
@@ -388,7 +383,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     documents, documentRecipients, notifications, feedbacks, feedbackMessages, emailLogs,
     liveEvents, resources, settings, forumThreads, forumComments,
     hs3tProfiles, hs3tAchievements, hs3tUnitStandards,
-    quizQuestions, quizExams, quizAttempts, volunteerProjects, sponsors,
+    quizQuestions, quizExams, quizAttempts, volunteerProjects,
     orgDirectories, memberContributions, contributions,
   };
 
@@ -523,7 +518,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
           bumpMax(rows); hydrate("volunteerProjects", rows); setVolunteerProjects(rows);
         }
-        if (has("sponsors")) { const rows = raw("sponsors"); bumpMax(rows); hydrate("sponsors", rows); setSponsors(rows as Sponsor[]); }
         if (has("orgDirectories")) { const rows = raw("orgDirectories"); bumpMax(rows); hydrate("orgDirectories", rows); setOrgDirectories(rows as OrgDirectory[]); }
         if (has("memberContributions")) { const rows = raw("memberContributions"); bumpMax(rows); hydrate("memberContributions", rows); setMemberContributions(rows as MemberContribution[]); }
         if (has("contributions")) { const rows = raw("contributions"); bumpMax(rows); hydrate("contributions", rows); setContributions(rows as ContributionLog[]); }
@@ -564,7 +558,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           pushIfEmpty("quizQuestions", quizQuestions);
           pushIfEmpty("quizExams", quizExams);
           pushIfEmpty("volunteerProjects", volunteerProjects);
-          pushIfEmpty("sponsors", sponsors);
           pushIfEmpty("orgDirectories", orgDirectories);
           if (seedPush.length > 0) {
             for (const e of seedPush) dirtyRef.current.add(e);
@@ -1659,13 +1652,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [resources, awardContribution, addNotification]
   );
 
-  const saveSponsor = useCallback((input: Omit<Sponsor, "id">, id?: number) => {
-    setSponsors((prev) => {
-      if (id) return prev.map((s) => (s.id === id ? { ...s, ...input } : s));
-      return [...prev, { ...input, id: nextId() }];
-    });
-  }, []);
-
   const saveDirectory = useCallback(
     (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => {
       setOrgDirectories((prev) => {
@@ -1959,7 +1945,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       forumThreads, forumComments, createForumThread, createForumComment, toggleForumLike, moderateForumItem,
       contributions, memberContributions, createMemberContribution, moderateMemberContribution,
       submitResourceDraft, moderateResourceContribution,
-      sponsors, saveSponsor, orgDirectories, saveDirectory,
+      orgDirectories, saveDirectory,
       volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
       quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
       startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,
@@ -1970,7 +1956,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createForumThread, createForumComment, toggleForumLike, moderateForumItem,
       contributions, memberContributions, createMemberContribution, moderateMemberContribution,
       submitResourceDraft, moderateResourceContribution,
-      sponsors, saveSponsor, orgDirectories, saveDirectory,
+      orgDirectories, saveDirectory,
       volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
       quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
       startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,

@@ -10,11 +10,11 @@ export const hs3tProfiles: Hs3tProfile[] = [
     schoolOrgUnitId: 31, className: "12A1", createdAt: "2026-09-05T02:00:00Z",
   },
   {
-    id: 942, code: "HS3T-2026-1002", accountId: 6, studentName: "Trần Hoàng Phú",
+    id: 942, code: "HS3T-2026-1002", accountId: 901, studentName: "Trần Hoàng Phú",
     schoolOrgUnitId: 31, className: "11A3", createdAt: "2026-09-06T02:00:00Z",
   },
   {
-    id: 943, code: "HS3T-2026-1003", accountId: 6, studentName: "Lê Thanh Trúc",
+    id: 943, code: "HS3T-2026-1003", accountId: 902, studentName: "Lê Thanh Trúc",
     schoolOrgUnitId: 31, className: "12A5", createdAt: "2026-09-07T02:00:00Z",
   },
 ];

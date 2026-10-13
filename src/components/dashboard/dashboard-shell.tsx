@@ -8,7 +8,7 @@ import {
   FileBarChart, BarChart3, Trophy, FileText, BellRing, LifeBuoy, FolderOpen,
   Network, Users, ShieldCheck, Database, Settings, LogOut, Globe, Menu, X, ChevronDown,
   Radio, Sparkles, Flag, MessagesSquare, PenLine, MonitorPlay, BookMarked, MapPinned,
-  GraduationCap, Handshake, UserCircle,
+  GraduationCap, UserCircle,
 } from "lucide-react";
 import { useAuth, ROLE_LABELS } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
@@ -258,9 +258,6 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     { href: "/quan-tri/du-an", label: "Dự án tình nguyện", icon: MapPinned, badge: pendingProjects || undefined },
     { href: "/quan-tri/hs3t", label: "Hồ sơ HS3T", icon: GraduationCap }
   );
-  if (role === "QUAN_TRI_TW") {
-    communityItems.push({ href: "/quan-tri/tai-tro", label: "Nhà tài trợ", icon: Handshake });
-  }
   groups.push({ title: "Cộng đồng & chương trình", items: communityItems });
 
   if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {

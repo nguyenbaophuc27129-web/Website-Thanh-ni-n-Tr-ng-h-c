@@ -565,17 +565,6 @@ export interface MemberContribution {
   createdAt: string;
 }
 
-/** Nhà tài trợ đồng hành — hiển thị strip công khai + quản trị /quan-tri/tai-tro */
-export interface Sponsor {
-  id: number;
-  name: string;
-  tier: "GOLD" | "SILVER" | "BRONZE";
-  websiteUrl?: string;
-  note?: string;
-  sinceYear?: number;
-  isActive: boolean;
-}
-
 /** Danh bạ Đoàn trường — thông tin liên hệ + điểm mạnh từng đơn vị (upsert theo orgUnitId) */
 export interface OrgDirectory {
   id: number;
