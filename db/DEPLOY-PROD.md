@@ -16,6 +16,8 @@ commit trên repo, không có gì chỉ tồn tại trong tnth_dev.
 | `0007_cong_dong.sql` | `org_directory`, `live_events`, `attendances`, `member_contributions`, `contribution_logs`, `email_logs` |
 | `0008_mo_rong_xuat_ban.sql` | Mở rộng `published_posts` (tác giả đơn vị, người đóng góp, chuyên mục, ảnh cover); `resources` cho phép file trỏ bảng files hoặc lưu trực tiếp + video_url; `resource_types.short_name`; CHECK `notifications.notification_type` nới từ 10 → 15 loại |
 | `0009_seed_danh_muc.sql` | Seed danh mục: `school_types` 5 loại, `resource_types` 6 nhóm, `roles` 6 vai trò (khớp `src/data/`) — idempotent ON CONFLICT DO NOTHING |
+| `0010_bo_sung_cot_store.sql` | Bổ sung cột cho sync store: `attendances.org_unit_id`, `member_contributions.*`, `feedbacks.tracking_code` UNIQUE… — đáp ứng đầy đủ các trường client đang dùng |
+| `0011_seed_danh_muc_noi_dung.sql` | Seed danh mục nội dung id khớp app: `content_categories` 8, `document_categories` 6, `feedback_topics` 7 — id tường minh + ON CONFLICT (code) DO UPDATE, idempotent |
 
 ## 2. Cách chạy trên tnth_prod
 
@@ -47,13 +49,24 @@ node scripts/db-migrate.mjs --list   # xem trạng thái đã áp
 
 ## 4. Web app đã nối DB tới đâu
 
-- ✅ Đăng nhập/phiên/đăng xuất thật qua bảng `accounts` + `auth_sessions`
+- ✅ **Đăng nhập/phiên/đăng xuất** qua bảng `accounts` + `auth_sessions`
   (`src/lib/db.ts`, `src/lib/server/auth.ts`, `api/auth/*`) — web tự fallback
   localStorage khi chưa nối DB nên demo không gãy.
+- ✅ **Toàn bộ store dữ liệu ↔ DB** qua API `api/store` (GET snapshot /
+  POST sync 35 entity trong 1 transaction): phản ánh, diễn đàn, HS3T, thi,
+  hoạt động, xuất bản, công văn, dự án TN, tài nguyên… Khi web mở lên,
+  `store-context` nạp snapshot từ DB (DB thắng khi có dữ liệu); mọi thay đổi
+  phía client tự đẩy về DB theo nhóm kín khoá ngoại sau 1,2 giây.
+  Lần đăng nhập đầu trên DB còn trống, app tự đẩy seed dữ liệu mẫu lên
+  (chỉ khi đăng nhập bằng tài khoản quản trị) — tnth_prod sẽ tự đầy đủ dữ
+  liệu demo sau lần truy cập đầu, không cần bước nạp tay nào khác.
+- ✅ **Tài khoản**: tạo TK quản trị qua `api/accounts` (batch), đăng ký đoàn
+  viên công khai qua `api/auth/register`, khoá/mở TK qua PATCH `api/accounts/[id]`.
 - ✅ Nạp cây đơn vị + tài khoản mẫu cho tnth_dev: `node scripts/db-seed-dev.mts`
   (**KHÔNG chạy file này trên tnth_prod** — chỉ dành cho tnth_dev).
-- ⏳ Các module nghiệp vụ còn đọc localStorage, sẽ chuyển dần theo từng cụm
-  (accounts/org_units → phản ánh → diễn đàn → HS3T → thi…) — schema đã đủ 100%.
+- Kiểm tra nhanh sau khi chạy migration + khởi động web:
+  `node scripts/db-smoke-sync.mts [port]` — 15 bước (login, sync 12 entity,
+  roundtrip kiểu dữ liệu, ghi công khai, đăng ký + khoá TK), thoát mã 1 nếu fail.
 
 ## 5. Lưu ý bảo mật
 
