@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Gói bản build tối giản vào .next/standalone để chạy trong Docker (deploy/)
+  output: "standalone",
 };
 
 export default nextConfig;
