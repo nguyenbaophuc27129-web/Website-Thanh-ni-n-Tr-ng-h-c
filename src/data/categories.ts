@@ -48,6 +48,10 @@ export const feedbackTopics: FeedbackTopic[] = [
     id: 7, code: "APP_QLD", name: "Lỗi kỹ thuật app Thanh niên Việt Nam & web Quản lý Đoàn",
     description: "Cán bộ Đoàn, sinh hoạt Đoàn, sổ Đoàn, Đoàn phí…",
   },
+  {
+    id: 8, code: "AN_TOAN", name: "Bảo vệ an toàn — bạo lực, bạo hành, xâm hại",
+    description: "Được chuyển thẳng tới chuyên gia tâm lý, pháp lý — bảo mật danh tính",
+  },
   { id: 6, code: "KHAC", name: "Nội dung khác" },
 ];
 
