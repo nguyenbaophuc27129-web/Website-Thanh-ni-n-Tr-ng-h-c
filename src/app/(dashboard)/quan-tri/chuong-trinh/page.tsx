@@ -16,7 +16,7 @@ const TODO_BY_KEY: Record<string, string[]> = {
   ],
   DU_AN_TN: [
     "Tiếp nhận dự án tình nguyện của trường bạn tại mục Dự án tình nguyện",
-    "Duyệt dự án để ghim lên bản đồ 34 tỉnh trên chuyên trang công khai",
+    "Duyệt dự án để đăng vào ngân hàng dự án tình nguyện trên chuyên trang công khai",
     "Theo dõi số người thụ hưởng và đoàn viên tham gia qua thẻ dự án",
   ],
   THI_KT: [

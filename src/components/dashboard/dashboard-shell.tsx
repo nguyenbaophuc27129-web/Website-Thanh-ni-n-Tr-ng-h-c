@@ -191,7 +191,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const pendingContributions =
     store.memberContributions.filter((c) => c.status === "PENDING").length +
     store.resources.filter((r) => r.submittedByAccountId && r.status === "DRAFT").length;
-  // Dự án tình nguyện chờ ghim bản đồ
+  // Dự án tình nguyện chờ duyệt đăng kho
   const pendingProjects = store.volunteerProjects.filter((p) => p.status === "PENDING").length;
 
   const groups: NavGroup[] = [];

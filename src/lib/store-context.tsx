@@ -18,6 +18,7 @@ import type {
   OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
   RankingEntry, RankingSnapshot, Report, Resource, Score,
   SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
+  VolunteerProjectField, VolunteerProjectPhase,
 } from "@/types";
 import { CONTRIBUTION_POINTS } from "@/types";
 import { orgUnits as seedOrgUnits, descendantIds } from "@/data/org-units";
@@ -283,7 +284,7 @@ interface StoreValue {
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
   volunteerProjects: VolunteerProject[];
-  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => number;
+  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => number;
   moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
   quizQuestions: QuizQuestion[];
   quizExams: QuizExam[];
@@ -1666,7 +1667,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const submitVolunteerProject = useCallback(
-    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => {
+    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => {
       const id = nextId();
       const project: VolunteerProject = {
         id,
@@ -1679,8 +1680,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         participants: input.participants || 1,
         status: "PENDING",
         submittedByAccountId: session.accountId,
-        mapX: input.mapX,
-        mapY: input.mapY,
+        field: input.field,
+        phase: input.phase,
         aiVerdict: mod.verdict,
         aiReason: mod.reason,
         reportFile: input.reportFile?.name ? input.reportFile : undefined,
@@ -1724,7 +1725,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             recipientAccountId: p.submittedByAccountId,
             notificationType: "PROJECT_APPROVED",
             title: `Dự án tình nguyện được duyệt (+${CONTRIBUTION_POINTS.PROJECT} điểm)`,
-            message: `Dự án "${p.projectName}" đã được duyệt và hiển thị trên bản đồ dự án toàn quốc. Bạn được cộng ${CONTRIBUTION_POINTS.PROJECT} điểm đóng góp.`,
+            message: `Dự án "${p.projectName}" đã được duyệt và đăng vào ngân hàng dự án tình nguyện. Bạn được cộng ${CONTRIBUTION_POINTS.PROJECT} điểm đóng góp.`,
             refType: "VOLUNTEER_PROJECT", refId: id, linkUrl: "/du-an-tinh-nguyen",
           });
         } else {

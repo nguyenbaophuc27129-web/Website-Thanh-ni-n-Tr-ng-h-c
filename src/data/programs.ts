@@ -30,7 +30,7 @@ export const PROGRAMS: ProgramInfo[] = [
   {
     key: "DU_AN_TN",
     title: "Mỗi trường THPT — 01 dự án tình nguyện",
-    desc: "Tiếp nhận và ghim dự án lên bản đồ 34 tỉnh — mỗi trường tối thiểu 1 dự án vì cộng đồng, đo lường kết quả.",
+    desc: "Đăng và tra cứu dự án trong ngân hàng dự án tình nguyện — mỗi trường tối thiểu 1 dự án vì cộng đồng, đo lường kết quả.",
     phase: 2,
     phaseLabel: "Đang hoạt động",
     href: "/du-an-tinh-nguyen",
