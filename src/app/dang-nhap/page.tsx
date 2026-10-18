@@ -162,7 +162,7 @@ export default function DangNhapPage() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="relative text-xs text-white/40"
         >
-          © 2026 Ban Thanh niên Trường học — Trung ương Đoàn · Bản demo giao diện, dữ liệu mẫu
+          © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh · Bản demo giao diện, dữ liệu mẫu
         </motion.p>
       </div>
 

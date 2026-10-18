@@ -230,7 +230,7 @@ export const publishedPosts: PublishedPost[] = [
     ]),
     coverSeed: 29, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-15T02:00:00Z",
     viewCount: 980, authorOrgUnitName: "Đoàn Trường ĐH Thủ Dầu Một", editorAccountId: 5,
-    categoryNames: ["Học tập, nghiên cứu khoa học", "Nghiên cứu khoa học", "Bản tin nghiên cứu khoa học"], createdAt: "2026-09-15T01:00:00Z",
+    categoryNames: ["Học tập, nghiên cứu khoa học", "Nghiên cứu khoa học", "Bản tin nghiên cứu khoa học", "Nhân tài"], createdAt: "2026-09-15T01:00:00Z",
   },
   {
     id: 5018, activityId: null, slug: "clb-khoa-hoc-tre-mo-lop-stem-mien-phi",
@@ -256,7 +256,7 @@ export const publishedPosts: PublishedPost[] = [
     ]),
     coverSeed: 31, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-08-28T02:00:00Z",
     viewCount: 1120, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 1,
-    categoryNames: ["Nghiên cứu khoa học", "Kỹ năng số"], createdAt: "2026-08-28T01:00:00Z",
+    categoryNames: ["Nghiên cứu khoa học", "Kỹ năng số", "Nhân tài"], createdAt: "2026-08-28T01:00:00Z",
   },
 
   /* ===== v12 — 12 bài chuyên mục đóng góp cộng đồng (2 bài mỗi chuyên mục trang chủ) ===== */
@@ -351,7 +351,7 @@ export const publishedPosts: PublishedPost[] = [
     ]),
     coverSeed: 38, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-23T02:00:00Z",
     viewCount: 520, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 1,
-    categoryNames: ["Công dân toàn cầu", "Học tập, nghiên cứu khoa học"], createdAt: "2026-09-23T01:00:00Z",
+    categoryNames: ["Công dân toàn cầu", "Học tập, nghiên cứu khoa học", "Nhân tài"], createdAt: "2026-09-23T01:00:00Z",
   },
   {
     id: 5027, activityId: null, slug: "cong-dan-toan-cau-clb-mun-dich-vu-lan-thu-10-yeu-nguoi-hoc-do-chau-au",
@@ -460,6 +460,20 @@ export const publishedPosts: PublishedPost[] = [
     coverSeed: 46, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-14T02:00:00Z",
     viewCount: 330, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 2,
     categoryNames: ["An toàn học đường"], createdAt: "2026-10-14T01:00:00Z",
+  },
+  {
+    id: 5035, activityId: null, slug: "ra-mat-cong-thong-tin-ve-nhan-tai-tuoi-truong-hoc",
+    title: "Ra mắt Cổng thông tin về nhân tài tuổi trường học: Phát hiện — bồi dưỡng — vinh danh",
+    excerpt: "Thực hiện kết luận của Tổng Bí thư về công tác nhân tài, Cổng TNTH khai trương chuyên trang tập hợp chủ trương, chính sách bồi dưỡng và tôn vinh gương mặt trẻ tiêu biểu trên toàn quốc.",
+    content: CONTENT([
+      "Nhận thức sâu sắc rằng đầu tư cho nhân tài trẻ là đầu tư cho tương lai đất nước, Ban Thanh niên Trường học Trung ương Đoàn ra mắt Cổng thông tin về nhân tài — nơi tập hợp chủ trương, chính sách phát hiện và bồi dưỡng nhân tài trong lực lượng học sinh, sinh viên.",
+      "Chuyên trang vận hành theo ba trụ cột: Phát hiện (khai thác dữ liệu thành tích học tập, nghiên cứu khoa học, các sân chơi trí tuệ trên Cổng TNTH), Bồi dưỡng (kết nối học bổng, cố vấn chuyên môn, chương trình rèn luyện) và Vinh danh — Kết nối (sàn giao đổi cơ hội giữa nhân tài trẻ với doanh nghiệp, viện nghiên cứu).",
+      "Các Đoàn trường được mời đề cử gương mặt tiêu biểu kèm minh chứng trực tiếp qua cổng; hồ sơ xét công khai, minh bạch theo quý.",
+      "Chuyên trang sẽ lần lượt công bố danh sách cố vấn, đối tác tuyển dụng và bộ chính sách hỗ trợ trong các đợt cập nhật tiếp theo.",
+    ]),
+    coverSeed: 47, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-16T02:00:00Z",
+    viewCount: 190, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 2,
+    categoryNames: ["Nhân tài", "Tin tức hoạt động Đoàn"], createdAt: "2026-10-16T01:00:00Z",
   },
 ];
 

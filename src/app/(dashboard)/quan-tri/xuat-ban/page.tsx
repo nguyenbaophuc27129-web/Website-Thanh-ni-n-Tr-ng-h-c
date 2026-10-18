@@ -298,7 +298,7 @@ export default function XuatBanPage() {
         <div>
           <h1 className="font-serif-display text-xl font-bold text-stone-900">Xuất bản tin bài</h1>
           <p className="mt-0.5 text-sm text-stone-500">
-            Mọi đơn vị tự biên tập tin từ hoạt động của mình và đăng công khai — Ban Thanh niên Trường học giám sát, gỡ bài nếu không phù hợp.
+            Mọi đơn vị tự biên tập tin từ hoạt động của mình và đăng công khai — Ban Công tác Thanh Thiếu Nhi giám sát, gỡ bài nếu không phù hợp.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -108,6 +108,9 @@ export interface Activity {
   reviewNote?: string;
   createdAt: string;
   updatedAt?: string;
+  taskId?: number;
+  taskMetricId?: number;
+  metricContributionValue?: number;
 }
 
 /* ============ 3.3. Nhiệm vụ, Chỉ tiêu & Đánh giá ============ */

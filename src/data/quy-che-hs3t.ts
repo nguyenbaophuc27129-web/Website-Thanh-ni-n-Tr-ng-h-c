@@ -10,7 +10,7 @@ export const QUY_CHE_META = {
   ngayQuyetDinh: "09/11/2023",
   coQuan: "Ban Bí thư Trung ương Đoàn TNCS Hồ Chí Minh",
   giaiDoan: "2023 - 2027",
-  thuongTruc: "Ban Thanh niên Trường học Trung ương Đoàn",
+  thuongTruc: "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh",
 };
 
 export const THONG_BAO_DIEU_CHINH = {
@@ -77,7 +77,7 @@ export const QUY_CHE_CHUONGS: Chuong[] = [
         content: [
           {
             paragraphs: [
-              "Danh hiệu “Học sinh 3 tốt” cấp Trung ương do Trung ương Đoàn TNCS Hồ Chí Minh chủ trì. Đơn vị Thường trực Danh hiệu là Ban Thanh niên Trường học Trung ương Đoàn.",
+              "Danh hiệu “Học sinh 3 tốt” cấp Trung ương do Trung ương Đoàn TNCS Hồ Chí Minh chủ trì. Đơn vị Thường trực Danh hiệu là Ban Công tác Thanh Thiếu Nhi Trung ương Đoàn.",
             ],
           },
         ],
@@ -201,7 +201,7 @@ export const QUY_CHE_CHUONGS: Chuong[] = [
           {
             heading: "1. Danh hiệu “Học sinh 3 tốt” cấp Trung ương",
             items: [
-              "Thành lập Hội đồng xét chọn do đồng chí Bí thư Trung ương Đoàn làm Chủ tịch Hội đồng. Thành phần hội đồng gồm có: Lãnh đạo Ban Thanh niên Trường học, đại diện lãnh đạo Văn phòng, Ban Tuyên giáo, Hội đồng Thi đua - Khen thưởng Trung ương đoàn, đại diện lãnh đạo Vụ Giáo dục chính trị và Công tác học sinh, sinh viên, Vụ Giáo dục Trung học, Bộ Giáo dục và Đào tạo và các thành viên khác theo chỉ đạo của Chủ tịch Hội đồng.",
+              "Thành lập Hội đồng xét chọn do đồng chí Bí thư Trung ương Đoàn làm Chủ tịch Hội đồng. Thành phần hội đồng gồm có: Lãnh đạo Ban Công tác Thanh Thiếu Nhi, đại diện lãnh đạo Văn phòng, Ban Tuyên giáo, Hội đồng Thi đua - Khen thưởng Trung ương đoàn, đại diện lãnh đạo Vụ Giáo dục chính trị và Công tác học sinh, sinh viên, Vụ Giáo dục Trung học, Bộ Giáo dục và Đào tạo và các thành viên khác theo chỉ đạo của Chủ tịch Hội đồng.",
               "Hàng năm, Hội đồng xét chọn cấp Trung ương sẽ xét chọn, trao Danh hiệu “Học sinh 3 tốt” cấp Trung ương cho các học sinh đạt tiêu chuẩn theo quy định.",
               "Thời gian xét chọn: xong trước ngày 30/11 hằng năm.",
               "Hồ sơ đề nghị xét trao danh hiệu “Học sinh 3 tốt” cấp Trung ương gồm: Công văn đề nghị xét tặng Danh hiệu của Tỉnh đoàn; Biên bản đề nghị xét tặng Danh hiệu của Tỉnh đoàn; Trích ngang thành tích của học sinh; Minh chứng học sinh đạt tiêu chuẩn tại Điều 4 Quy chế này.",
@@ -212,7 +212,7 @@ export const QUY_CHE_CHUONGS: Chuong[] = [
             items: [
               "Thành lập Hội đồng xét chọn do đồng chí Bí thư hoặc Phó Bí thư tỉnh, thành đoàn làm Chủ tịch Hội đồng. Tùy điều kiện cụ thể của từng địa phương, đơn vị, mời đại biểu tham gia hội đồng.",
               "Tổ chức xét chọn, tuyên dương, trao Danh hiệu “Học sinh 3 tốt” cấp tỉnh trước 30/10 hàng năm.",
-              "Gửi hồ sơ đề nghị xét chọn Danh hiệu “Học sinh 3 tốt” cấp Trung ương về Ban Thanh niên Trường học Trung ương Đoàn, số 64 Bà Triệu, Hoàn Kiếm, Hà Nội trước ngày 30/9 hàng năm.",
+              "Gửi hồ sơ đề nghị xét chọn Danh hiệu “Học sinh 3 tốt” cấp Trung ương về Ban Công tác Thanh Thiếu Nhi Trung ương Đoàn, số 62 Bà Triệu, Hoàn Kiếm, Hà Nội trước ngày 30/9 hàng năm.",
             ],
           },
           {

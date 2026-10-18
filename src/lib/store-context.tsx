@@ -53,6 +53,9 @@ export interface ActivityInput {
   location?: string; participantCount?: number; categoryIds: number[];
   links: { platform: string; url: string; note?: string }[];
   imageSeed?: number;
+  taskId?: number;
+  taskMetricId?: number;
+  metricContributionValue?: number;
 }
 
 export interface ScoreInput {
@@ -693,19 +696,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       const act = activities.find((a) => a.id === id);
       if (act) {
+        if (action === "CONFIRM" && act.taskId && act.taskMetricId && act.metricContributionValue) {
+          setAssignmentTargets((prevTargets) =>
+            prevTargets.map((t) => {
+              const asg = taskAssignments.find((a) => a.id === t.taskAssignmentId);
+              if (asg && asg.orgUnitId === act.orgUnitId && asg.taskId === act.taskId && t.taskMetricId === act.taskMetricId) {
+                return { ...t, achievedValue: t.achievedValue + (act.metricContributionValue ?? 0) };
+              }
+              return t;
+            })
+          );
+        }
         const acc = accountByOrgUnit(act.orgUnitId);
         if (acc) {
           addNotification({
             recipientAccountId: acc.id,
             notificationType: action === "CONFIRM" ? "RESULT_CONFIRMED" : "RESULT_NEEDS_INFO",
             title: action === "CONFIRM" ? "Hoạt động được xác nhận" : action === "NEEDS_INFO" ? "Hoạt động cần bổ sung" : "Hoạt động bị trả lại",
-            message: `Hoạt động "${act.title}" ${action === "CONFIRM" ? "đã được xác nhận" : "cần chỉnh sửa"}${note ? ` — ${note}` : ""}`,
+            message: `Hoạt động "${act.title}" ${action === "CONFIRM" ? "đã được xác nhận (số liệu đã cộng vào cây chỉ tiêu)" : "cần chỉnh sửa"}${note ? ` — ${note}` : ""}`,
             refType: "ACTIVITY", refId: id, linkUrl: `/quan-tri/hoat-dong/${id}`,
           });
         }
       }
     },
-    [accountByOrgUnit, activities, addNotification]
+    [accountByOrgUnit, activities, addNotification, taskAssignments]
   );
 
   /* ============ Posts (R2) ============ */

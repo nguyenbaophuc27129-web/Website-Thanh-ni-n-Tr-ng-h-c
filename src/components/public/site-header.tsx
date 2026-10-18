@@ -24,6 +24,7 @@ const NAV = [
   { href: "/tin-tuc", label: "Tin tức" },
   { href: "/dien-dan", label: "Diễn đàn" },
   { href: "/hoc-sinh-3-tot", label: "Học sinh 3 tốt" },
+  { href: "/nhan-tai", label: "Nhân tài" },
   { href: "/tai-nguyen", label: "Tài nguyên" },
   { href: "/an-toan-hoc-duong", label: "An toàn học đường" },
   { href: "/phan-anh", label: "Phản ánh" },

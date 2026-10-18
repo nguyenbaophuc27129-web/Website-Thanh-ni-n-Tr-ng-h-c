@@ -83,7 +83,7 @@ export default function DienDanPage() {
     setMedia([]);
     toast(
       mod.verdict === "CLEAN"
-        ? "Đã đăng bài ẩn danh — cảm ơn bạn đã chia sẻ!"
+        ? "Đã gửi bài chia sẻ — cảm ơn bạn đã đóng góp ý kiến!"
         : `Bài của bạn đang chờ kiểm duyệt: ${mod.reason ?? "nội dung đáng ngờ"}.`,
       mod.verdict === "CLEAN" ? "success" : "warning"
     );
@@ -97,19 +97,19 @@ export default function DienDanPage() {
           <div className="h-1 w-12 rounded-full bg-gradient-to-r from-blue-600 to-cyan-400" />
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">Diễn đàn Đoàn viên</h1>
           <p className="mt-2 max-w-xl text-sm text-slate-500">
-            Nơi đoàn viên, học sinh - sinh viên chia sẻ thẳng thắn — không cần lộ danh tính.
+            Nơi chia sẻ tâm tư, nguyện vọng và ý kiến đóng góp xây dựng của đoàn viên, học sinh, sinh viên.
           </p>
         </div>
       </div>
 
-      {/* ===== Strip ẩn danh ===== */}
+      {/* ===== Strip bảo mật văn minh ===== */}
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-teal-100 bg-gradient-to-r from-teal-50/80 to-cyan-50/60 px-5 py-4">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600">
           <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
         </span>
         <p className="min-w-0 flex-1 text-sm leading-relaxed text-slate-600">
-          <span className="font-semibold text-slate-800">Hoàn toàn ẩn danh.</span> Mỗi bài đăng dùng một bí danh ngẫu nhiên
-          (VD: “Bằng Lăng Tim Xanh #2481”) — kể cả Ban biên tập cũng không thấy danh tính thật.
+          <span className="font-semibold text-slate-800">Không gian chia sẻ cởi mở &amp; văn minh.</span> Mỗi bài đăng được bảo vệ thông tin cá nhân và định danh bằng bí danh thân thiện
+          (VD: “Bằng Lăng Tim Xanh #2481”) — giúp các bạn tự tin bày tỏ tiếng nói xây dựng phong trào.
         </p>
       </div>
 

@@ -42,7 +42,7 @@ const SIGNALS = [
 ];
 
 const STEPS = [
-  { n: 1, title: "Gửi nội dung", desc: "Tại trang Phản ánh, chọn lĩnh vực “Bảo vệ an toàn”. Không cần đăng nhập, không cần lộ danh tính." },
+  { n: 1, title: "Gửi nội dung", desc: "Tại trang Phản ánh, chọn lĩnh vực “Bảo vệ an toàn”. Bạn hoàn toàn an tâm vì thông tin luôn được bảo vệ nghiêm ngặt." },
   { n: 2, title: "Chuyển chuyên gia trong 24h", desc: "Nội dung bỏ qua luồng hành chính, chuyển thẳng tới chuyên gia tâm lý hoặc pháp lý theo tính chất vụ việc." },
   { n: 3, title: "Được liên hệ an toàn", desc: "Chuyên gia chủ động liên hệ qua kênh bạn chọn. Bạn giữ mã tra cứu để theo dõi toàn bộ quá trình." },
 ];

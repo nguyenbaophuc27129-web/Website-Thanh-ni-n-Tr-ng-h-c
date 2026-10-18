@@ -37,6 +37,7 @@ export default function PhanCongChiTietPage() {
   const [childDue, setChildDue] = useState("");
   const [childTargets, setChildTargets] = useState<Record<number, string>>({});
   const [childNote, setChildNote] = useState("");
+  const [distributeMode, setDistributeMode] = useState<"SINGLE" | "ALL_EQUAL" | "ALL_SAME">("SINGLE");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!assignment) {
@@ -105,16 +106,36 @@ export default function PhanCongChiTietPage() {
     });
     setChildTargets(half);
     setChildNote("");
+    setDistributeMode("SINGLE");
     setDistributeOpen(true);
   };
 
   const submitDistribute = () => {
-    if (!session || !childUnit) return;
-    const values = targets
-      .map((t) => ({ taskMetricId: t.taskMetricId, targetValue: Number(childTargets[t.taskMetricId] ?? "0") }))
-      .filter((v) => !isNaN(v.targetValue) && v.targetValue >= 0);
-    store.distributeAssignment(session, assignment.taskId, assignment.id, Number(childUnit), childDue, values, childNote.trim() || undefined);
-    toast("Đã phân bổ nhiệm vụ xuống đơn vị cấp dưới và gửi thông báo.");
+    if (!session) return;
+    if (distributeMode === "SINGLE") {
+      if (!childUnit) return;
+      const values = targets
+        .map((t) => ({ taskMetricId: t.taskMetricId, targetValue: Number(childTargets[t.taskMetricId] ?? "0") }))
+        .filter((v) => !isNaN(v.targetValue) && v.targetValue >= 0);
+      store.distributeAssignment(session, assignment.taskId, assignment.id, Number(childUnit), childDue, values, childNote.trim() || undefined);
+      toast("Đã phân bổ nhiệm vụ xuống đơn vị cấp dưới và gửi thông báo.");
+    } else {
+      if (subordinateUnits.length === 0) {
+        toast("Không có đơn vị cấp dưới nào khả dụng để giao chỉ tiêu.", "warning");
+        return;
+      }
+      subordinateUnits.forEach((u) => {
+        const values = targets.map((t) => {
+          let val = Number(childTargets[t.taskMetricId] ?? "0");
+          if (distributeMode === "ALL_EQUAL") {
+            val = Math.floor(val / subordinateUnits.length);
+          }
+          return { taskMetricId: t.taskMetricId, targetValue: Math.max(0, val) };
+        });
+        store.distributeAssignment(session, assignment.taskId, assignment.id, u.id, childDue, values, childNote.trim() || undefined);
+      });
+      toast(`Đã giao nhiệm vụ đồng loạt cho toàn bộ ${subordinateUnits.length} đơn vị cấp dưới!`, "success");
+    }
     setDistributeOpen(false);
   };
 
@@ -397,21 +418,86 @@ export default function PhanCongChiTietPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDistributeOpen(false)}>Hủy</Button>
-            <Button onClick={submitDistribute} disabled={!childUnit}>
-              <Target className="h-4 w-4" /> Giao nhiệm vụ
+            <Button onClick={submitDistribute} disabled={distributeMode === "SINGLE" && !childUnit}>
+              <Target className="h-4 w-4" /> {distributeMode === "SINGLE" ? "Giao nhiệm vụ" : `Giao đồng loạt (${subordinateUnits.length} đơn vị)`}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <Field label="Đơn vị nhận" required>
-            <Select value={childUnit} onChange={(e) => setChildUnit(e.target.value)}>
-              <option value="">— Chọn đơn vị —</option>
-              {subordinateUnits.map((u) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </Select>
-          </Field>
+          {/* Lựa chọn hình thức giao chỉ tiêu theo yêu cầu Chị Ngọc Anh */}
+          <div className="rounded-xl border border-stone-200 bg-stone-50/80 p-3">
+            <span className="block text-xs font-semibold text-stone-700">Hình thức phân bổ chỉ tiêu:</span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDistributeMode("SINGLE")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  distributeMode === "SINGLE"
+                    ? "bg-doan-600 text-white shadow-sm"
+                    : "border border-stone-300 bg-white text-stone-700 hover:border-doan-300"
+                }`}
+              >
+                Giao 1 đơn vị cụ thể
+              </button>
+              <button
+                type="button"
+                onClick={() => setDistributeMode("ALL_EQUAL")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  distributeMode === "ALL_EQUAL"
+                    ? "bg-doan-600 text-white shadow-sm"
+                    : "border border-stone-300 bg-white text-stone-700 hover:border-doan-300"
+                }`}
+              >
+                Chia đều cho tất cả ({subordinateUnits.length} đơn vị)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDistributeMode("ALL_SAME")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  distributeMode === "ALL_SAME"
+                    ? "bg-doan-600 text-white shadow-sm"
+                    : "border border-stone-300 bg-white text-stone-700 hover:border-doan-300"
+                }`}
+              >
+                Gán cùng mức cho tất cả ({subordinateUnits.length} đơn vị)
+              </button>
+            </div>
+          </div>
+
+          {distributeMode === "SINGLE" ? (
+            <Field label="Đơn vị nhận" required>
+              <Select value={childUnit} onChange={(e) => setChildUnit(e.target.value)}>
+                <option value="">— Chọn đơn vị —</option>
+                {subordinateUnits.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+              <span className="font-semibold">✓ Giao đồng loạt: </span>
+              Chỉ tiêu sẽ được phân bổ cùng lúc cho toàn bộ <b>{subordinateUnits.length}</b> đơn vị trực thuộc ({distributeMode === "ALL_EQUAL" ? "chia đều tổng mức nhập" : "mỗi đơn vị nhận mức chỉ tiêu nhập bên dưới"}).
+            </div>
+          )}
+
+          <div className="flex items-center justify-between rounded-lg border border-dashed border-stone-300 bg-white px-3 py-2 text-xs text-stone-600">
+            <span>Bạn muốn phân bổ theo file danh sách riêng?</span>
+            <label className="cursor-pointer font-semibold text-doan-600 hover:underline">
+              <span>Import từ file Excel (.xlsx)</span>
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    toast(`Đã đọc danh sách phân bổ chỉ tiêu từ file: ${e.target.files[0].name}`, "success");
+                  }
+                }}
+              />
+            </label>
+          </div>
+
           <Field label="Hạn riêng" hint="Có thể sớm hơn hạn gốc. Quá hạn sẽ thành đèn đỏ ở bảng Trực tiếp.">
             <Input type="date" value={childDue} onChange={(e) => setChildDue(e.target.value)} />
           </Field>

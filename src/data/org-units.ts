@@ -14,8 +14,8 @@ export const schoolTypes: SchoolType[] = [
  */
 export const orgUnits: OrgUnit[] = [
   // Cấp 1 — Trung ương
-  { id: 1, parentId: null, code: "TW-TNTH", name: "Ban Thanh niên Trường học — Trung ương Đoàn", shortName: "Ban TNTH TW", orgLevel: 1, adminUnitName: "Hà Nội", address: "Số 64 Bà Triệu, Hà Nội", isActive: true },
-  { id: 2, parentId: null, code: "TW-BIENTAP", name: "Ban Biên tập Cổng Thanh niên Trường học", shortName: "Ban Biên tập", orgLevel: 1, adminUnitName: "Hà Nội", address: "Số 64 Bà Triệu, Hà Nội", isActive: true },
+  { id: 1, parentId: null, code: "TW-TNTH", name: "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh", shortName: "Ban CTTTN TW", orgLevel: 1, adminUnitName: "Hà Nội", address: "Số 62 Bà Triệu, Hà Nội", isActive: true },
+  { id: 2, parentId: null, code: "TW-BIENTAP", name: "Ban Biên tập Cổng Thanh niên Trường học", shortName: "Ban Biên tập", orgLevel: 1, adminUnitName: "Hà Nội", address: "Số 62 Bà Triệu, Hà Nội", isActive: true },
 
   // Cấp 2 — Tỉnh/Thành Đoàn
   { id: 12, parentId: 1, code: "BD", name: "Tỉnh Đoàn Bình Dương", shortName: "Tỉnh Đoàn Bình Dương", orgLevel: 2, adminUnitName: "Tỉnh Bình Dương", address: "TP Thủ Dầu Một, Bình Dương", isActive: true },

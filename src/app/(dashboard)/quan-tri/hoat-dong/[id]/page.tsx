@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Pencil, ExternalLink, CheckCircle2, Undo2, XCircle, Megaphone, Play, Square, Users } from "lucide-react";
+import { ArrowLeft, Pencil, ExternalLink, CheckCircle2, Undo2, XCircle, Megaphone, Play, Square, Users, Target } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -143,6 +143,32 @@ export default function ChiTietHoatDongPage() {
           ) : null}
         </CardBody>
       </Card>
+
+      {activity.taskId ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs text-emerald-900 shadow-sm">
+          <p className="flex items-center gap-2 font-bold text-emerald-800">
+            <Target className="h-4 w-4 text-emerald-600" />
+            Đóng góp vào Cây tiêu chí &amp; Chỉ tiêu thi đua
+          </p>
+          <div className="mt-2 space-y-1.5 text-xs">
+            <p>
+              <b>Nhiệm vụ:</b> {store.tasks.find((t) => t.id === activity.taskId)?.title ?? `#${activity.taskId}`}
+            </p>
+            {activity.taskMetricId && activity.metricContributionValue ? (
+              <p>
+                <b>Chỉ số ghi nhận:</b> <span className="font-bold text-emerald-700">+{activity.metricContributionValue.toLocaleString("vi-VN")}</span>{" "}
+                {store.taskMetrics.find((m) => m.id === activity.taskMetricId)?.unitOfMeasure ?? ""} (
+                {store.taskMetrics.find((m) => m.id === activity.taskMetricId)?.name})
+              </p>
+            ) : null}
+            <p className="mt-1 text-[11px] font-medium text-emerald-700">
+              {activity.confirmStatus === "CONFIRMED"
+                ? "✓ Đã được phê duyệt và tự động cộng dồn vào tiến độ chỉ tiêu của đơn vị và cấp trên."
+                : "⏳ Số liệu sẽ tự động cộng dồn vào tiến độ chỉ tiêu của trường và cấp trên ngay khi cấp trên xác nhận."}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {activity.reviewNote ? (
         <div className={`rounded-xl border p-4 text-sm ${activity.confirmStatus === "REJECTED" ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
