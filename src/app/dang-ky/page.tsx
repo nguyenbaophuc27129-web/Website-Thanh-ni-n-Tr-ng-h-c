@@ -245,7 +245,7 @@ export default function DangKyPage() {
         </form>
 
         <p className="mt-5 text-center text-[11px] leading-relaxed text-slate-400">
-          Tài khoản demo: <code className="rounded bg-slate-100 px-1 py-0.5 font-semibold text-slate-600">dv.demo / demo123</code>. Trong bản demo, thông tin chỉ lưu trên trình duyệt của bạn.
+          Thông tin đăng ký sẽ được Đoàn trường xác thực và kích hoạt theo quy định quản lý Đoàn viên.
         </p>
       </motion.div>
     </div>

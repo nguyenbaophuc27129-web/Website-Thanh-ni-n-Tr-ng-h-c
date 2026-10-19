@@ -55,7 +55,7 @@ export function SiteFooter() {
       toast("Vui lòng nhập email hợp lệ.", "warning");
       return;
     }
-    toast(`Đã đăng ký nhận tin tại ${email} — bản demo.`);
+    toast(`Đã đăng ký nhận bản tin thành công tại ${email}.`);
     setEmail("");
   };
 
@@ -122,8 +122,7 @@ export function SiteFooter() {
           </div>
           <p className="mt-4 text-xs font-light leading-relaxed text-slate-400">
             Cổng thông tin điện tử quản lý hoạt động, thi đua và truyền thông
-            thanh niên trường học của Đoàn TNCS Hồ Chí Minh. Bản demo giao diện,
-            dữ liệu mẫu không phải dữ liệu thật.
+            thanh niên trường học của Đoàn TNCS Hồ Chí Minh.
           </p>
           <div className="mt-5 flex items-center gap-2.5">
             <a
@@ -208,7 +207,7 @@ export function SiteFooter() {
         <div className="relative mx-auto max-w-7xl px-4">
           <div className="flex flex-col items-center justify-between gap-3 border-t border-white/5 py-5 text-[11px] font-light text-slate-500 sm:flex-row">
             <p>
-              © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh. Bản demo phục vụ trình duyệt chức năng.
+              © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh. Bản quyền thuộc Cổng thông tin Thanh niên Trường học.
             </p>
             <div className="flex items-center gap-5">
               <Link href="/gioi-thieu" className="transition-colors hover:text-cyan-300">Giới thiệu</Link>

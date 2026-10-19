@@ -62,12 +62,12 @@ interface SeedAccount {
 
 // 10 tài khoản đăng nhập demo (đồng bộ src/lib/auth-context.tsx — DEMO_ACCOUNTS)
 const demoAccounts: SeedAccount[] = [
-  { id: 1, orgUnitId: 1, username: "tw.admin", email: "tnth@doanthanhnienvn.vn", contactPerson: "Nguyễn Văn Toàn", contactPosition: "Phó Ban Thanh niên Trường học", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 1, orgUnitId: 1, username: "tw.admin", email: "tnth@doanthanhnienvn.vn", contactPerson: "Nguyễn Văn Toàn", contactPosition: "Phó Trưởng Ban Công tác Thanh Thiếu Nhi", role: "QUAN_TRI_TW", status: "ACTIVE" },
   { id: 2, orgUnitId: 12, username: "bd.province", email: "bandoan@binhduong.doan.vn", contactPerson: "Trần Thị Mai", contactPosition: "Phó Bí thư Tỉnh Đoàn", role: "QUAN_TRI_TINH", status: "ACTIVE" },
   { id: 3, orgUnitId: 25, username: "hc.hiepthanh", email: "hiepthanh@bd.doan.vn", contactPerson: "Lê Quốc Hùng", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
   { id: 4, orgUnitId: 31, username: "thpt.chanhphu", email: "thptchanhphuhung@bd.edu.vn", contactPerson: "Phạm Minh Tuấn", contactPosition: "Bí thư Đoàn Trường", role: "DON_VI", status: "ACTIVE" },
   { id: 5, orgUnitId: 2, username: "btv.tw", email: "bientap@tnth.vn", contactPerson: "Võ Ngọc Lan", contactPosition: "Phóng viên biên tập", role: "BIEN_TAP_VIEN", status: "ACTIVE" },
-  { id: 6, orgUnitId: 31, username: "dv.demo", email: "doanvien@thptchanhphu.edu.vn", contactPerson: "dv.demo", contactPosition: "Ủy viên Ban Chấp hành Chi Đoàn", role: "DOAN_VIEN", status: "ACTIVE", className: "12A1" },
+  { id: 6, orgUnitId: 31, username: "dv.demo", email: "minhduc.doanvien@thptchanhphu.edu.vn", contactPerson: "Nguyễn Minh Đức", contactPosition: "Ủy viên Ban Chấp hành Chi Đoàn", role: "DOAN_VIEN", status: "ACTIVE", className: "12A1" },
   { id: 16, orgUnitId: 1, username: "cv.hs3t", email: "hs3t@tnth.vn", contactPerson: "Trần Thị Thu Hà", contactPosition: "Chuyên viên phụ trách xét hồ sơ Học sinh 3 tốt", role: "QUAN_TRI_TW", status: "ACTIVE" },
   { id: 17, orgUnitId: 1, username: "cv.kiemtra", email: "kiemtra@tnth.vn", contactPerson: "Lê Minh Đức", contactPosition: "Chuyên viên phụ trách công tác kiểm tra", role: "QUAN_TRI_TW", status: "ACTIVE" },
   { id: 18, orgUnitId: 1, username: "ctv.tintuc", email: "tintuc@tnth.vn", contactPerson: "Nguyễn Hải Yến", contactPosition: "CTV phụ trách chuyên mục Tin tức", role: "QUAN_TRI_TW", status: "ACTIVE" },

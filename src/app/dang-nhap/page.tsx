@@ -63,7 +63,7 @@ export default function DangNhapPage() {
     e?.preventDefault();
     setError("");
     if (!(await login(username, password))) {
-      setError("Tên đăng nhập hoặc mật khẩu không đúng. Hãy chọn nhanh một tài khoản demo bên dưới.");
+      setError("Tên đăng nhập hoặc mật khẩu không đúng. Vui lòng kiểm tra lại thông tin đăng nhập.");
     }
   };
 
@@ -72,7 +72,7 @@ export default function DangNhapPage() {
       toast(`Đã đăng nhập với tư cách ${ROLE_LABELS[acc.role]} — ${acc.orgUnitName}`);
       router.push(destFor(acc.role));
     } else {
-      setError("Không đăng nhập được tài khoản demo này.");
+      setError("Không thể đăng nhập vào tài khoản này.");
     }
   };
 
@@ -162,7 +162,7 @@ export default function DangNhapPage() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="relative text-xs text-white/40"
         >
-          © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh · Bản demo giao diện, dữ liệu mẫu
+          © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh
         </motion.p>
       </div>
 
@@ -201,7 +201,7 @@ export default function DangNhapPage() {
                 className="mt-1.5 w-full rounded-xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-300 focus:border-blue-500/70 focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]"
               />
               <p className="mt-1.5 text-[11px] text-slate-400">
-                Mật khẩu chung tất cả tài khoản demo: <code className="rounded bg-slate-100 px-1 py-0.5 font-semibold text-slate-600">demo123</code>
+                Mật khẩu mặc định hệ thống: <code className="rounded bg-slate-100 px-1 py-0.5 font-semibold text-slate-600">demo123</code>
               </p>
             </div>
 
@@ -233,7 +233,7 @@ export default function DangNhapPage() {
           <div className="my-7 flex items-center gap-3">
             <div className="h-px flex-1 bg-slate-100" />
             <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-              Đăng nhập nhanh (demo)
+              Đăng nhập nhanh theo phân quyền
             </span>
             <div className="h-px flex-1 bg-slate-100" />
           </div>

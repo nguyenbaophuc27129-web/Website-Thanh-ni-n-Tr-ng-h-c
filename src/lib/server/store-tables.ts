@@ -1,4 +1,4 @@
-import { query } from "@/lib/db";
+import { query } from "../db.ts";
 
 /**
  * Lớp truy cập dữ liệu store ↔ PostgreSQL (bước chuyển localStorage → DB).

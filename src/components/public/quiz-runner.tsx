@@ -488,7 +488,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
         {q.type === "FILE_UPLOAD" ? (
           <label className="mt-5 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300 px-4 py-6 text-sm text-stone-500 hover:border-blue-400 hover:text-blue-600">
             <Upload className="h-4 w-4" />
-            {answer.fileName ? `Đã chọn: ${answer.fileName}` : "Chọn tệp minh chứng (tên tệp được ghi nhận cho demo)"}
+            {answer.fileName ? `Đã chọn: ${answer.fileName}` : "Chọn tệp minh chứng đính kèm"}
             <input
               type="file"
               className="hidden"
