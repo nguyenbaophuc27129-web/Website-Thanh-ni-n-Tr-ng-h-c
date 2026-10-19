@@ -179,6 +179,28 @@ body {
   animation: intro-star-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Logo banner TNTH-03 — xuất hiện phóng to mềm mại với quầng sáng */
+@keyframes intro-banner-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.78) translateY(16px);
+    filter: blur(8px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.02) translateY(-2px);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+.intro-banner-logo {
+  animation: intro-banner-in 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Vòng sáng lan tỏa quanh logo */
 @keyframes intro-ring-pulse {
   0% {
@@ -263,6 +285,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .intro-fade,
   .intro-star,
+  .intro-banner-logo,
   .intro-ring,
   .intro-letter,
   .intro-sub,
