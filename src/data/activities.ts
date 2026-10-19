@@ -47,7 +47,7 @@ export const activities: Activity[] = [
     summary: "Học tập nghị quyết Đại hội Đoàn, kế hoạch thi đua năm học 2026-2027.",
     startDate: "2026-09-25", endDate: "2026-09-25", location: "Các phòng học",
     participantCount: 320, activityType: "GENERAL", status: "DRAFT", confirmStatus: "NOT_REQUIRED",
-    categoryIds: [8], imageSeed: 5, links: [], createdAt: "2026-09-22T01:00:00Z",
+    categoryIds: [1], imageSeed: 5, links: [], createdAt: "2026-09-22T01:00:00Z",
   },
   {
     id: 106, orgUnitId: 31,
@@ -73,7 +73,7 @@ export const activities: Activity[] = [
     summary: "Tập huấn cho 45 bí thư chi đoàn trường học về quy trình cập nhật hoạt động, chấm điểm thi đua trên Cổng TNTH.",
     startDate: "2026-09-02", endDate: "2026-09-02", location: "UBND Phường Hiệp Thành",
     participantCount: 45, activityType: "GENERAL", status: "SUBMITTED", confirmStatus: "CONFIRMED",
-    categoryIds: [8], imageSeed: 8,
+    categoryIds: [7], imageSeed: 8,
     links: [{ id: 1006, activityId: 108, platform: "WEBSITE", url: "https://tnth.vn/tap-huan-doan-pht" }],
     createdAt: "2026-09-03T01:40:00Z",
   },
@@ -91,7 +91,7 @@ export const activities: Activity[] = [
     summary: "Đoàn phường kiểm tra việc cập nhật hoạt động và số liệu nhiệm vụ thi đua tại các trường.",
     startDate: "2026-09-28", endDate: "2026-09-30", location: "Các trường trên địa bàn",
     participantCount: 8, activityType: "TASK_BASED", status: "DRAFT", confirmStatus: "NOT_REQUIRED",
-    categoryIds: [8], imageSeed: 10, links: [], createdAt: "2026-09-22T02:15:00Z",
+    categoryIds: [1], imageSeed: 10, links: [], createdAt: "2026-09-22T02:15:00Z",
   },
   {
     id: 111, orgUnitId: 26,

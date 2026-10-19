@@ -2,7 +2,7 @@ import type { Account } from "@/types";
 
 /** Tài khoản 1 đơn vị = 1 tài khoản (mock dùng cho trang quản lý tài khoản) */
 export const accounts: Account[] = [
-  { id: 1, orgUnitId: 1, username: "tw.admin", email: "tnth@doanthanhnienvn.vn", contactPerson: "Nguyễn Văn Toàn", contactPosition: "Phó Ban TNTH", role: "QUAN_TRI_TW", status: "ACTIVE", lastLoginAt: "2026-09-22T08:30:00Z" },
+  { id: 1, orgUnitId: 1, username: "tw.admin", email: "tnth@doanthanhnienvn.vn", contactPerson: "Nguyễn Văn Toàn", contactPosition: "Phó Trưởng Ban Công tác Thanh Thiếu Nhi TW Đoàn", role: "QUAN_TRI_TW", status: "ACTIVE", lastLoginAt: "2026-09-22T08:30:00Z" },
   { id: 2, orgUnitId: 2, username: "btv.tw", email: "bientap@tnth.vn", contactPerson: "Võ Ngọc Lan", contactPosition: "Phóng viên biên tập", role: "BIEN_TAP_VIEN", status: "ACTIVE", lastLoginAt: "2026-09-22T07:45:00Z" },
   { id: 3, orgUnitId: 12, username: "bd.province", email: "bandoan@binhduong.doan.vn", contactPerson: "Trần Thị Mai", contactPosition: "Phó Bí thư Tỉnh Đoàn", role: "QUAN_TRI_TINH", status: "ACTIVE", lastLoginAt: "2026-09-21T16:20:00Z" },
   { id: 4, orgUnitId: 25, username: "hc.hiepthanh", email: "hiepthanh@bd.doan.vn", contactPerson: "Lê Quốc Hùng", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE", lastLoginAt: "2026-09-22T09:10:00Z" },

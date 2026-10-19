@@ -137,7 +137,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
               Tài khoản của bạn được phân quyền theo chức danh{" "}
               <b className="text-slate-700">“{session.contactPosition}”</b> — chỉ thấy
-              {work.length > 0 ? `: ${work.map((w) => w.label).join(", ")}.` : " các phân hệ được Ban TNTH giao."}
+              {work.length > 0 ? `: ${work.map((w) => w.label).join(", ")}.` : " các phân hệ được Ban Công tác Thanh Thiếu Nhi giao."}
             </p>
             <div className="mt-6 flex flex-col gap-2">
               {W0 ? (

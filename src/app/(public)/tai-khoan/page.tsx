@@ -130,7 +130,7 @@ export default function TaiKhoanPage() {
           <Card>
             <CardHeader
               title="Đóng góp của tôi"
-              subtitle="Bài viết chuyên mục bạn gửi — qua AI kiểm duyệt và Ban TNTH duyệt đăng"
+              subtitle="Bài viết chuyên mục bạn gửi — qua AI kiểm duyệt và Ban Biên tập duyệt đăng"
             />
             <CardBody>
               {myContributions.length === 0 ? (

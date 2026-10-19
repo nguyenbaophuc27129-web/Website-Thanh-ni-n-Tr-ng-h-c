@@ -1631,7 +1631,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         recipientAccountId: 1,
         notificationType: "SYSTEM",
         title: "Tài nguyên chờ duyệt từ đoàn viên",
-        message: `${session.contactPerson} đóng góp tài nguyên "${resource.title}" — chờ Ban TNTH duyệt.`,
+        message: `${session.contactPerson} đóng góp tài nguyên "${resource.title}" — chờ Ban Biên tập duyệt.`,
         refType: "RESOURCE", refId: id, linkUrl: "/quan-tri/dong-gop",
       });
       return id;

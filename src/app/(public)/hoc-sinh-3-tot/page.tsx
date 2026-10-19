@@ -178,7 +178,7 @@ export default function HocSinh3TotPage() {
       {unitStandard ? (
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <p className="flex items-center gap-2 text-xs font-bold text-amber-800">
-            <Scale className="h-3.5 w-3.5" /> Tiêu chuẩn áp dụng tại {store.orgName(unitStandard.orgUnitId)} — điều chỉnh theo Điều 5 (không cao hơn chuẩn TW)
+            <Scale className="h-3.5 w-3.5" /> Tiêu chuẩn áp dụng tại {store.orgName(unitStandard.orgUnitId)} — theo Điều 5 Quy chế TW
           </p>
           <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-amber-900/85">
             {unitStandard.daoDuc ? <li>• <b>Đạo đức tốt:</b> {unitStandard.daoDuc}</li> : null}

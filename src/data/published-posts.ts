@@ -347,10 +347,10 @@ export const publishedPosts: PublishedPost[] = [
     content: CONTENT([
       "Đoàn Việt Nam dự kỳ thi Toán học quốc tế IMO 2026 đã mang về 2 Huy chương Vàng, 3 Bạc và 1 Đồng — thành tích tốt nhất trong 10 năm gần đây.",
       "Cả hai tấm Huy chương Vàng đều thuộc về học sinh trường học trong nước, chưa từng đi du học trước khi thi.",
-      "Ban TNTH TW đã tổ chức gặp mặt tôn vinh và phát động phong trào 'Học sinh THPT — Công dân toàn cầu' hướng tới kỳ thi 2027.",
+      "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn đã tổ chức gặp mặt tôn vinh và phát động phong trào 'Học sinh THPT — Công dân toàn cầu' hướng tới kỳ thi 2027.",
     ]),
     coverSeed: 38, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-23T02:00:00Z",
-    viewCount: 520, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 1,
+    viewCount: 520, authorOrgUnitName: "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn", editorAccountId: 1,
     categoryNames: ["Công dân toàn cầu", "Học tập, nghiên cứu khoa học", "Nhân tài"], createdAt: "2026-09-23T01:00:00Z",
   },
   {
@@ -398,12 +398,12 @@ export const publishedPosts: PublishedPost[] = [
     title: "Phát động Tháng công dân số học sinh, sinh viên 2026 với 3 nhiệm vụ trọng tâm",
     excerpt: "Toàn Đoàn trường học phát động Tháng công dân số: kỹ năng an toàn không gian mạng, phòng chống lừa đảo trực tuyến và học tập AI đúng cách cho học sinh, sinh viên.",
     content: CONTENT([
-      "Ban TNTH TW phát động Tháng công dân số học sinh, sinh viên 2026 từ 01/10 đến 31/10 trên toàn quốc với 3 nhiệm vụ trọng tâm.",
+      "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn phát động Tháng công dân số học sinh, sinh viên 2026 từ 01/10 đến 31/10 trên toàn quốc với 3 nhiệm vụ trọng tâm.",
       "Nhiệm vụ 1: mỗi trường tổ chức tối thiểu 1 buổi hướng dẫn an toàn không gian mạng; Nhiệm vụ 2: phát động phòng chống lừa đảo trực tuyến đến 100% đoàn viên; Nhiệm vụ 3: tổ chức thi kiến thức 'Kỹ năng số' trên Cổng TNTH.",
       "Kết quả Tháng công dân số được cập nhật minh chứng trực tiếp và tính điểm thi đua BTS 2027 nhiệm vụ IV.",
     ]),
     coverSeed: 42, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-01T02:00:00Z",
-    viewCount: 480, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 1,
+    viewCount: 480, authorOrgUnitName: "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn", editorAccountId: 1,
     categoryNames: ["Tin tức hoạt động Đoàn", "Kỹ năng số"], createdAt: "2026-10-01T01:00:00Z",
   },
   {
@@ -411,7 +411,7 @@ export const publishedPosts: PublishedPost[] = [
     title: "Hội nghị bàn tròn Đoàn trường học điện lần thứ 3: 120 đại biểu thống nhất chuẩn dữ liệu chung",
     excerpt: "Đại biểu 4 cấp Đoàn họp thống nhất bộ chỉ số dữ liệu chung cho 43 bảng dữ liệu hệ sinh thái Cổng TNTH — bước đệm để kết nối liên thông dữ liệu học sinh toàn quốc.",
     content: CONTENT([
-      "Hội nghị bàn tròn Đoàn trường học điện lần thứ 3 thu hút 120 đại biểu đến từ Ban TNTH TW, các Tỉnh Đoàn và trường học tiên phong.",
+      "Hội nghị bàn tròn Đoàn trường học điện lần thứ 3 thu hút 120 đại biểu đến từ Ban Công tác Thanh Thiếu Nhi Trung ương Đoàn, các Tỉnh Đoàn, Thành Đoàn và trường học tiên phong.",
       "Điểm nhấn của hội nghị là thống nhất bộ chỉ số dữ liệu chung cho 43 bảng dữ liệu của hệ sinh thái Cổng TNTH, bảo đảm các trường dùng một ngôn ngữ dữ liệu.",
       "Hội nghị cũng giới thiệu lộ trình kết nối liên thông dữ liệu học sinh toàn quốc trong năm học 2027-2028.",
     ]),

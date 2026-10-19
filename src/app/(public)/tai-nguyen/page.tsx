@@ -164,13 +164,13 @@ export default function TaiNguyenPage() {
     submitResourceDraft(session, {
       resourceTypeId: Number(rType),
       title: rTitle,
-      description: rDesc || "Tài nguyên do đoàn viên đóng góp, chờ Ban TNTH duyệt.",
+      description: rDesc || "Tài nguyên do đoàn viên đóng góp, chờ Ban Biên tập duyệt.",
       fileName: rFile.name,
       fileSizeKb: rFile.sizeKb,
     });
     setContribOpen(false);
     setRTitle(""); setRDesc(""); setRFile(null);
-    toast("Đã gửi tài nguyên — ở trạng thái nháp, chờ Ban TNTH duyệt công khai (+10 điểm khi được duyệt).");
+    toast("Đã gửi tài nguyên — ở trạng thái nháp, chờ Ban Biên tập duyệt công khai (+10 điểm khi được duyệt).");
   };
 
   // Phím tắt ⌘K / Ctrl+K
@@ -542,7 +542,7 @@ export default function TaiNguyenPage() {
               onClick={submitResourceContribute}
               className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
             >
-              <Upload className="h-4 w-4" /> Gửi cho Ban TNTH duyệt
+              <Upload className="h-4 w-4" /> Gửi cho Ban Biên tập duyệt
             </button>
           </>
         }
@@ -576,7 +576,7 @@ export default function TaiNguyenPage() {
             )}
           </Field>
           <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
-            Tài nguyên ở trạng thái nháp — Ban TNTH duyệt sẽ công khai trên kho dùng chung và cộng
+            Tài nguyên ở trạng thái nháp — Ban Biên tập duyệt sẽ công khai trên kho dùng chung và cộng
             10 điểm đóng góp vào trang Tài khoản của bạn.
           </p>
         </div>

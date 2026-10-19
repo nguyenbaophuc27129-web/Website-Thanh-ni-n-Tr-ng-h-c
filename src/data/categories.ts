@@ -13,7 +13,6 @@ export const contentCategories: ContentCategory[] = [
   { id: 5, code: "AO_DUA", name: "Áo ấm mùa đông, đồng dao vùng cao" },
   { id: 6, code: "THE_DUC", name: "Thể dục thể thao, Đoàn kết sức trẻ" },
   { id: 7, code: "HS_3_TOT", name: "Học sinh 3 tốt", parentId: 1 },
-  { id: 8, code: "DN_3_TOT", name: "Đoàn viên 3 tốt" },
 ];
 
 export const documentCategories: DocumentCategory[] = [
@@ -50,7 +49,7 @@ export const feedbackTopics: FeedbackTopic[] = [
   },
   {
     id: 8, code: "AN_TOAN", name: "Bảo vệ an toàn — bạo lực, bạo hành, xâm hại",
-    description: "Được chuyển thẳng tới chuyên gia tâm lý, pháp lý — bảo mật danh tính",
+    description: "Được chuyển thẳng tới chuyên gia tâm lý, pháp lý — bảo mật danh tính tuyệt đối",
   },
   { id: 6, code: "KHAC", name: "Nội dung khác" },
 ];
@@ -58,14 +57,16 @@ export const feedbackTopics: FeedbackTopic[] = [
 /**
  * Từ khóa sự kiện cố định — đơn vị chọn khi đăng bài thay vì tự gõ,
  * thống nhất làm thẻ (#) và trạm lọc trên trang tin tức công khai.
+ * Đã bổ sung 3 chiến dịch tình nguyện chủ lực của khối trường học.
  */
 export const EVENT_KEYWORDS: string[] = [
+  "Chiến dịch Tiếp sức mùa thi",
+  "Chiến dịch Hoa phượng đỏ",
+  "Chiến dịch Mùa hè xanh",
   "Năm học mới",
   "Tuần lễ học đường",
   "Học sinh 3 tốt",
   "Thi đua chào cờ",
-  "Mùa hè xanh",
-  "Tiếp sức mùa thi",
   "Bảo vệ môi trường",
   "An toàn giao thông",
   "Áo ấm mùa đông",
@@ -89,6 +90,7 @@ export const SECTION_TAGS: string[] = [
  * Các giai đoạn sau sẽ nâng từng chuyên mục thành trang riêng của nó.
  */
 export const SPECIAL_CATEGORIES: { name: string; href: string }[] = [
+  { name: "3 Chiến dịch tình nguyện chủ lực", href: "/tin-tuc?q=Chiến dịch" },
   { name: "Gương mặt Học sinh 3 tốt", href: "/tin-tuc?q=Gương mặt Học sinh 3 tốt" },
   { name: "Mỗi ngày một tin tốt, mỗi tuần một câu chuyện đẹp", href: "/tin-tuc?q=Mỗi tuần một câu chuyện đẹp" },
   { name: "Hành trình khoa học trẻ", href: "/tin-tuc?q=Hành trình khoa học trẻ" },

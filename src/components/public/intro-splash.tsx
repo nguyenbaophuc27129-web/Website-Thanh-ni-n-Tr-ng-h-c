@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 /**
- * Màn chào sân (intro splash) — DIỄN MỖI LẦN VÀO WEB (mỗi lần tải lại trang).
- * LUÔN hiển thị (không bỏ theo reduced-motion — trước đó máy bật "giảm chuyển động"
- * làm màn chào biến mất hoàn toàn); ai không muốn xem bấm "Bỏ qua" là thoát ngay.
- *
- * LOGO: dùng file public/logo.png (bản đã cắt nền đen trong suốt).
- * Muốn đổi logo mới: thay scripts/logo-src/logo-goc.png rồi chạy
- * `node scripts/process-logo.js` để cắt nền lại tự động.
+ * Màn chào sân (intro splash) — CHỈ DIỄN Ở TRANG CHỦ (/) KHI TẢI LẠI TRANG.
+ * Các trang con (/dien-dan, /tin-tuc, /hoc-sinh-3-tot...) sau F5 KHÔNG diễn để tránh phiền người dùng.
+ * Ai không muốn xem trên trang chủ bấm "Bỏ qua" là thoát ngay.
  */
 
 const TITLE = "THANH NIÊN TRƯỜNG HỌC";
@@ -17,33 +14,46 @@ const SHOW_MS = 2600; // thời gian trình diễn trước khi màn kéo lên
 const EXIT_MS = 650; // thời gian màn kéo lên
 
 export function IntroSplash() {
+  const pathname = usePathname();
   const [phase, setPhase] = useState<"hidden" | "show" | "exit">("hidden");
   const t1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const t2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Báo cho các hiệu ứng phía dưới (vd: reveal chữ Tin tiêu điểm) biết đã diễn xong
   const finish = () => {
-    (window as unknown as { tnthIntroDone?: boolean }).tnthIntroDone = true;
-    window.dispatchEvent(new Event("tnth:intro-done"));
+    if (typeof window !== "undefined") {
+      (window as unknown as { tnthIntroDone?: boolean }).tnthIntroDone = true;
+      window.dispatchEvent(new Event("tnth:intro-done"));
+    }
   };
 
   useEffect(() => {
+    // Chỉ kích hoạt màn chào ở trang chủ (/)
+    if (pathname !== "/") {
+      setPhase("hidden");
+      finish();
+      return;
+    }
+
     setPhase("show");
     document.body.style.overflow = "hidden"; // khoá cuộn trong lúc diễn
+
     t1Ref.current = setTimeout(() => {
       setPhase("exit");
     }, SHOW_MS);
+
     t2Ref.current = setTimeout(() => {
       setPhase("hidden");
       document.body.style.overflow = "";
       finish();
     }, SHOW_MS + EXIT_MS);
+
     return () => {
       if (t1Ref.current) clearTimeout(t1Ref.current);
       if (t2Ref.current) clearTimeout(t2Ref.current);
       document.body.style.overflow = "";
     };
-  }, []);
+  }, [pathname]);
 
   const skip = () => {
     // Huỷ cả 2 hẹn giờ để màn không tự bật lại sau khi đã bỏ qua
@@ -57,7 +67,7 @@ export function IntroSplash() {
     }, EXIT_MS);
   };
 
-  if (phase === "hidden") return null;
+  if (pathname !== "/" || phase === "hidden") return null;
 
   return (
     <div

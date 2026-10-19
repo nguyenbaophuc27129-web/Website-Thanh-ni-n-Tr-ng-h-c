@@ -111,7 +111,7 @@ export default function DanhBaAdminPage() {
           {isTW
             ? "Toàn quốc — thông tin liên hệ, điểm mạnh và nguồn lực của từng đơn vị Đoàn."
             : isUnit
-              ? "Danh bạ đơn vị của bạn — cập nhật để Ban TNTH và cấp trên liên hệ đúng người."
+              ? "Danh bạ đơn vị của bạn — cập nhật để Ban Công tác Thanh Thiếu Nhi và cấp trên liên hệ đúng người."
               : "Danh bạ các đơn vị thuộc phạm vi bạn quản lý."}
         </p>
       </div>
@@ -122,7 +122,7 @@ export default function DanhBaAdminPage() {
       </div>
 
       <p className="rounded-lg bg-sky-50 px-4 py-2.5 text-xs text-sky-700">
-        Danh bạ là nguồn duy nhất để Ban TNTH liên hệ phổ biến nhiệm vụ, mời cử đại biểu — hãy giữ số điện thoại và email luôn đúng.
+        Danh bạ là nguồn duy nhất để Ban Công tác Thanh Thiếu Nhi liên hệ phổ biến nhiệm vụ, mời cử đại biểu — hãy giữ số điện thoại và email luôn đúng.
       </p>
 
       <div className="grid gap-3 lg:grid-cols-2">

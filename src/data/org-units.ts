@@ -23,6 +23,7 @@ export const orgUnits: OrgUnit[] = [
   { id: 14, parentId: 1, code: "BG", name: "Tỉnh Đoàn Bắc Giang", shortName: "Tỉnh Đoàn Bắc Giang", orgLevel: 2, adminUnitName: "Tỉnh Bắc Giang", address: "TP Bắc Giang", isActive: true },
   { id: 15, parentId: 1, code: "NA", name: "Tỉnh Đoàn Nghệ An", shortName: "Tỉnh Đoàn Nghệ An", orgLevel: 2, adminUnitName: "Tỉnh Nghệ An", address: "TP Vinh, Nghệ An", isActive: true },
   { id: 16, parentId: 1, code: "DN", name: "Thành Đoàn Đà Nẵng", shortName: "Thành Đoàn Đà Nẵng", orgLevel: 2, adminUnitName: "TP Đà Nẵng", address: "TP Đà Nẵng", isActive: true },
+  { id: 17, parentId: 1, code: "HN", name: "Thành Đoàn Hà Nội", shortName: "Thành Đoàn Hà Nội", orgLevel: 2, adminUnitName: "TP Hà Nội", address: "Cung Thanh niên Hà Nội", isActive: true },
 
   // Cấp 4 trực thuộc Tỉnh Đoàn (trường chuyên/PTDTNT do tỉnh quản lý trực tiếp)
   { id: 60, parentId: 12, code: "BD-THPT-CHUYEN", name: "Đoàn Trường THPT Chuyên Bình Dương", shortName: "THPT Chuyên Bình Dương", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung học phổ thông", address: "TP Thủ Dầu Một, Bình Dương", isActive: true },
@@ -60,18 +61,19 @@ export const orgUnits: OrgUnit[] = [
   { id: 52, parentId: 50, code: "DN-AH-KT", name: "Đoàn Trường ĐH Kinh tế Đà Nẵng", shortName: "ĐH Kinh tế ĐN", orgLevel: 4, adminUnitName: "TP Đà Nẵng", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
 ];
 
-/** Đơn vị hành chính cho form phản ánh (admin_units) */
+/** Đơn vị hành chính cho form phản ánh (admin_units) — chuẩn hóa Thành Đoàn, Tỉnh Đoàn */
 export const adminUnits = [
-  { id: 1, code: "BD", name: "Tỉnh Bình Dương", unitType: "PROVINCE" as const, parentId: null },
-  { id: 2, code: "HCM", name: "TP Hồ Chí Minh", unitType: "PROVINCE" as const, parentId: null },
-  { id: 3, code: "BG", name: "Tỉnh Bắc Giang", unitType: "PROVINCE" as const, parentId: null },
-  { id: 4, code: "NA", name: "Tỉnh Nghệ An", unitType: "PROVINCE" as const, parentId: null },
-  { id: 5, code: "DN", name: "TP Đà Nẵng", unitType: "PROVINCE" as const, parentId: null },
+  { id: 1, code: "BD", name: "Tỉnh Đoàn Bình Dương", unitType: "PROVINCE" as const, parentId: null },
+  { id: 2, code: "HCM", name: "Thành Đoàn TP. Hồ Chí Minh", unitType: "PROVINCE" as const, parentId: null },
+  { id: 3, code: "BG", name: "Tỉnh Đoàn Bắc Giang", unitType: "PROVINCE" as const, parentId: null },
+  { id: 4, code: "NA", name: "Tỉnh Đoàn Nghệ An", unitType: "PROVINCE" as const, parentId: null },
+  { id: 5, code: "DN", name: "Thành Đoàn Đà Nẵng", unitType: "PROVINCE" as const, parentId: null },
+  { id: 6, code: "HN", name: "Thành Đoàn Hà Nội", unitType: "PROVINCE" as const, parentId: null },
   // Phường/xã thuộc Bình Dương
-  { id: 101, code: "BD-HT", name: "Phường Hiệp Thành, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
-  { id: 102, code: "BD-PH", name: "Phường Phú Hòa, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
-  { id: 103, code: "BD-TBH", name: "Phường Tương Bình Hiệp, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
-  { id: 104, code: "BD-HA", name: "Phường Hiệp An, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
+  { id: 101, code: "BD-HT", name: "Đoàn Phường Hiệp Thành, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
+  { id: 102, code: "BD-PH", name: "Đoàn Phường Phú Hòa, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
+  { id: 103, code: "BD-TBH", name: "Đoàn Phường Tương Bình Hiệp, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
+  { id: 104, code: "BD-HA", name: "Đoàn Phường Hiệp An, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
 ];
 
 /** Tìm đơn vị và toàn bộ con cháu (mô phỏng truy vấn path LIKE) */

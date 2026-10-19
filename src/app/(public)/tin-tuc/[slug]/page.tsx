@@ -96,7 +96,7 @@ export default function ChiTietTinPage() {
                 : "Cộng đồng đoàn viên"}
             </p>
             <p className="text-[11px] text-stone-500">
-              Nội dung qua AI kiểm duyệt và được Ban TNTH duyệt trước khi đăng.
+              Nội dung qua AI kiểm duyệt và được Ban Biên tập duyệt trước khi đăng.
             </p>
           </div>
           <Badge tone="blue">Đóng góp cộng đồng</Badge>
