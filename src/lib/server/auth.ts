@@ -151,7 +151,7 @@ export async function loginAccount(
   }
   await query(
     `UPDATE accounts SET last_login_at = now(), failed_login_count = 0,
-       locked_until = NULL, must_change_password = false, password_changed_at = now()
+       locked_until = NULL
      WHERE id = $1`,
     [account.id],
   );

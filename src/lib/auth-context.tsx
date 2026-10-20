@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { loadCreatedAccounts } from "@/lib/created-accounts";
 
 export type Role =
   | "QUAN_TRI_TW"
@@ -30,7 +29,6 @@ export const ROLE_LABELS: Record<Role, string> = {
 export interface DemoAccount {
   id: number;
   username: string;
-  password: string;
   displayName: string;
   orgUnitId: number;
   orgUnitName: string;
@@ -46,7 +44,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 1,
     username: "tw.admin",
-    password: "demo123",
     displayName: "tw.admin",
     orgUnitId: 1,
     orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
@@ -58,7 +55,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 2,
     username: "bd.province",
-    password: "demo123",
     displayName: "bd.province",
     orgUnitId: 12,
     orgUnitName: "Tỉnh Đoàn Bình Dương",
@@ -70,7 +66,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 3,
     username: "hc.hiepthanh",
-    password: "demo123",
     displayName: "hc.hiepthanh",
     orgUnitId: 25,
     orgUnitName: "Đoàn Phường Hiệp Thành",
@@ -82,7 +77,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 4,
     username: "thpt.chanhphu",
-    password: "demo123",
     displayName: "thpt.chanhphu",
     orgUnitId: 31,
     orgUnitName: "Đoàn Trường THPT Chánh Phú Hưng",
@@ -94,7 +88,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 5,
     username: "btv.tw",
-    password: "demo123",
     displayName: "btv.tw",
     orgUnitId: 2,
     orgUnitName: "Ban Biên tập Cổng TNTH — TW Đoàn",
@@ -106,7 +99,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 6,
     username: "dv.demo",
-    password: "demo123",
     displayName: "Nguyễn Minh Đức",
     orgUnitId: 31,
     orgUnitName: "Đoàn Trường THPT Chánh Phú Hưng",
@@ -120,7 +112,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 16,
     username: "cv.hs3t",
-    password: "demo123",
     displayName: "cv.hs3t",
     orgUnitId: 1,
     orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
@@ -132,7 +123,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 17,
     username: "cv.kiemtra",
-    password: "demo123",
     displayName: "cv.kiemtra",
     orgUnitId: 1,
     orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
@@ -144,7 +134,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 18,
     username: "ctv.tintuc",
-    password: "demo123",
     displayName: "ctv.tintuc",
     orgUnitId: 1,
     orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
@@ -156,7 +145,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 19,
     username: "ctv.duan",
-    password: "demo123",
     displayName: "ctv.duan",
     orgUnitId: 1,
     orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
@@ -239,8 +227,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (username: string, password: string) => {
       const uname = username.trim().toLowerCase();
-      // 1) Đăng nhập bằng DB thật qua API — server xác minh bảng accounts và
-      //    cấp cookie phiên httpOnly (bảng auth_sessions).
       try {
         const r = await fetch("/api/auth/login", {
           method: "POST",
@@ -252,28 +238,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           persist(data.session);
           return true;
         }
-        if (r.status < 500) {
-          // Server từ chối rõ ràng (sai mật khẩu / khoá / chưa kích hoạt)
-          return false;
-        }
-        // >= 500: DB chưa cấu hình hoặc tunnel chưa mở → chế độ demo bên dưới
+        return false;
       } catch {
-        // Không gọi được API → chế độ demo bên dưới
+        return false;
       }
-      // 2) Fallback localStorage — tài khoản demo + tài khoản đã tạo trên máy này
-      const acc = DEMO_ACCOUNTS.find((a) => a.username.toLowerCase() === uname);
-      if (acc) {
-        if (acc.password !== password) return false;
-        persist(toSession(acc));
-        return true;
-      }
-      // Tài khoản do quản trị tạo từ trang Hệ thống (kể cả nhập từ file)
-      const created = loadCreatedAccounts().find((a) => a.username.toLowerCase() === uname);
-      if (!created || created.password !== password || created.status !== "ACTIVE") return false;
-      persist(toSession(created));
-      return true;
     },
-    [persist, toSession]
+    [persist]
   );
 
   const loginAs = useCallback(

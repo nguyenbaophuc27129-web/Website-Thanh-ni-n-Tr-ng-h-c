@@ -54,7 +54,7 @@ export default function TinTucPage() {
 
   const openContribute = () => {
     if (!session) {
-      toast("Bạn cần đăng nhập để đóng góp bài viết. Tài khoản demo: dv.demo / demo123", "warning");
+      toast("Bạn cần đăng nhập để đóng góp bài viết.", "warning");
       return;
     }
     setContribOpen(true);

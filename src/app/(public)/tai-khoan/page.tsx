@@ -48,7 +48,6 @@ export default function TaiKhoanPage() {
         >
           <LogIn className="h-4 w-4" /> Đăng nhập ngay
         </Link>
-        <p className="mt-3 text-[11px] text-stone-400">Tài khoản demo Đoàn viên: dv.demo / demo123</p>
       </div>
     );
   }

@@ -1305,7 +1305,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (unit && unit.orgLevel >= 2 && accounts.some((a) => a.orgUnitId === input.orgUnitId && a.role !== "DOAN_VIEN")) {
         return { ok: false, error: "Đơn vị cơ sở chỉ có 01 tài khoản dùng chung — không thể cấp thêm" };
       }
-      const password = input.password?.trim() || "demo123";
+      const password = input.password?.trim() || "";
+      if (!password || password.length < 6) {
+        return { ok: false, error: "Mật khẩu khởi tạo cần ít nhất 6 ký tự." };
+      }
       try {
         const r = await fetch("/api/accounts", {
           method: "POST",

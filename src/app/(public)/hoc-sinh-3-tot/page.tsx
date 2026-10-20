@@ -84,7 +84,6 @@ export default function HocSinh3TotPage() {
         >
           Đăng nhập để mở hồ sơ
         </Link>
-        <p className="mt-3 text-[11px] text-stone-400">Tài khoản demo học sinh: dv.demo / demo123</p>
       </div>
     );
   }

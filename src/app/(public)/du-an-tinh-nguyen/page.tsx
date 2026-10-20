@@ -96,7 +96,7 @@ export default function DuAnTinhNguyenPage() {
 
   const openForm = () => {
     if (!session) {
-      toast("Bạn cần đăng nhập để đăng ký dự án. Tài khoản demo: dv.demo / demo123", "warning");
+      toast("Bạn cần đăng nhập để đăng ký dự án.", "warning");
       return;
     }
     setOpenSubmit(true);

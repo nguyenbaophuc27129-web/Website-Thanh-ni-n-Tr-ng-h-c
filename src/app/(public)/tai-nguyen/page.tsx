@@ -144,7 +144,7 @@ export default function TaiNguyenPage() {
 
   const openResourceContribute = () => {
     if (!session) {
-      toast("Bạn cần đăng nhập để đóng góp tài nguyên. Tài khoản demo: dv.demo / demo123", "warning");
+      toast("Bạn cần đăng nhập để đóng góp tài nguyên.", "warning");
       return;
     }
     setContribOpen(true);

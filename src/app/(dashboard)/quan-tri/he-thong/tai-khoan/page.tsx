@@ -105,8 +105,8 @@ async function parseSpreadsheet(file: File): Promise<string[][]> {
 
 const TEMPLATE_CSV =
   "\uFEFFusername,email,phone,password,org_unit_code,contact_person,contact_position,role_code,status\n" +
-  "thpt.chuyenbd,chuyenbd@bd.edu.vn,0918000111,demo123,BD-THPT-CHUYEN,Trần Đăng Khoa,Bí thư Đoàn Trường,DON_VI,ACTIVE\n" +
-  "thcs.kimdong,kimdong@bd.edu.vn,0918000222,demo123,BD-HT-TH-KD,Lý Thị Hoa,Tổng phụ trách Đội,DON_VI,ACTIVE\n";
+  "thpt.chuyenbd,chuyenbd@bd.edu.vn,0918000111,KhoiTao@2026,BD-THPT-CHUYEN,Trần Đăng Khoa,Bí thư Đoàn Trường,DON_VI,ACTIVE\n" +
+  "thcs.kimdong,kimdong@bd.edu.vn,0918000222,KhoiTao@2026,BD-HT-TH-KD,Lý Thị Hoa,Tổng phụ trách Đội,DON_VI,ACTIVE\n";
 
 const LEVEL_ROLE: Record<number, Role> = { 1: "QUAN_TRI_TW", 2: "QUAN_TRI_TINH", 3: "QUAN_TRI_CAP3", 4: "DON_VI" };
 
@@ -137,7 +137,7 @@ export default function TaiKhoanPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [accType, setAccType] = useState<"canbo" | "doanvien">("canbo");
   const [form, setForm] = useState({
-    orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", lop: "", status: "ACTIVE",
+    orgUnitId: "", username: "", password: "", hoTen: "", email: "", phone: "", chucVu: "", lop: "", status: "ACTIVE",
   });
   const [customPos, setCustomPos] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -202,6 +202,10 @@ export default function TaiKhoanPage() {
   /* ---------- Tạo đơn lẻ ---------- */
 
   const handleCreate = async () => {
+    if (!form.password || form.password.trim().length < 6) {
+      toast("Mật khẩu khởi tạo cần ít nhất 6 ký tự.", "warning");
+      return;
+    }
     const isDv = accType === "doanvien";
     if (!form.orgUnitId) {
       toast(isDv ? "Chọn trường / đơn vị cho Đoàn viên." : "Chọn đơn vị cho tài khoản.", "warning");
@@ -244,11 +248,11 @@ export default function TaiKhoanPage() {
       toast(res.error ?? "Không tạo được tài khoản.", "warning");
       return;
     }
-    toast(`Đã tạo tài khoản ${form.username} — mật khẩu ${form.password || "demo123"}, có thể đăng nhập ngay.`);
+    toast(`Đã tạo tài khoản ${form.username}, có thể đăng nhập ngay.`);
     setCreateOpen(false);
     setCustomPos(false);
     setAccType("canbo");
-    setForm({ orgUnitId: "", username: "", password: "demo123", hoTen: "", email: "", phone: "", chucVu: "", lop: "", status: "ACTIVE" });
+    setForm({ orgUnitId: "", username: "", password: "", hoTen: "", email: "", phone: "", chucVu: "", lop: "", status: "ACTIVE" });
   };
 
   /* ---------- Nhập từ file ---------- */
@@ -350,7 +354,7 @@ export default function TaiKhoanPage() {
         contactPosition: r.data.contact_position ?? "",
         role: LEVEL_ROLE[unit.orgLevel] ?? "DON_VI",
         status: (r.data.status?.toUpperCase() || "ACTIVE") as Account["status"],
-        password: r.data.password || "demo123",
+        password: r.data.password || "KhoiTao@2026",
       });
       if (res.ok) ok++;
     }
@@ -468,7 +472,7 @@ export default function TaiKhoanPage() {
 
       <p className="flex items-center gap-1.5 text-[11px] text-stone-400">
         <Users className="h-3.5 w-3.5" />
-        Tài khoản tạo mới lưu trong localStorage của trình duyệt (prototype) — đăng nhập được bằng mật khẩu đã đặt, mặc định demo123.
+        Tài khoản tạo mới được lưu trữ và đồng bộ an toàn trên hệ thống máy chủ.
       </p>
 
       {/* ---------- Modal tạo đơn lẻ ---------- */}
@@ -547,8 +551,8 @@ export default function TaiKhoanPage() {
             <Field label="Tên đăng nhập" required>
               <Input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} placeholder="vd: thpt.chuyenbd" />
             </Field>
-            <Field label="Mật khẩu" hint="Mặc định demo123">
-              <Input value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+            <Field label="Mật khẩu" required hint="Tối thiểu 6 ký tự">
+              <Input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Tối thiểu 6 ký tự" />
             </Field>
             <Field label="Họ tên người đại diện" required>
               <Input value={form.hoTen} onChange={(e) => setForm((f) => ({ ...f, hoTen: e.target.value }))} placeholder="VD: Nguyễn Văn A" />

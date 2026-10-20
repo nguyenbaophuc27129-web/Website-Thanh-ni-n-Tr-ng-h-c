@@ -62,8 +62,8 @@ Xuất bản/Văn bản/Phản ánh/Tài nguyên/Hệ thống — ánh xạ bả
 
 ```csv
 username,email,phone,password,org_unit_code,contact_person,contact_position,role_code,status
-thpt.chuyenbd,chuyenbd@bd.edu.vn,0918000111,demo123,BD-THPT-CHUYEN,Trần Đăng Khoa,Bí thư Đoàn Trường,DON_VI,ACTIVE
-thcs.kimdong,kimdong@bd.edu.vn,0918000222,demo123,BD-HT-TH-KD,Lý Thị Hoa,Tổng phụ trách Đội,DON_VI,ACTIVE
+thpt.chuyenbd,chuyenbd@bd.edu.vn,0918000111,KhoiTao@2026,BD-THPT-CHUYEN,Trần Đăng Khoa,Bí thư Đoàn Trường,DON_VI,ACTIVE
+thcs.kimdong,kimdong@bd.edu.vn,0918000222,KhoiTao@2026,BD-HT-TH-KD,Lý Thị Hoa,Tổng phụ trách Đội,DON_VI,ACTIVE
 ```
 
 - Bắt buộc: `username`, `email`, `password`, `org_unit_code` (tra `org_units.code`).
@@ -75,7 +75,7 @@ thcs.kimdong,kimdong@bd.edu.vn,0918000222,demo123,BD-HT-TH-KD,Lý Thị Hoa,Tổ
 - Nhận thêm biệt danh cột tiếng Việt (`ten_dang_nhap`, `ho_ten`, `ma_don_vi`…).
 
 **Đăng nhập:** tài khoản tạo mới đăng nhập được ngay tại `/dang-nhap`
-với mật khẩu đã đặt (mặc định `demo123`), có đủ phân quyền theo đơn vị/role.
+với mật khẩu đã đặt, có đủ phân quyền theo đơn vị/role.
 
 ## 3.5. Quản lý trạng thái tài khoản
 
@@ -98,7 +98,7 @@ với mật khẩu đã đặt (mặc định `demo123`), có đủ phân quyề
 | `thpt.chanhphu` | Đoàn THPT Chánh Phú Hưng | DON_VI | Tạo hoạt động, cập nhật kết quả, báo cáo |
 | `btv.tw` | Ban Biên tập TW | BIEN_TAP_VIEN | Xuất bản tin bài, tài nguyên |
 
-Mật khẩu chung: `demo123`. Phiên lưu `localStorage` (prototype).
+Mật khẩu khởi tạo được cấp riêng theo từng đơn vị và lưu trữ bảo mật trên máy chủ cơ sở dữ liệu.
 
 > Các tài khoản tạo mới (đơn lẻ hoặc từ file) nằm trong cùng danh sách
 > Hệ thống → Tài khoản, lọc theo phạm vi như tài khoản thường.
