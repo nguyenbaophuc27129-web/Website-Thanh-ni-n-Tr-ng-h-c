@@ -24,10 +24,10 @@ export function ruleReply(input: string): ChatReply {
   if (/(tài nguyên|biểu mẫu|tài liệu|tải)/.test(q))
     return { text: "Kho tài nguyên gồm 4 nhóm: thiết kế, văn bản, truyền thông và biểu mẫu — tải miễn phí.", link: { href: "/tai-nguyen", label: "Vào kho tài nguyên" } };
   if (/(tài khoản|đăng nhập|mật khẩu)/.test(q))
-    return { text: "Mỗi đơn vị Đoàn có 1 tài khoản. Bản demo có 5 tài khoản mẫu: tw.admin, bd.province, hc.hiepthanh, thpt.chanhphu, btv.tw (mật khẩu demo123).", link: { href: "/dang-nhap", label: "Trang đăng nhập" } };
+    return { text: "Mỗi cấp bộ Đoàn và đơn vị trường học được phân quyền tài khoản quản trị theo phân cấp quản lý. Bạn có thể đăng nhập tại Trang đăng nhập của hệ thống.", link: { href: "/dang-nhap", label: "Trang đăng nhập" } };
   if (/(tin|hoạt động|news)/.test(q))
     return { text: "Tin tức hoạt động từ các Đoàn trường, Đoàn phường được cập nhật liên tục.", link: { href: "/tin-tuc", label: "Xem tin tức" } };
   if (/(cảm ơn|thanks)/.test(q))
     return { text: "Rất vui được giúp bạn! Cần hỗ trợ thêm cứ nhắn mình nhé." };
-  return { text: "Mình chưa hiểu rõ câu hỏi của bạn (đây là trợ lý giả lập bản demo). Bạn thử hỏi về: tin tức, nhiệm vụ thi đua, bảng xếp hạng, văn bản, phản ánh hoặc tài nguyên nhé!" };
+  return { text: "Tôi chưa hiểu rõ câu hỏi của bạn. Bạn vui lòng đặt câu hỏi về: tin tức, nhiệm vụ thi đua, bảng xếp hạng, văn bản chỉ đạo, phản ánh kiến nghị hoặc tài nguyên nghiệp vụ công tác Đoàn nhé!" };
 }

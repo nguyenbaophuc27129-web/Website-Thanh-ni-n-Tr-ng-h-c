@@ -168,7 +168,7 @@ export default function HocSinh3TotPage() {
           href="/hoc-sinh-3-tot/quy-che"
           className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
         >
-          <Scale className="h-3.5 w-3.5" /> Quy chế chuẩn TW (QĐ 317 + điều chỉnh 10/2025)
+          <Scale className="h-3.5 w-3.5" /> Quy chế chuẩn Trung ương Đoàn (QĐ 317)
         </Link>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-medium text-stone-500">
           Thành tích tính từ 01/9 năm trước đến hết 31/8 năm xét trao
@@ -178,7 +178,7 @@ export default function HocSinh3TotPage() {
       {unitStandard ? (
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <p className="flex items-center gap-2 text-xs font-bold text-amber-800">
-            <Scale className="h-3.5 w-3.5" /> Tiêu chuẩn áp dụng tại {store.orgName(unitStandard.orgUnitId)} — điều chỉnh theo Điều 5 (không cao hơn chuẩn TW)
+            <Scale className="h-3.5 w-3.5" /> Tiêu chuẩn áp dụng tại {store.orgName(unitStandard.orgUnitId)} — theo Điều 5 Quy chế TW
           </p>
           <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-amber-900/85">
             {unitStandard.daoDuc ? <li>• <b>Đạo đức tốt:</b> {unitStandard.daoDuc}</li> : null}
@@ -406,7 +406,7 @@ export default function HocSinh3TotPage() {
           <div className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-100">
             <p className="text-sm font-bold text-stone-900">Theo dõi 12 tiêu chí phụ chuẩn TW</p>
             <p className="mt-0.5 text-[11px] text-stone-400">
-              Đạo đức 6 · Học tập 3 · Thể lực 3 (Điều 4 Quy chế, đã hợp nhất điều chỉnh 10/2025) — nộp đúng mục giúp cấp Đoàn xét nhanh hơn.
+              Đạo đức 6 · Học tập 3 · Thể lực 3 (Điều 4 Quy chế) — nộp đúng mục giúp tổ chức Đoàn xét nhanh hơn.
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {HS3T_MAIN_CATEGORIES.flatMap((cat) => HS3T_SUB_CRITERIA[cat].map((s) => ({ cat, s }))).map(({ cat, s }) => {

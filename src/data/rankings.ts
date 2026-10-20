@@ -10,7 +10,7 @@ export const rankingSnapshots: RankingSnapshot[] = [
     status: "FINALIZED",
   },
   {
-    id: 2, name: "Xếp hạng Tỉnh/Thành Đoàn — 6 tháng đầu năm 2026", criteriaSetId: 1,
+    id: 2, name: "Xếp hạng Tỉnh Đoàn, Thành Đoàn — 6 tháng đầu năm 2026", criteriaSetId: 1,
     scopeOrgUnitId: 1, rankedOrgLevel: 2, rankingType: "BY_TASK_RESULT",
     periodType: "CUSTOM", periodStart: "2026-01-01", periodEnd: "2026-06-30",
     totalUnits: 5, generatedAt: "2026-07-05T09:00:00Z", generatedByAccountId: 1,

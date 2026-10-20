@@ -230,7 +230,7 @@ export const publishedPosts: PublishedPost[] = [
     ]),
     coverSeed: 29, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-15T02:00:00Z",
     viewCount: 980, authorOrgUnitName: "Đoàn Trường ĐH Thủ Dầu Một", editorAccountId: 5,
-    categoryNames: ["Học tập, nghiên cứu khoa học", "Nghiên cứu khoa học", "Bản tin nghiên cứu khoa học"], createdAt: "2026-09-15T01:00:00Z",
+    categoryNames: ["Học tập, nghiên cứu khoa học", "Nghiên cứu khoa học", "Bản tin nghiên cứu khoa học", "Nhân tài"], createdAt: "2026-09-15T01:00:00Z",
   },
   {
     id: 5018, activityId: null, slug: "clb-khoa-hoc-tre-mo-lop-stem-mien-phi",
@@ -256,7 +256,7 @@ export const publishedPosts: PublishedPost[] = [
     ]),
     coverSeed: 31, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-08-28T02:00:00Z",
     viewCount: 1120, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 1,
-    categoryNames: ["Nghiên cứu khoa học", "Kỹ năng số"], createdAt: "2026-08-28T01:00:00Z",
+    categoryNames: ["Nghiên cứu khoa học", "Kỹ năng số", "Nhân tài"], createdAt: "2026-08-28T01:00:00Z",
   },
 
   /* ===== v12 — 12 bài chuyên mục đóng góp cộng đồng (2 bài mỗi chuyên mục trang chủ) ===== */
@@ -347,11 +347,11 @@ export const publishedPosts: PublishedPost[] = [
     content: CONTENT([
       "Đoàn Việt Nam dự kỳ thi Toán học quốc tế IMO 2026 đã mang về 2 Huy chương Vàng, 3 Bạc và 1 Đồng — thành tích tốt nhất trong 10 năm gần đây.",
       "Cả hai tấm Huy chương Vàng đều thuộc về học sinh trường học trong nước, chưa từng đi du học trước khi thi.",
-      "Ban TNTH TW đã tổ chức gặp mặt tôn vinh và phát động phong trào 'Học sinh THPT — Công dân toàn cầu' hướng tới kỳ thi 2027.",
+      "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn đã tổ chức gặp mặt tôn vinh và phát động phong trào 'Học sinh THPT — Công dân toàn cầu' hướng tới kỳ thi 2027.",
     ]),
     coverSeed: 38, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-23T02:00:00Z",
-    viewCount: 520, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 1,
-    categoryNames: ["Công dân toàn cầu", "Học tập, nghiên cứu khoa học"], createdAt: "2026-09-23T01:00:00Z",
+    viewCount: 520, authorOrgUnitName: "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn", editorAccountId: 1,
+    categoryNames: ["Công dân toàn cầu", "Học tập, nghiên cứu khoa học", "Nhân tài"], createdAt: "2026-09-23T01:00:00Z",
   },
   {
     id: 5027, activityId: null, slug: "cong-dan-toan-cau-clb-mun-dich-vu-lan-thu-10-yeu-nguoi-hoc-do-chau-au",
@@ -398,12 +398,12 @@ export const publishedPosts: PublishedPost[] = [
     title: "Phát động Tháng công dân số học sinh, sinh viên 2026 với 3 nhiệm vụ trọng tâm",
     excerpt: "Toàn Đoàn trường học phát động Tháng công dân số: kỹ năng an toàn không gian mạng, phòng chống lừa đảo trực tuyến và học tập AI đúng cách cho học sinh, sinh viên.",
     content: CONTENT([
-      "Ban TNTH TW phát động Tháng công dân số học sinh, sinh viên 2026 từ 01/10 đến 31/10 trên toàn quốc với 3 nhiệm vụ trọng tâm.",
+      "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn phát động Tháng công dân số học sinh, sinh viên 2026 từ 01/10 đến 31/10 trên toàn quốc với 3 nhiệm vụ trọng tâm.",
       "Nhiệm vụ 1: mỗi trường tổ chức tối thiểu 1 buổi hướng dẫn an toàn không gian mạng; Nhiệm vụ 2: phát động phòng chống lừa đảo trực tuyến đến 100% đoàn viên; Nhiệm vụ 3: tổ chức thi kiến thức 'Kỹ năng số' trên Cổng TNTH.",
       "Kết quả Tháng công dân số được cập nhật minh chứng trực tiếp và tính điểm thi đua BTS 2027 nhiệm vụ IV.",
     ]),
     coverSeed: 42, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-01T02:00:00Z",
-    viewCount: 480, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 1,
+    viewCount: 480, authorOrgUnitName: "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn", editorAccountId: 1,
     categoryNames: ["Tin tức hoạt động Đoàn", "Kỹ năng số"], createdAt: "2026-10-01T01:00:00Z",
   },
   {
@@ -411,13 +411,69 @@ export const publishedPosts: PublishedPost[] = [
     title: "Hội nghị bàn tròn Đoàn trường học điện lần thứ 3: 120 đại biểu thống nhất chuẩn dữ liệu chung",
     excerpt: "Đại biểu 4 cấp Đoàn họp thống nhất bộ chỉ số dữ liệu chung cho 43 bảng dữ liệu hệ sinh thái Cổng TNTH — bước đệm để kết nối liên thông dữ liệu học sinh toàn quốc.",
     content: CONTENT([
-      "Hội nghị bàn tròn Đoàn trường học điện lần thứ 3 thu hút 120 đại biểu đến từ Ban TNTH TW, các Tỉnh Đoàn và trường học tiên phong.",
+      "Hội nghị bàn tròn Đoàn trường học điện lần thứ 3 thu hút 120 đại biểu đến từ Ban Công tác Thanh Thiếu Nhi Trung ương Đoàn, các Tỉnh Đoàn, Thành Đoàn và trường học tiên phong.",
       "Điểm nhấn của hội nghị là thống nhất bộ chỉ số dữ liệu chung cho 43 bảng dữ liệu của hệ sinh thái Cổng TNTH, bảo đảm các trường dùng một ngôn ngữ dữ liệu.",
       "Hội nghị cũng giới thiệu lộ trình kết nối liên thông dữ liệu học sinh toàn quốc trong năm học 2027-2028.",
     ]),
     coverSeed: 43, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-09-28T02:00:00Z",
     viewCount: 260, authorOrgUnitName: "Ban Biên tập Cổng Thanh niên Trường học", editorAccountId: 2,
     categoryNames: ["Tin tức hoạt động Đoàn"], createdAt: "2026-09-28T01:00:00Z",
+  },
+  {
+    id: 5032, activityId: null, slug: "an-toan-hoc-duong-cach-nhan-biet-va-noi-to-bao-luc",
+    title: "An toàn học đường: Nhận biết sớm 4 dạng bạo lực học đường và cách phản ứng đúng",
+    excerpt: "Bạo lực học đường không chỉ là đánh nhau — nó có mặt ở thể chất, lời nói, mạng xã hội và cả sự cô lập tinh thần. Bài viết giúp học sinh nhận biết dấu hiệu và 3 bước phản ứng an toàn.",
+    content: CONTENT([
+      "Theo các khảo sát của ngành giáo dục, cứ 10 học sinh thì có khoảng 3 bạn từng chứng kiến hoặc là nạn nhân của ít nhất một dạng bạo lực học đường trong năm học.",
+      "Bốn dạng thường gặp: bạo lực thể chất (đánh, đẩy, giật đồ), bạo lực lời nói (chửi bới, đặt biệt danh xấu, dọa dẫm), bạo lực trên không gian mạng (đăng ảnh, bình luận miệt thị, lập nhóm nói xấu) và cô lập xã hội (xa lánh, loại khỏi nhóm một cách ác ý).",
+      "Ba bước phản ứng an toàn: Một — giữ bình tĩnh, tránh đối đầu trực tiếp và rời khỏi nơi nguy hiểm nếu có thể. Hai — lưu giữ minh chứng (ảnh chụp màn hình, tin nhắn, tên người chứng kiến). Ba — nói với người tin cậy: bố mẹ, giáo viên chủ nhiệm, Ban Đoàn trường hoặc gửi về chuyên mục An toàn học đường của Cổng TNTH — thông tin được bảo mật.",
+      "Cổng TNTH phối hợp chuyên gia tâm lý và pháp lý tiếp nhận, tư vấn và đồng hành tới khi vụ việc được xử lý xong.",
+    ]),
+    coverSeed: 44, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-10T02:00:00Z",
+    viewCount: 410, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 2,
+    categoryNames: ["An toàn học đường", "Kỹ năng số"], createdAt: "2026-10-10T01:00:00Z",
+  },
+  {
+    id: 5033, activityId: null, slug: "chuyen-gia-tam-ly-phap-li-dong-hanh-cung-hoc-sinh-tren-cong-tnth",
+    title: "Kênh chuyên gia tâm lý — pháp lý của Cổng TNTH: Học sinh được đồng hành trong 24 giờ",
+    excerpt: "Từ tháng 10/2026, phản ánh thuộc lĩnh vực an toàn — bạo lực, xâm hại được chuyển thẳng tới đội ngũ chuyên gia tâm lý và pháp lý, bảo mật danh tính, phản hồi trong vòng 24 giờ.",
+    content: CONTENT([
+      "Nhận thấy học sinh thường ngại chia sẻ vì sợ bị lộ danh tính, Cổng TNTH khai trương kênh hỗ trợ riêng: phản ánh gửi tại mục An toàn học đường sẽ được chuyển thẳng tới chuyên gia tâm lý hoặc pháp lý thay vì luồng xử lý hành chính thông thường.",
+      "Đội chuyên gia gồm nhà tư vấn tâm lý học đường và luật sư, pháp lý viên tình nguyện, đã ký cam kết bảo mật. Danh tính người gửi chỉ dùng để liên hệ khi chính các bạn đồng ý.",
+      "Quy trình 3 bước: gửi nội dung (không cần đăng nhập) — nhận mã tra cứu — chuyên gia liên hệ qua kênh an toàn trong 24 giờ làm việc. Trường hợp khẩn cấp, gọi ngay Tổng đài quốc gia 111 (miễn phí, 24/7) hoặc 113.",
+      "Kênh mở ra nhằm bổ trợ tổng đài 111 trong những thời điểm bận, bảo đảm không bạn trẻ nào phải chờ.",
+    ]),
+    coverSeed: 45, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-12T02:00:00Z",
+    viewCount: 285, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 2,
+    categoryNames: ["An toàn học đường"], createdAt: "2026-10-12T01:00:00Z",
+  },
+  {
+    id: 5034, activityId: null, slug: "chong-xam-hai-tre-em-nhung-dieu-hoc-sinh-can-biet",
+    title: "Chống xâm hại trẻ em: Những điều học sinh cần biết để tự bảo vệ mình và bạn bè",
+    excerpt: "Xâm hại có thể đến từ cả người quen. Học sinh cần nắm 5 quy tắc an toàn cơ thể, biết số 111 và hiểu rằng kể ra không bao giờ là lỗi của mình.",
+    content: CONTENT([
+      "Xâm hại trẻ em bao gồm xâm hại thể chất, tình dục, tinh thần và bạo hành, bỏ bê. Đáng chú ý, phần lớn vụ việc đến từ người quen — chính vì thế học sinh cần được trang bị kỹ năng nhận biết, không chỉ cảnh giác với người lạ.",
+      "Năm quy tắc an toàn: cơ thể mình thuộc về mình; không ai được chạm vào vùng kín trừ chăm sóc y tế có người lớn tin cậy đi cùng; bí mật khiến bạn sợ hãi hoặc khó chịu thì không cần giữ; từ chối và chạy đến nơi đông người khi thấy không an toàn; kể với người lớn tin cậy cho tới khi có người tin và giúp mình.",
+      "Điều quan trọng nhất: bị xâm hại không bao giờ là lỗi của trẻ. Kể ra là hành động dũng cảm.",
+      "Nếu bạn hoặc bạn bè gặp tình huống này, gọi Tổng đài quốc gia bảo vệ trẻ em 111 (miễn phí, 24/7) hoặc gửi về chuyên mục An toàn học đường trên Cổng TNTH để được chuyên gia tâm lý, pháp lý hỗ trợ bảo mật.",
+    ]),
+    coverSeed: 46, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-14T02:00:00Z",
+    viewCount: 330, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 2,
+    categoryNames: ["An toàn học đường"], createdAt: "2026-10-14T01:00:00Z",
+  },
+  {
+    id: 5035, activityId: null, slug: "ra-mat-cong-thong-tin-ve-nhan-tai-tuoi-truong-hoc",
+    title: "Ra mắt Cổng thông tin về nhân tài tuổi trường học: Phát hiện — bồi dưỡng — vinh danh",
+    excerpt: "Thực hiện kết luận của Tổng Bí thư về công tác nhân tài, Cổng TNTH khai trương chuyên trang tập hợp chủ trương, chính sách bồi dưỡng và tôn vinh gương mặt trẻ tiêu biểu trên toàn quốc.",
+    content: CONTENT([
+      "Nhận thức sâu sắc rằng đầu tư cho nhân tài trẻ là đầu tư cho tương lai đất nước, Ban Thanh niên Trường học Trung ương Đoàn ra mắt Cổng thông tin về nhân tài — nơi tập hợp chủ trương, chính sách phát hiện và bồi dưỡng nhân tài trong lực lượng học sinh, sinh viên.",
+      "Chuyên trang vận hành theo ba trụ cột: Phát hiện (khai thác dữ liệu thành tích học tập, nghiên cứu khoa học, các sân chơi trí tuệ trên Cổng TNTH), Bồi dưỡng (kết nối học bổng, cố vấn chuyên môn, chương trình rèn luyện) và Vinh danh — Kết nối (sàn giao đổi cơ hội giữa nhân tài trẻ với doanh nghiệp, viện nghiên cứu).",
+      "Các Đoàn trường được mời đề cử gương mặt tiêu biểu kèm minh chứng trực tiếp qua cổng; hồ sơ xét công khai, minh bạch theo quý.",
+      "Chuyên trang sẽ lần lượt công bố danh sách cố vấn, đối tác tuyển dụng và bộ chính sách hỗ trợ trong các đợt cập nhật tiếp theo.",
+    ]),
+    coverSeed: 47, status: "PUBLISHED", isFeatured: false, publishedAt: "2026-10-16T02:00:00Z",
+    viewCount: 190, authorOrgUnitName: "Ban Thanh niên Trường học — Trung ương Đoàn", editorAccountId: 2,
+    categoryNames: ["Nhân tài", "Tin tức hoạt động Đoàn"], createdAt: "2026-10-16T01:00:00Z",
   },
 ];
 

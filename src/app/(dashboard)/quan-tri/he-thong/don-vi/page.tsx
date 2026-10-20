@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store-context";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 
-const LEVEL_LABEL: Record<number, string> = { 1: "Trung ương", 2: "Tỉnh/Thành", 3: "Phường/Xã", 4: "Cơ sở (trường)" };
+const LEVEL_LABEL: Record<number, string> = { 1: "Trung ương Đoàn", 2: "Tỉnh Đoàn / Thành Đoàn", 3: "Đoàn Phường / Xã", 4: "Đoàn Trường học" };
 
 export default function DonViPage() {
   const store = useStore();
@@ -68,7 +68,7 @@ export default function DonViPage() {
       <div>
         <h1 className="font-serif-display text-xl font-bold text-stone-900">Cây đơn vị tổ chức</h1>
         <p className="mt-0.5 text-sm text-stone-500">
-          Cấu trúc 4 cấp: Ban TNTH Trung ương → Tỉnh/Thành Đoàn → Đoàn Phường/Xã → Đoàn Trường học.
+          Cấu trúc 4 cấp: Trung ương Đoàn → Tỉnh Đoàn / Thành Đoàn → Đoàn Phường / Xã → Đoàn Trường học.
         </p>
       </div>
 

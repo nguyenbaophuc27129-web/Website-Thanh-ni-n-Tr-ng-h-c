@@ -7,37 +7,11 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft,
   LogIn,
-  ShieldCheck,
-  Building2,
-  Newspaper,
-  Landmark,
-  School,
   Network,
   Trophy,
   Globe2,
-  Users,
 } from "lucide-react";
-import { useAuth, DEMO_ACCOUNTS, ROLE_LABELS, type DemoAccount } from "@/lib/auth-context";
-import { useToast } from "@/lib/toast-context";
-import { cn } from "@/lib/utils";
-
-const roleIcons: Record<string, typeof ShieldCheck> = {
-  QUAN_TRI_TW: Landmark,
-  QUAN_TRI_TINH: Building2,
-  QUAN_TRI_CAP3: Building2,
-  DON_VI: School,
-  BIEN_TAP_VIEN: Newspaper,
-  DOAN_VIEN: Users,
-};
-
-const roleTints: Record<string, string> = {
-  QUAN_TRI_TW: "bg-blue-50 text-blue-600 group-hover:bg-blue-600",
-  QUAN_TRI_TINH: "bg-cyan-50 text-cyan-600 group-hover:bg-cyan-500",
-  QUAN_TRI_CAP3: "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-500",
-  DON_VI: "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500",
-  BIEN_TAP_VIEN: "bg-violet-50 text-violet-600 group-hover:bg-violet-500",
-  DOAN_VIEN: "bg-teal-50 text-teal-600 group-hover:bg-teal-500",
-};
+import { useAuth } from "@/lib/auth-context";
 
 /** Đoàn viên chỉ tương tác diễn đàn — còn lại vào trang quản trị */
 const destFor = (role: string) => (role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri");
@@ -49,11 +23,11 @@ const fadeUp = {
 
 export default function DangNhapPage() {
   const { login, session, ready } = useAuth();
-  const { toast } = useToast();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (ready && session) router.replace(destFor(session.role));
@@ -61,18 +35,17 @@ export default function DangNhapPage() {
 
   const handleLogin = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (submitting) return;
     setError("");
-    if (!(await login(username, password))) {
-      setError("Tên đăng nhập hoặc mật khẩu không đúng. Hãy chọn nhanh một tài khoản demo bên dưới.");
-    }
-  };
-
-  const quickLogin = async (acc: DemoAccount) => {
-    if (await login(acc.username, acc.password)) {
-      toast(`Đã đăng nhập với tư cách ${ROLE_LABELS[acc.role]} — ${acc.orgUnitName}`);
-      router.push(destFor(acc.role));
-    } else {
-      setError("Không đăng nhập được tài khoản demo này.");
+    setSubmitting(true);
+    try {
+      if (await login(username.trim(), password)) {
+        // Auth context handles session & redirect via useEffect
+      } else {
+        setError("Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -112,7 +85,7 @@ export default function DangNhapPage() {
           className="relative flex items-center gap-3"
         >
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 p-1.5 ring-1 ring-white/20 backdrop-blur">
-            <img src="/logo.png" alt="Logo TNTH" className="h-full w-full object-contain" />
+            <img src="/logo-tnth-03.png" alt="Logo TNTH" className="h-full w-full object-contain" />
           </span>
           <div>
             <p className="text-[15px] font-bold leading-tight tracking-tight">Cổng Thanh niên Trường học</p>
@@ -162,7 +135,7 @@ export default function DangNhapPage() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="relative text-xs text-white/40"
         >
-          © 2026 Ban Thanh niên Trường học — Trung ương Đoàn · Bản demo giao diện, dữ liệu mẫu
+          © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh
         </motion.p>
       </div>
 
@@ -176,33 +149,32 @@ export default function DangNhapPage() {
         >
           <h2 className="text-2xl font-black tracking-tight text-slate-900">Đăng nhập hệ thống</h2>
           <p className="mt-1.5 text-sm text-slate-500">
-            Dành cho cán bộ Đoàn quản lý đơn vị của mình.
+            Dành cho cán bộ Đoàn các cấp và đơn vị trường học quản lý nghiệp vụ.
           </p>
 
           <form onSubmit={handleLogin} className="mt-7 space-y-4">
             <div>
-              <label className="text-sm font-medium text-slate-500">Tên đăng nhập</label>
+              <label className="text-sm font-medium text-slate-600">Tên đăng nhập / Email đơn vị</label>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="VD: bd.province"
+                placeholder="Nhập tên đăng nhập được cấp"
                 autoComplete="username"
+                required
                 className="mt-1.5 w-full rounded-xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-300 focus:border-blue-500/70 focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-500">Mật khẩu</label>
+              <label className="text-sm font-medium text-slate-600">Mật khẩu</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 autoComplete="current-password"
+                required
                 className="mt-1.5 w-full rounded-xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-300 focus:border-blue-500/70 focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]"
               />
-              <p className="mt-1.5 text-[11px] text-slate-400">
-                Mật khẩu chung tất cả tài khoản demo: <code className="rounded bg-slate-100 px-1 py-0.5 font-semibold text-slate-600">demo123</code>
-              </p>
             </div>
 
             {error ? (
@@ -217,57 +189,27 @@ export default function DangNhapPage() {
 
             <button
               type="submit"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+              disabled={submitting}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all duration-200 hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
             >
-              <LogIn className="h-4 w-4" /> Đăng nhập
+              <LogIn className="h-4 w-4" /> {submitting ? "Đang xử lý..." : "Đăng nhập"}
             </button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-slate-500">
+          <p className="mt-5 text-center text-xs text-slate-500">
             Chưa có tài khoản?{" "}
             <Link href="/dang-ky" className="font-semibold text-blue-600 hover:underline">
               Đăng ký Đoàn viên
             </Link>
           </p>
 
-          <div className="my-7 flex items-center gap-3">
-            <div className="h-px flex-1 bg-slate-100" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-              Đăng nhập nhanh (demo)
-            </span>
-            <div className="h-px flex-1 bg-slate-100" />
-          </div>
-
-          <div className="space-y-2">
-            {DEMO_ACCOUNTS.map((acc, i) => {
-              const Icon = roleIcons[acc.role] ?? ShieldCheck;
-              return (
-                <motion.button
-                  key={acc.username}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.15 + i * 0.06 }}
-                  onClick={() => quickLogin(acc)}
-                  className="group flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_12px_32px_rgb(15,23,42,0.10)]"
-                >
-                  <span
-                    className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-300 group-hover:text-white",
-                      roleTints[acc.role] ?? "bg-slate-100 text-slate-500 group-hover:bg-slate-700"
-                    )}
-                  >
-                    <Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-semibold text-slate-900">{acc.orgUnitName}</span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500">{ROLE_LABELS[acc.role]}</span>
-                  </span>
-                  <code className="shrink-0 rounded-lg bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-400 transition-colors group-hover:bg-slate-900/[0.04] group-hover:text-slate-600">
-                    {acc.username}
-                  </code>
-                </motion.button>
-              );
-            })}
+          <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-center">
+            <p className="text-xs leading-relaxed text-slate-500">
+              Cán bộ Đoàn cơ sở quên mật khẩu hoặc cần cấp mới tài khoản quản trị đơn vị, vui lòng liên hệ Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn qua email{" "}
+              <a href="mailto:tnth@doanthanhnienvn.vn" className="font-semibold text-blue-600 hover:underline">
+                tnth@doanthanhnienvn.vn
+              </a>
+            </p>
           </div>
         </motion.div>
       </div>

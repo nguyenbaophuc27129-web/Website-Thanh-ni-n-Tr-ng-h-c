@@ -92,7 +92,7 @@ export default function TinTucPage() {
     setCTitle(""); setCExcerpt(""); setCContent(""); setCCover(undefined); setCCoverName("");
     toast(
       mod.verdict === "CLEAN"
-        ? "Đã gửi bài đóng góp — nội dung đạt kiểm duyệt AI, chờ Ban TNTH duyệt đăng."
+        ? "Đã gửi bài đóng góp — nội dung đạt kiểm duyệt AI, chờ Ban Biên tập duyệt đăng."
         : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — bài ở trạng thái chờ kiểm duyệt thủ công.`,
       mod.verdict === "CLEAN" ? "success" : "warning"
     );
@@ -293,7 +293,7 @@ export default function TinTucPage() {
             )}
           </Field>
           <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
-            Bài của bạn sẽ đi qua AI kiểm duyệt tự động. Nội dung đạt → Ban TNTH duyệt đăng và cộng
+            Bài của bạn sẽ đi qua AI kiểm duyệt tự động. Nội dung đạt → Ban Biên tập duyệt đăng và cộng
             15 điểm đóng góp vào trang Tài khoản của bạn.
           </p>
         </div>

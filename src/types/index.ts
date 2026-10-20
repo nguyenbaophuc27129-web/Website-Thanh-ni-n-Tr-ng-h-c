@@ -108,6 +108,9 @@ export interface Activity {
   reviewNote?: string;
   createdAt: string;
   updatedAt?: string;
+  taskId?: number;
+  taskMetricId?: number;
+  metricContributionValue?: number;
 }
 
 /* ============ 3.3. Nhiệm vụ, Chỉ tiêu & Đánh giá ============ */
@@ -580,7 +583,22 @@ export interface OrgDirectory {
   updatedByAccountId: number;
 }
 
-/** Dự án tình nguyện "Mỗi trường THPT — 01 dự án" — hiển thị pin bản đồ 34 tỉnh */
+/** Lĩnh vực hoạt động của dự án tình nguyện */
+export type VolunteerProjectField =
+  | "MOI_TRUONG"
+  | "GIAO_DUC"
+  | "AN_SINH"
+  | "Y_TE"
+  | "VAN_HOA"
+  | "KHAC";
+
+/** Giai đoạn triển khai trong ngân hàng dự án */
+export type VolunteerProjectPhase =
+  | "DANG_TUYEN"
+  | "DANG_TRIEN_KHAI"
+  | "HOAN_THANH";
+
+/** Dự án tình nguyện "Mỗi trường THPT — 01 dự án" — đăng trong ngân hàng dự án */
 export interface VolunteerProject {
   id: number;
   orgUnitId: number;
@@ -592,9 +610,10 @@ export interface VolunteerProject {
   participants: number;
   status: "PENDING" | "APPROVED" | "REJECTED";
   submittedByAccountId?: number;
-  /** Vị trí pin trên ảnh bản đồ — % từ mép trái/trên */
-  mapX: number;
-  mapY: number;
+  /** Lĩnh vực hoạt động */
+  field: VolunteerProjectField;
+  /** Giai đoạn: đang tuyển thành viên / đang triển khai / hoàn thành */
+  phase: VolunteerProjectPhase;
   aiVerdict?: "CLEAN" | "FLAGGED";
   aiReason?: string;
   moderatedByAccountId?: number;

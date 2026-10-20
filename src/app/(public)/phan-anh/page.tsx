@@ -54,6 +54,12 @@ export default function PhanAnhPage() {
     }));
   }, [session]);
 
+  // Liên kết từ trang An toàn học đường (?topic=8) → chọn sẵn lĩnh vực bảo vệ an toàn
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("topic");
+    if (t) setForm((f) => ({ ...f, feedbackTopicId: t }));
+  }, []);
+
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -203,6 +209,14 @@ export default function PhanAnhPage() {
                   ))}
                 </Select>
               </Field>
+              {Number(form.feedbackTopicId) === 8 ? (
+                <p className="rounded-xl border border-rose-200 bg-rose-50/70 px-4 py-3 text-xs leading-relaxed text-rose-800">
+                  <b>Ưu tiên chuyên gia:</b> phản ánh thuộc lĩnh vực bảo vệ an toàn được chuyển thẳng tới chuyên gia
+                  tâm lý, pháp lý trong 24 giờ làm việc, bỏ qua luồng hành chính thông thường. Danh tính được bảo mật.
+                  Đang nguy hiểm? Gọi <a href="tel:111" className="font-bold underline">111</a> (miễn phí, 24/7) hoặc{" "}
+                  <a href="tel:113" className="font-bold underline">113</a>.
+                </p>
+              ) : null}
               <Field label="Tiêu đề" required>
                 <Input value={form.title} onChange={set("title")} placeholder="Tóm tắt nội dung phản ánh" className={SOFT_INPUT} />
               </Field>
@@ -276,6 +290,23 @@ export default function PhanAnhPage() {
               className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/30"
             >
               <SearchCheck className="h-4 w-4" /> Tra cứu phản ánh
+            </Link>
+          </div>
+
+          <div className="rounded-3xl bg-gradient-to-br from-[#4c1130] to-[#1e1b4b] p-6 text-white shadow-[0_8px_30px_rgb(76,17,48,0.25)]">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-rose-200 ring-1 ring-white/20">
+              <ShieldCheck className="h-5 w-5" strokeWidth={1.5} />
+            </span>
+            <h2 className="mt-4 text-base font-bold">Gặp bạo lực, bạo hành, xâm hại?</h2>
+            <p className="mt-1.5 text-xs font-light leading-relaxed text-rose-100/85">
+              Chuyên trang <b>An toàn học đường</b> có đội ngũ chuyên gia tâm lý — pháp lý đồng hành bảo mật,
+              kèm kiến thức tự bảo vệ và tin tức cập nhật. Hotline 111 miễn phí 24/7.
+            </p>
+            <Link
+              href="/an-toan-hoc-duong"
+              className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-rose-700 transition-all hover:-translate-y-0.5"
+            >
+              <LifeBuoy className="h-4 w-4" /> Vào chuyên trang hỗ trợ
             </Link>
           </div>
 

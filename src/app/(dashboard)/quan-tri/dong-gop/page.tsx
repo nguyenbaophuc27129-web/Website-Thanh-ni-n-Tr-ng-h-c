@@ -51,7 +51,7 @@ export default function DongGopAdminPage() {
       <Card>
         <CardBody className="flex flex-col items-center py-16 text-center">
           <ShieldAlert className="h-10 w-10 text-stone-300" />
-          <p className="mt-3 text-sm font-semibold text-stone-700">Trang này dành cho Ban TNTH và Biên tập viên</p>
+          <p className="mt-3 text-sm font-semibold text-stone-700">Trang này dành cho Ban Công tác Thanh Thiếu Nhi và Biên tập viên</p>
           <p className="mt-1 text-xs text-stone-400">Chỉ QUAN_TRI_TW và BIEN_TAP_VIEN mới duyệt được bài đóng góp.</p>
         </CardBody>
       </Card>

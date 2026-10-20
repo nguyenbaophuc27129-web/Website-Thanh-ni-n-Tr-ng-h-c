@@ -1,49 +1,58 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 /**
- * Màn chào sân (intro splash) — DIỄN MỖI LẦN VÀO WEB (mỗi lần tải lại trang).
- * LUÔN hiển thị (không bỏ theo reduced-motion — trước đó máy bật "giảm chuyển động"
- * làm màn chào biến mất hoàn toàn); ai không muốn xem bấm "Bỏ qua" là thoát ngay.
- *
- * LOGO: dùng file public/logo.png (bản đã cắt nền đen trong suốt).
- * Muốn đổi logo mới: thay scripts/logo-src/logo-goc.png rồi chạy
- * `node scripts/process-logo.js` để cắt nền lại tự động.
+ * Màn chào sân (intro splash) — CHỈ DIỄN Ở TRANG CHỦ (/) KHI TẢI LẠI TRANG.
+ * Các trang con (/dien-dan, /tin-tuc, /hoc-sinh-3-tot...) sau F5 KHÔNG diễn để tránh phiền người dùng.
+ * Ai không muốn xem trên trang chủ bấm "Bỏ qua" là thoát ngay.
  */
 
-const TITLE = "THANH NIÊN TRƯỜNG HỌC";
 const SHOW_MS = 2600; // thời gian trình diễn trước khi màn kéo lên
 const EXIT_MS = 650; // thời gian màn kéo lên
 
 export function IntroSplash() {
+  const pathname = usePathname();
   const [phase, setPhase] = useState<"hidden" | "show" | "exit">("hidden");
   const t1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const t2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Báo cho các hiệu ứng phía dưới (vd: reveal chữ Tin tiêu điểm) biết đã diễn xong
   const finish = () => {
-    (window as unknown as { tnthIntroDone?: boolean }).tnthIntroDone = true;
-    window.dispatchEvent(new Event("tnth:intro-done"));
+    if (typeof window !== "undefined") {
+      (window as unknown as { tnthIntroDone?: boolean }).tnthIntroDone = true;
+      window.dispatchEvent(new Event("tnth:intro-done"));
+    }
   };
 
   useEffect(() => {
+    // Chỉ kích hoạt màn chào ở trang chủ (/)
+    if (pathname !== "/") {
+      setPhase("hidden");
+      finish();
+      return;
+    }
+
     setPhase("show");
     document.body.style.overflow = "hidden"; // khoá cuộn trong lúc diễn
+
     t1Ref.current = setTimeout(() => {
       setPhase("exit");
     }, SHOW_MS);
+
     t2Ref.current = setTimeout(() => {
       setPhase("hidden");
       document.body.style.overflow = "";
       finish();
     }, SHOW_MS + EXIT_MS);
+
     return () => {
       if (t1Ref.current) clearTimeout(t1Ref.current);
       if (t2Ref.current) clearTimeout(t2Ref.current);
       document.body.style.overflow = "";
     };
-  }, []);
+  }, [pathname]);
 
   const skip = () => {
     // Huỷ cả 2 hẹn giờ để màn không tự bật lại sau khi đã bỏ qua
@@ -57,7 +66,7 @@ export function IntroSplash() {
     }, EXIT_MS);
   };
 
-  if (phase === "hidden") return null;
+  if (pathname !== "/" || phase === "hidden") return null;
 
   return (
     <div
@@ -88,44 +97,21 @@ export function IntroSplash() {
         </span>
       ))}
 
-      {/* LOGO THẬT — nền đen đã cắt trong suốt tối đa */}
-      <div className="intro-star relative flex h-52 w-52 items-center justify-center sm:h-60 sm:w-60">
-        {/* Vòng xung lan tỏa quanh logo */}
-        <span className="intro-ring absolute inset-4 rounded-full border-2 border-sky-400/50" />
-        <span className="intro-ring absolute inset-4 rounded-full border border-vang-300/50" style={{ animationDelay: "0.5s" }} />
-        {/* Vòng nét đứt xoay chậm — chất công nghệ */}
-        <span className="absolute inset-0 animate-[spin_7s_linear_infinite] rounded-full border border-dashed border-sky-300/35" />
-        <span className="absolute inset-0 animate-[spin_11s_linear_infinite_reverse] rounded-full border border-vang-300/40 [clip-path:polygon(0_0,100%_0,100%_18%,0_18%,0_38%,100%_38%,100%_56%,0_56%,0_76%,100%_76%,100%_100%,0_100%)]" />
+      {/* LOGO CHÍNH THỨC TNTH-03 — Bao gồm cả biểu trưng và chữ nghệ thuật "THANH NIÊN TRƯỜNG HỌC" */}
+      <div className="relative flex flex-col items-center justify-center w-full max-w-[320px] sm:max-w-md md:max-w-lg lg:max-w-xl px-4">
+        {/* Quầng sáng công nghệ lan tỏa phía sau logo */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-8 -z-10 rounded-3xl bg-gradient-to-r from-blue-600/35 via-cyan-400/25 to-amber-400/20 blur-3xl opacity-80"
+        />
         <img
-          src="/logo.png"
-          alt="Logo Thanh niên Trường học"
-          className="intro-logo relative h-40 w-auto drop-shadow-[0_0_50px_rgba(56,150,255,0.6)] sm:h-48"
+          src="/logo-tnth-03.png"
+          alt="Thanh niên Trường học — Trung ương Đoàn TNCS Hồ Chí Minh"
+          className="intro-banner-logo relative w-full h-auto object-contain drop-shadow-[0_0_45px_rgba(56,150,255,0.65)]"
         />
       </div>
 
-      {/* Tên chương trình — chữ unfolds dần, gradient trắng-xanh theo tone chữ gốc */}
-      <h1
-        className="relative mt-6 px-4 text-center font-serif-display text-[clamp(1.5rem,5.5vw,3.25rem)] font-black tracking-[0.12em]"
-        style={{ textShadow: "0 0 34px rgba(56,150,255,0.35)" }}
-      >
-        {TITLE.split("").map((ch, i) =>
-          ch === " " ? (
-            <span key={i} className="inline-block w-[0.5em]" />
-          ) : (
-            <span
-              key={i}
-              className="intro-letter inline-block bg-gradient-to-b from-white via-sky-100 to-sky-300 bg-clip-text text-transparent"
-              style={{ animationDelay: `${0.55 + i * 0.045}s` }}
-            >
-              {ch}
-            </span>
-          )
-        )}
-        {/* Vệt sáng quét ngang qua chữ */}
-        <span className="intro-sweep pointer-events-none absolute left-0 top-1/2 h-px w-full bg-gradient-to-r from-transparent via-sky-200/80 to-transparent" />
-      </h1>
-
-      <p className="intro-sub mt-4 text-center text-[11px] font-semibold uppercase tracking-[0.4em] text-sky-100/60 sm:text-xs">
+      <p className="intro-sub mt-6 text-center text-[11px] font-semibold uppercase tracking-[0.35em] text-sky-100/70 sm:text-xs">
         Trung ương Đoàn TNCS Hồ Chí Minh
       </p>
       <p className="intro-sub mt-2 text-center text-xs font-medium text-vang-200/80" style={{ animationDelay: "1.5s" }}>

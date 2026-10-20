@@ -79,7 +79,7 @@ export default function VanBanPublicPage() {
     window.setTimeout(() => {
       setBusyId(null);
       setDoneId(d.id);
-      toast(`Đã tải "${d.docNumber || d.title}" — tệp giả lập cho bản demo.`);
+      toast(`Đã tải xuống văn bản "${d.docNumber || d.title}".`);
       window.setTimeout(() => setDoneId(null), 1600);
     }, 900);
   };

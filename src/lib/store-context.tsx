@@ -18,6 +18,7 @@ import type {
   OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
   RankingEntry, RankingSnapshot, Report, Resource, Score,
   SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
+  VolunteerProjectField, VolunteerProjectPhase,
 } from "@/types";
 import { CONTRIBUTION_POINTS } from "@/types";
 import { orgUnits as seedOrgUnits, descendantIds } from "@/data/org-units";
@@ -52,6 +53,9 @@ export interface ActivityInput {
   location?: string; participantCount?: number; categoryIds: number[];
   links: { platform: string; url: string; note?: string }[];
   imageSeed?: number;
+  taskId?: number;
+  taskMetricId?: number;
+  metricContributionValue?: number;
 }
 
 export interface ScoreInput {
@@ -283,7 +287,7 @@ interface StoreValue {
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
   volunteerProjects: VolunteerProject[];
-  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => number;
+  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => number;
   moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
   quizQuestions: QuizQuestion[];
   quizExams: QuizExam[];
@@ -692,19 +696,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       const act = activities.find((a) => a.id === id);
       if (act) {
+        if (action === "CONFIRM" && act.taskId && act.taskMetricId && act.metricContributionValue) {
+          setAssignmentTargets((prevTargets) =>
+            prevTargets.map((t) => {
+              const asg = taskAssignments.find((a) => a.id === t.taskAssignmentId);
+              if (asg && asg.orgUnitId === act.orgUnitId && asg.taskId === act.taskId && t.taskMetricId === act.taskMetricId) {
+                return { ...t, achievedValue: t.achievedValue + (act.metricContributionValue ?? 0) };
+              }
+              return t;
+            })
+          );
+        }
         const acc = accountByOrgUnit(act.orgUnitId);
         if (acc) {
           addNotification({
             recipientAccountId: acc.id,
             notificationType: action === "CONFIRM" ? "RESULT_CONFIRMED" : "RESULT_NEEDS_INFO",
             title: action === "CONFIRM" ? "Hoạt động được xác nhận" : action === "NEEDS_INFO" ? "Hoạt động cần bổ sung" : "Hoạt động bị trả lại",
-            message: `Hoạt động "${act.title}" ${action === "CONFIRM" ? "đã được xác nhận" : "cần chỉnh sửa"}${note ? ` — ${note}` : ""}`,
+            message: `Hoạt động "${act.title}" ${action === "CONFIRM" ? "đã được xác nhận (số liệu đã cộng vào cây chỉ tiêu)" : "cần chỉnh sửa"}${note ? ` — ${note}` : ""}`,
             refType: "ACTIVITY", refId: id, linkUrl: `/quan-tri/hoat-dong/${id}`,
           });
         }
       }
     },
-    [accountByOrgUnit, activities, addNotification]
+    [accountByOrgUnit, activities, addNotification, taskAssignments]
   );
 
   /* ============ Posts (R2) ============ */
@@ -1616,7 +1631,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         recipientAccountId: 1,
         notificationType: "SYSTEM",
         title: "Tài nguyên chờ duyệt từ đoàn viên",
-        message: `${session.contactPerson} đóng góp tài nguyên "${resource.title}" — chờ Ban TNTH duyệt.`,
+        message: `${session.contactPerson} đóng góp tài nguyên "${resource.title}" — chờ Ban Biên tập duyệt.`,
         refType: "RESOURCE", refId: id, linkUrl: "/quan-tri/dong-gop",
       });
       return id;
@@ -1666,7 +1681,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const submitVolunteerProject = useCallback(
-    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; mapX: number; mapY: number; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => {
+    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => {
       const id = nextId();
       const project: VolunteerProject = {
         id,
@@ -1679,8 +1694,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         participants: input.participants || 1,
         status: "PENDING",
         submittedByAccountId: session.accountId,
-        mapX: input.mapX,
-        mapY: input.mapY,
+        field: input.field,
+        phase: input.phase,
         aiVerdict: mod.verdict,
         aiReason: mod.reason,
         reportFile: input.reportFile?.name ? input.reportFile : undefined,
@@ -1724,7 +1739,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             recipientAccountId: p.submittedByAccountId,
             notificationType: "PROJECT_APPROVED",
             title: `Dự án tình nguyện được duyệt (+${CONTRIBUTION_POINTS.PROJECT} điểm)`,
-            message: `Dự án "${p.projectName}" đã được duyệt và hiển thị trên bản đồ dự án toàn quốc. Bạn được cộng ${CONTRIBUTION_POINTS.PROJECT} điểm đóng góp.`,
+            message: `Dự án "${p.projectName}" đã được duyệt và đăng vào ngân hàng dự án tình nguyện. Bạn được cộng ${CONTRIBUTION_POINTS.PROJECT} điểm đóng góp.`,
             refType: "VOLUNTEER_PROJECT", refId: id, linkUrl: "/du-an-tinh-nguyen",
           });
         } else {

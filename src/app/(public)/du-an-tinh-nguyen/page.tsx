@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import {
-  MapPin, HeartHandshake, Users, Send, Loader2, Clock, Plus, MapPinned, HandHeart, Landmark, FileDown, Paperclip, X,
+  LibraryBig, HeartHandshake, Users, Send, Loader2, Clock, Plus, HandHeart, Landmark, FileDown, Paperclip, X, Search,
 } from "lucide-react";
 import { Reveal, CountUp } from "@/components/public/reveal";
 import { Modal } from "@/components/ui/modal";
@@ -15,22 +14,14 @@ import { useToast } from "@/lib/toast-context";
 import { moderateText } from "@/lib/ai-moderation";
 import { buildTemplateWordData, downloadWordDoc } from "@/lib/word-export";
 import { relTime } from "@/lib/utils";
-import type { VolunteerProject } from "@/types";
+import { FIELD_META, PHASE_META } from "@/lib/volunteer-meta";
+import type { VolunteerProject, VolunteerProjectField, VolunteerProjectPhase } from "@/types";
 
-/** Tọa độ pin % trên ảnh bản đồ 34 tỉnh (public/vn-map-34.jpg 1200×1485) */
-const PROVINCE_PINS: Record<string, { x: number; y: number }> = {
-  "Lào Cai": { x: 18, y: 16 },
-  "Hà Nội": { x: 21, y: 21 },
-  "Bắc Giang": { x: 22, y: 19 },
-  "Nghệ An": { x: 26, y: 36 },
-  "Đà Nẵng": { x: 38, y: 47 },
-  "Bình Dương": { x: 28.5, y: 63 },
-  "TP Hồ Chí Minh": { x: 27, y: 65 },
-  "Cần Thơ": { x: 22, y: 71 },
-  "Bến Tre": { x: 25, y: 73 },
-};
-
-const PROVINCE_OPTIONS = Object.keys(PROVINCE_PINS);
+/** Danh sách tỉnh thành đơn vị có thể chọn khi đăng dự án */
+const PROVINCE_OPTIONS = [
+  "Lào Cai", "Hà Nội", "Bắc Giang", "Nghệ An", "Đà Nẵng",
+  "Bình Dương", "TP Hồ Chí Minh", "Cần Thơ", "Bến Tre",
+];
 
 const REPORT_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5MB
 
@@ -52,15 +43,23 @@ function ReportFileChip({ p }: { p: Pick<VolunteerProject, "reportFile"> }) {
   );
 }
 
+type PhaseFilter = "ALL" | VolunteerProjectPhase;
+
 export default function DuAnTinhNguyenPage() {
   const { volunteerProjects, orgName, submitVolunteerProject } = useStore();
   const { session } = useAuth();
   const { toast } = useToast();
 
-  const [provinceFilter, setProvinceFilter] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [fieldFilter, setFieldFilter] = useState<VolunteerProjectField | "ALL">("ALL");
+  const [provinceFilter, setProvinceFilter] = useState<string>("ALL");
+  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("ALL");
+
   const [openSubmit, setOpenSubmit] = useState(false);
   const [pName, setPName] = useState("");
   const [pProvince, setPProvince] = useState(PROVINCE_OPTIONS[0]);
+  const [pField, setPField] = useState<VolunteerProjectField>("KHAC");
+  const [pPhase, setPPhase] = useState<VolunteerProjectPhase>("DANG_TRIEN_KHAI");
   const [pSummary, setPSummary] = useState("");
   const [pBeneficiaries, setPBeneficiaries] = useState("");
   const [pParticipants, setPParticipants] = useState("50");
@@ -73,38 +72,34 @@ export default function DuAnTinhNguyenPage() {
     [volunteerProjects]
   );
 
-  // Aggregate theo tỉnh — 1 pin/tỉnh, badge số dự án nếu >1
-  const byProvince = useMemo(() => {
-    const map = new Map<string, { count: number; participants: number }>();
-    for (const p of approved) {
-      const cur = map.get(p.province) ?? { count: 0, participants: 0 };
-      cur.count += 1;
-      cur.participants += p.participants;
-      map.set(p.province, cur);
-    }
-    return map;
-  }, [approved]);
+  const provincesInBank = useMemo(() => new Set(approved.map((p) => p.province)), [approved]);
 
-  const shown = useMemo(
-    () => (provinceFilter ? approved.filter((p) => p.province === provinceFilter) : approved),
-    [approved, provinceFilter]
-  );
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return approved.filter((p) => {
+      if (fieldFilter !== "ALL" && p.field !== fieldFilter) return false;
+      if (provinceFilter !== "ALL" && p.province !== provinceFilter) return false;
+      if (phaseFilter !== "ALL" && p.phase !== phaseFilter) return false;
+      if (needle) {
+        const hay = `${p.projectName} ${p.schoolName} ${p.summary} ${p.beneficiaries}`.toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [approved, q, fieldFilter, provinceFilter, phaseFilter]);
 
   const totalParticipants = approved.reduce((s, p) => s + p.participants, 0);
+  const recruitingCount = approved.filter((p) => p.phase === "DANG_TUYEN").length;
   const myPending = volunteerProjects.filter(
     (p) => p.status === "PENDING" && p.submittedByAccountId === session?.accountId
   );
 
   const openForm = () => {
     if (!session) {
-      toast("Bạn cần đăng nhập để tiếp nhận dự án. Tài khoản demo: dv.demo / demo123", "warning");
+      toast("Bạn cần đăng nhập để đăng ký dự án. Tài khoản demo: dv.demo / demo123", "warning");
       return;
     }
     setOpenSubmit(true);
-  };
-
-  const pickProvince = (prov: string) => {
-    setPProvince(prov);
   };
 
   /** Tải mẫu văn bản báo cáo phương pháp thực hiện (Word thể thức hành chính) */
@@ -165,8 +160,8 @@ export default function DuAnTinhNguyenPage() {
         summary: pSummary,
         beneficiaries: pBeneficiaries || "Cộng đồng địa phương",
         participants: Number(pParticipants) || 1,
-        mapX: PROVINCE_PINS[pProvince]?.x ?? 25,
-        mapY: PROVINCE_PINS[pProvince]?.y ?? 45,
+        field: pField,
+        phase: pPhase,
         reportFile: pReportFile ?? undefined,
       },
       mod
@@ -176,11 +171,13 @@ export default function DuAnTinhNguyenPage() {
     setPName(""); setPSummary(""); setPBeneficiaries(""); setPParticipants("50"); setPReportFile(null);
     toast(
       mod.verdict === "CLEAN"
-        ? "Đã tiếp nhận dự án — chờ cấp trên duyệt, được duyệt sẽ hiển thị trên bản đồ (+20 điểm)."
+        ? "Đã tiếp nhận dự án — chờ cấp trên duyệt, được duyệt sẽ đăng vào ngân hàng dự án (+20 điểm)."
         : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — dự án chờ kiểm duyệt thủ công.`,
       mod.verdict === "CLEAN" ? "success" : "warning"
     );
   };
+
+  const hasFilter = q.trim() !== "" || fieldFilter !== "ALL" || provinceFilter !== "ALL" || phaseFilter !== "ALL";
 
   return (
     <div>
@@ -206,22 +203,24 @@ export default function DuAnTinhNguyenPage() {
             Đang hoạt động
           </span>
           <h1 className="mt-4 max-w-3xl text-2xl font-black leading-snug sm:text-4xl">
-            Mỗi trường THPT — 01 dự án tình nguyện vì cộng đồng
+            Ngân hàng dự án tình nguyện
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-blue-100/90 sm:text-base">
-            Bản đồ dự án toàn quốc: mỗi trường xây dựng tối thiểu 1 dự án tình nguyện mỗi năm học —
-            có mục tiêu đo lường được, có kết quả kiểm chứng và hiển thị công khai trên Cổng TNTH.
+            Kho dự án tình nguyện của thanh niên trường học toàn quốc: mỗi trường xây dựng tối thiểu
+            01 dự án mỗi năm học — có mục tiêu đo lường được, có kết quả kiểm chứng, tra cứu theo
+            lĩnh vực và giai đoạn triển khai.
           </p>
         </div>
       </section>
 
       <div className="mx-auto max-w-7xl px-4 pb-14 pt-10">
-        {/* ===== Stats 3 ô ===== */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        {/* ===== Stats 4 ô ===== */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            { icon: HeartHandshake, label: "Dự án đã duyệt", value: approved.length, suffix: " dự án" },
+            { icon: LibraryBig, label: "Dự án trong kho", value: approved.length, suffix: " dự án" },
             { icon: Users, label: "Lượt đoàn viên tham gia", value: totalParticipants, suffix: " bạn" },
-            { icon: MapPin, label: "Tỉnh thành có dự án", value: byProvince.size, suffix: `/${PROVINCE_OPTIONS.length} tỉnh` },
+            { icon: HeartHandshake, label: "Tỉnh thành có dự án", value: provincesInBank.size, suffix: " tỉnh" },
+            { icon: HandHeart, label: "Đang tuyển thành viên", value: recruitingCount, suffix: " dự án" },
           ].map((s, i) => (
             <Reveal key={s.label} delay={i * 80}>
               <div className="flex items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-[0_8px_30px_rgb(15,23,42,0.05)] ring-1 ring-slate-100">
@@ -240,73 +239,126 @@ export default function DuAnTinhNguyenPage() {
           ))}
         </div>
 
-        {/* ===== Bản đồ dự án ===== */}
-        <div className="mt-10 grid gap-8 lg:grid-cols-5">
-          <div className="lg:col-span-3">
-            <div className="flex items-center justify-between">
-              <h2 className="inline-flex items-center gap-2 text-lg font-bold text-slate-900">
-                <MapPinned className="h-5 w-5 text-blue-600" /> Bản đồ dự án 34 tỉnh thành
-              </h2>
-              {provinceFilter ? (
-                <button
-                  type="button"
-                  onClick={() => setProvinceFilter(null)}
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
-                >
-                  Bỏ lọc: {provinceFilter} ✕
-                </button>
-              ) : (
-                <p className="text-[11px] text-slate-400">Nhấn pin để xem dự án theo tỉnh</p>
-              )}
-            </div>
-            <div className="relative mt-4 overflow-hidden rounded-3xl bg-white p-2 shadow-[0_8px_30px_rgb(15,23,42,0.06)] ring-1 ring-slate-200">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/vn-map-34.jpg"
-                alt="Bản đồ Việt Nam 34 tỉnh thành"
-                className="w-full rounded-2xl"
-                draggable={false}
+        {/* ===== Thanh tra cứu ngân hàng dự án ===== */}
+        <div className="mt-10 rounded-3xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.06)] ring-1 ring-slate-200">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-56 flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Tìm tên dự án, đơn vị, đối tượng thụ hưởng…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2.5 pl-10 pr-4 text-sm text-stone-800 outline-none transition-colors placeholder:text-stone-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
               />
-              {approved.map((p) => {
-                const agg = byProvince.get(p.province);
-                if (!agg) return null;
-                // 1 pin / tỉnh — chỉ render pin cho dự án có id nhỏ nhất của tỉnh
-                const isFirstOfProvince = !approved.some((q) => q.province === p.province && q.id < p.id);
-                if (!isFirstOfProvince) return null;
-                const pos = PROVINCE_PINS[p.province] ?? { x: p.mapX, y: p.mapY };
-                const active = provinceFilter === p.province;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setProvinceFilter(active ? null : p.province)}
-                    title={`${p.province} — ${agg.count} dự án`}
-                    className="group absolute -translate-x-1/2 -translate-y-full"
-                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-                  >
-                    <span
-                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-white shadow-lg transition-transform group-hover:scale-110 ${
-                        active ? "bg-red-500 ring-2 ring-red-200" : "bg-blue-600"
-                      }`}
-                    >
-                      <MapPin className="h-3 w-3" />
-                      {agg.count > 1 ? agg.count : ""}
-                    </span>
-                    {active || agg.count <= 1 ? (
-                      <span
-                        className={`absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 ${
-                          active ? "bg-red-500" : "bg-blue-600"
-                        }`}
-                      />
-                    ) : null}
-                  </button>
-                );
-              })}
             </div>
+            <select
+              value={fieldFilter}
+              onChange={(e) => setFieldFilter(e.target.value as VolunteerProjectField | "ALL")}
+              className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm font-medium text-stone-700 outline-none focus:border-blue-300 focus:bg-white"
+            >
+              <option value="ALL">Mọi lĩnh vực</option>
+              {(Object.keys(FIELD_META) as VolunteerProjectField[]).map((k) => (
+                <option key={k} value={k}>{FIELD_META[k].label}</option>
+              ))}
+            </select>
+            <select
+              value={provinceFilter}
+              onChange={(e) => setProvinceFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm font-medium text-stone-700 outline-none focus:border-blue-300 focus:bg-white"
+            >
+              <option value="ALL">Mọi tỉnh thành</option>
+              {[...provincesInBank].sort((a, b) => a.localeCompare(b, "vi")).map((prov) => (
+                <option key={prov} value={prov}>{prov}</option>
+              ))}
+            </select>
+          </div>
+          <div className="mt-3.5 flex flex-wrap items-center gap-2">
+            {([
+              { value: "ALL", label: "Tất cả giai đoạn" },
+              { value: "DANG_TUYEN", label: "Đang tuyển thành viên" },
+              { value: "DANG_TRIEN_KHAI", label: "Đang triển khai" },
+              { value: "HOAN_THANH", label: "Hoàn thành" },
+            ] as { value: PhaseFilter; label: string }[]).map((ph) => (
+              <button
+                key={ph.value}
+                type="button"
+                onClick={() => setPhaseFilter(ph.value)}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                  phaseFilter === ph.value
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {ph.label}
+              </button>
+            ))}
+            {hasFilter ? (
+              <button
+                type="button"
+                onClick={() => { setQ(""); setFieldFilter("ALL"); setProvinceFilter("ALL"); setPhaseFilter("ALL"); }}
+                className="rounded-full px-3 py-1.5 text-xs font-medium text-slate-400 underline decoration-dotted hover:text-slate-600"
+              >
+                Xóa bộ lọc
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* ===== Grid thẻ dự án + cột phải ===== */}
+        <div className="mt-8 grid gap-8 lg:grid-cols-4">
+          <div className="lg:col-span-3">
+            <h2 className="text-lg font-bold text-slate-900">
+              {hasFilter ? "Kết quả tra cứu" : "Dự án mới nhất"}{" "}
+              <span className="text-sm font-medium text-slate-400">({shown.length})</span>
+            </h2>
+            {shown.length === 0 ? (
+              <p className="mt-6 rounded-2xl bg-stone-50 px-5 py-8 text-center text-sm text-stone-500">
+                Không có dự án nào khớp bộ lọc — thử bỏ bớt điều kiện tra cứu.
+              </p>
+            ) : (
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                {shown.map((p, i) => (
+                  <Reveal key={p.id} delay={Math.min(i, 6) * 60}>
+                    <div className="flex h-full flex-col rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:ring-blue-200">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={FIELD_META[p.field]?.tone ?? "gray"}>
+                          {FIELD_META[p.field]?.label ?? p.field}
+                        </Badge>
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${PHASE_META[p.phase]?.cls ?? ""}`}
+                        >
+                          {p.phase === "DANG_TUYEN" ? (
+                            <span className="relative flex h-1.5 w-1.5">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500" />
+                            </span>
+                          ) : null}
+                          {PHASE_META[p.phase]?.label ?? p.phase}
+                        </span>
+                      </div>
+                      <h3 className="mt-2.5 text-sm font-bold leading-snug text-stone-900">{p.projectName}</h3>
+                      <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                        {p.schoolName} · {p.province}
+                      </p>
+                      <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-stone-500">{p.summary}</p>
+                      <ReportFileChip p={p} />
+                      <div className="mt-auto flex items-center gap-4 pt-3.5 text-[11px] text-slate-500">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5 text-blue-500" /> {p.participants} đoàn viên
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <HandHeart className="h-3.5 w-3.5 text-emerald-500" /> {p.beneficiaries}
+                        </span>
+                      </div>
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* ===== Cột phải: nút tiếp nhận + list chờ duyệt ===== */}
-          <div className="space-y-5 lg:col-span-2">
+          {/* ===== Cột phải: nút đăng ký + list chờ duyệt + tiêu chí ===== */}
+          <div className="space-y-5">
             <button
               type="button"
               onClick={openForm}
@@ -316,9 +368,9 @@ export default function DuAnTinhNguyenPage() {
                 <Plus className="h-5 w-5" />
               </span>
               <span>
-                <span className="block text-sm font-bold">Tiếp nhận dự án của trường bạn</span>
+                <span className="block text-sm font-bold">Đăng ký dự án của trường bạn</span>
                 <span className="block text-[11px] text-blue-100">
-                  Đăng nhập → điền form → AI kiểm duyệt → cấp trên duyệt đăng bản đồ
+                  Đăng nhập → điền form → AI kiểm duyệt → cấp trên duyệt đăng kho dự án
                 </span>
               </span>
             </button>
@@ -355,50 +407,13 @@ export default function DuAnTinhNguyenPage() {
             </div>
           </div>
         </div>
-
-        {/* ===== Grid thẻ dự án ===== */}
-        <div className="mt-10">
-          <h2 className="text-lg font-bold text-slate-900">
-            {provinceFilter ? `Dự án tại ${provinceFilter}` : "Dự án mới nhất"}{" "}
-            <span className="text-sm font-medium text-slate-400">({shown.length})</span>
-          </h2>
-          {shown.length === 0 ? (
-            <p className="mt-6 rounded-2xl bg-stone-50 px-5 py-8 text-center text-sm text-stone-500">
-              Chưa có dự án đã duyệt ở khu vực này.
-            </p>
-          ) : (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {shown.map((p, i) => (
-                <Reveal key={p.id} delay={i * 60}>
-                  <div className="flex h-full flex-col rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(15,23,42,0.04)] ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:ring-blue-200">
-                    <div className="flex items-center gap-2">
-                      <Badge tone="blue">{p.province}</Badge>
-                      <span className="text-[11px] text-slate-400">{p.schoolName}</span>
-                    </div>
-                    <h3 className="mt-2.5 text-sm font-bold leading-snug text-stone-900">{p.projectName}</h3>
-                    <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-stone-500">{p.summary}</p>
-                    <ReportFileChip p={p} />
-                    <div className="mt-auto flex items-center gap-4 pt-3.5 text-[11px] text-slate-500">
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5 text-blue-500" /> {p.participants} đoàn viên
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <HandHeart className="h-3.5 w-3.5 text-emerald-500" /> {p.beneficiaries}
-                      </span>
-                    </div>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* ===== Modal tiếp nhận dự án ===== */}
+      {/* ===== Modal đăng ký dự án ===== */}
       <Modal
         open={openSubmit}
         onClose={() => !busy && setOpenSubmit(false)}
-        title="Tiếp nhận dự án tình nguyện"
+        title="Đăng ký dự án tình nguyện"
         footer={
           <>
             <button
@@ -416,7 +431,7 @@ export default function DuAnTinhNguyenPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {busy ? "AI đang kiểm duyệt…" : "Gửi tiếp nhận"}
+              {busy ? "AI đang kiểm duyệt…" : "Gửi đăng ký"}
             </button>
           </>
         }
@@ -428,12 +443,39 @@ export default function DuAnTinhNguyenPage() {
           <Field label="Tên dự án" required hint="Tối thiểu 8 ký tự">
             <Input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="Ví dụ: Đồng quản lý kênh Nông Trại xanh" />
           </Field>
-          <Field label="Tỉnh thành" hint="Chọn tỉnh — vị trí pin trên bản đồ tự điền theo tỉnh">
-            <Select value={pProvince} onChange={(e) => pickProvince(e.target.value)}>
-              {PROVINCE_OPTIONS.map((prov) => (
-                <option key={prov} value={prov}>{prov}</option>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Tỉnh thành">
+              <Select value={pProvince} onChange={(e) => setPProvince(e.target.value)}>
+                {PROVINCE_OPTIONS.map((prov) => (
+                  <option key={prov} value={prov}>{prov}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Lĩnh vực hoạt động">
+              <Select value={pField} onChange={(e) => setPField(e.target.value as VolunteerProjectField)}>
+                {(Object.keys(FIELD_META) as VolunteerProjectField[]).map((k) => (
+                  <option key={k} value={k}>{FIELD_META[k].label}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Giai đoạn hiện tại">
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(PHASE_META) as VolunteerProjectPhase[]).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setPPhase(k)}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                    pPhase === k
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {PHASE_META[k].label}
+                </button>
               ))}
-            </Select>
+            </div>
           </Field>
           <Field label="Tóm tắt dự án" required hint="Tối thiểu 20 ký tự — nêu rõ việc làm và kết quả đo được">
             <Textarea value={pSummary} onChange={(e) => setPSummary(e.target.value)} className="min-h-24" />
@@ -482,7 +524,7 @@ export default function DuAnTinhNguyenPage() {
             </div>
           </Field>
           <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
-            Dự án qua AI kiểm duyệt tự động, sau đó cấp trên duyệt sẽ hiển thị pin trên bản đồ toàn quốc
+            Dự án qua AI kiểm duyệt tự động, sau đó cấp trên duyệt sẽ đăng vào ngân hàng dự án tình nguyện
             và cộng 20 điểm đóng góp cho bạn.
           </p>
         </div>

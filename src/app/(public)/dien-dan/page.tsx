@@ -83,7 +83,7 @@ export default function DienDanPage() {
     setMedia([]);
     toast(
       mod.verdict === "CLEAN"
-        ? "Đã đăng bài ẩn danh — cảm ơn bạn đã chia sẻ!"
+        ? "Đã gửi bài chia sẻ — cảm ơn bạn đã đóng góp ý kiến!"
         : `Bài của bạn đang chờ kiểm duyệt: ${mod.reason ?? "nội dung đáng ngờ"}.`,
       mod.verdict === "CLEAN" ? "success" : "warning"
     );
@@ -97,20 +97,9 @@ export default function DienDanPage() {
           <div className="h-1 w-12 rounded-full bg-gradient-to-r from-blue-600 to-cyan-400" />
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">Diễn đàn Đoàn viên</h1>
           <p className="mt-2 max-w-xl text-sm text-slate-500">
-            Nơi đoàn viên, học sinh - sinh viên chia sẻ thẳng thắn — không cần lộ danh tính.
+            Nơi chia sẻ tâm tư, nguyện vọng và ý kiến đóng góp xây dựng của đoàn viên, học sinh, sinh viên.
           </p>
         </div>
-      </div>
-
-      {/* ===== Strip ẩn danh ===== */}
-      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-teal-100 bg-gradient-to-r from-teal-50/80 to-cyan-50/60 px-5 py-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600">
-          <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
-        </span>
-        <p className="min-w-0 flex-1 text-sm leading-relaxed text-slate-600">
-          <span className="font-semibold text-slate-800">Hoàn toàn ẩn danh.</span> Mỗi bài đăng dùng một bí danh ngẫu nhiên
-          (VD: “Bằng Lăng Tim Xanh #2481”) — kể cả Ban biên tập cũng không thấy danh tính thật.
-        </p>
       </div>
 
       {/* ===== Composer ===== */}
@@ -122,8 +111,8 @@ export default function DienDanPage() {
                 <PenLine className="h-4 w-4" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-slate-900">Chia sẻ điều bạn muốn nói…</p>
-                <p className="text-[11px] text-slate-400">Bài đăng sẽ hiện với bí danh ngẫu nhiên mới</p>
+                <p className="text-sm font-semibold text-slate-900">Chia sẻ tâm tư, nguyện vọng…</p>
+                <p className="text-[11px] text-slate-400">Nơi tâm tư của đoàn viên, học sinh, sinh viên</p>
               </div>
             </div>
             <input
@@ -136,7 +125,7 @@ export default function DienDanPage() {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Nội dung chia sẻ (tối thiểu 10 ký tự)…"
+              placeholder="Nội dung tâm tư, nguyện vọng hoặc ý kiến xây dựng phong trào (tối thiểu 10 ký tự)…"
               rows={4}
               maxLength={2000}
               className="mt-3 w-full resize-none rounded-xl border border-slate-200/80 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-cyan-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(34,211,238,0.14)]"

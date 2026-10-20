@@ -7,7 +7,7 @@ import type { OrgDirectory } from "@/types";
 export const orgDirectories: OrgDirectory[] = [
   {
     id: 911, orgUnitId: 1,
-    secretaryName: "Đồng chí Tổng Bí thư Ban Thanh niên Trường học",
+    secretaryName: "Đồng chí Trưởng Ban Công tác Thanh Thiếu Nhi",
     secretaryPhone: "024.3825.3601",
     email: "banthanhnientruonghoc@doanthanhnien.vn",
     achievements: "Vận hành Cổng TNTH toàn quốc; 95 năm truyền thống Đoàn TNCS Hồ Chí Minh.",

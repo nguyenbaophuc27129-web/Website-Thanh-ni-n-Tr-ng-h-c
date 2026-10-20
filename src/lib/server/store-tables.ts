@@ -1,4 +1,4 @@
-import { query } from "@/lib/db";
+import { query } from "../db.ts";
 
 /**
  * Lớp truy cập dữ liệu store ↔ PostgreSQL (bước chuyển localStorage → DB).
@@ -399,7 +399,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       projectName: f("project_name", "str"), summary: f("summary", "str"),
       beneficiaries: f("beneficiaries", "str"), participants: f("participants", "int"),
       status: f("status", "str"), submittedByAccountId: f("submitted_by_account_id", "int"),
-      mapX: f("map_x", "num"), mapY: f("map_y", "num"),
+      field: f("field", "str"), phase: f("phase", "str"),
       aiVerdict: f("ai_verdict", "str"), aiReason: f("ai_reason", "str"),
       moderatedByAccountId: f("moderated_by_account_id", "int"),
       moderatedAt: f("moderated_at", "ts"), rejectionReason: f("rejection_reason", "str"),

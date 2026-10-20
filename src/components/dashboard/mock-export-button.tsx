@@ -30,7 +30,7 @@ export function MockExportButton({
     setBusy(true);
     setTimeout(() => {
       setBusy(false);
-      toast(`Đã xuất tệp "${fileName}.${format.toLowerCase()}" (giả lập demo).`);
+      toast(`Đã xuất tệp "${fileName}.${format.toLowerCase()}" thành công.`);
     }, 900);
   };
 

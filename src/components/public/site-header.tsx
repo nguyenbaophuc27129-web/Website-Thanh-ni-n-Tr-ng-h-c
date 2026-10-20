@@ -15,16 +15,18 @@ import {
   User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { LanguageSwitcher, GoogleTranslatePlaceholder } from "@/components/public/language-switcher";
+import { LanguageSwitcher } from "@/components/public/language-switcher";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "Trang chủ" },
   { href: "/gioi-thieu", label: "Giới thiệu" },
   { href: "/tin-tuc", label: "Tin tức" },
-  { href: "/dien-dan", label: "Diễn đàn" },
   { href: "/hoc-sinh-3-tot", label: "Học sinh 3 tốt" },
+  { href: "/nhan-tai", label: "Nhân tài" },
+  { href: "/dien-dan", label: "Diễn đàn" },
   { href: "/tai-nguyen", label: "Tài nguyên" },
+  { href: "/an-toan-hoc-duong", label: "An toàn học đường" },
   { href: "/phan-anh", label: "Phản ánh" },
   { href: "/bang-xep-hang", label: "Xếp hạng" },
 ];
@@ -57,19 +59,22 @@ export function SiteHeader() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4">
+      {/* Vệ tinh dọn cookie googtrans nếu có */}
+      <LanguageSwitcher />
+
       <motion.div
         initial={{ y: -18, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "glass-nav mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl py-2 pl-3 pr-2 transition-shadow duration-300 sm:pl-4 sm:pr-3",
+          "glass-nav mx-auto flex max-w-7xl items-center justify-between gap-2.5 rounded-2xl py-2 pl-3 pr-2 transition-shadow duration-300 sm:pl-4 sm:pr-3",
           scrolled
             ? "shadow-[0_14px_44px_rgb(15,23,42,0.13)]"
             : "shadow-[0_8px_30px_rgb(15,23,42,0.06)]"
         )}
       >
         {/* Logo + thương hiệu */}
-        <Link href="/" className="group flex min-w-0 items-center gap-2.5">
+        <Link href="/" className="group flex shrink-0 min-w-0 items-center gap-2.5">
           <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-900/5 transition-transform duration-300 group-hover:scale-105">
             <img
               src="/logo.png"
@@ -79,20 +84,20 @@ export function SiteHeader() {
             <span className="pointer-events-none absolute -inset-1 rounded-xl bg-cyan-400/25 opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-100" />
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-[15px] font-black leading-tight tracking-tight text-slate-900">
+            <span className="block truncate text-[14px] font-black leading-tight tracking-tight text-slate-900 sm:text-[15px]">
               Thanh niên{" "}
               <span className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">
                 Trường học
               </span>
             </span>
-            <span className="hidden truncate text-[9.5px] font-semibold uppercase tracking-[0.15em] text-slate-400 sm:block">
+            <span className="hidden truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:block">
               Cổng thông tin số · TW Đoàn TNCS HCM
             </span>
           </span>
         </Link>
 
-        {/* Desktop nav — dải pill trượt con nhộng */}
-        <nav className="hidden shrink-0 items-center gap-0.5 rounded-full bg-slate-900/[0.045] p-1 xl:flex">
+        {/* Desktop nav — dải pill trượt con nhộng (hiện từ màn hình lg >= 1024px) */}
+        <nav className="hidden shrink-0 items-center gap-0.5 rounded-full bg-slate-900/[0.045] p-1 lg:flex">
           {NAV.map((item) => {
             const active = isActive(item.href);
             return (
@@ -100,7 +105,7 @@ export function SiteHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
+                  "relative whitespace-nowrap rounded-full px-2 py-1 text-[12px] font-medium transition-colors duration-200 xl:px-3 xl:py-1.5 xl:text-[13px]",
                   active ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
                 )}
               >
@@ -118,7 +123,7 @@ export function SiteHeader() {
         </nav>
 
         {/* Cụm phải: tiện ích + CTA */}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1.5">
           <div className="hidden items-center gap-0.5 xl:flex">
             {UTILITIES.map((u) => (
               <Link
@@ -130,27 +135,26 @@ export function SiteHeader() {
                 <u.icon className="h-4 w-4" strokeWidth={1.75} />
               </Link>
             ))}
-            <LanguageSwitcher />
-            <span className="mx-1.5 h-5 w-px bg-slate-200" />
+            <span className="mx-1 h-5 w-px bg-slate-200" />
           </div>
           {session?.role === "DOAN_VIEN" ? (
             <Link
               href="/tai-khoan"
-              className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-white/70 px-3.5 py-2 text-[13px] font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:inline-flex"
+              className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:inline-flex"
               aria-label="Tài khoản của tôi"
             >
-              <User className="h-4 w-4" /> Tài khoản
+              <User className="h-3.5 w-3.5" /> Tài khoản
             </Link>
           ) : null}
           <Link
             href={session ? (session.role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri") : "/dang-nhap"}
-            className="hidden items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:brightness-110 sm:inline-flex"
+            className="hidden items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:brightness-110 sm:inline-flex"
           >
-            {session ? (session.role === "DOAN_VIEN" ? <MessagesSquare className="h-4 w-4" /> : <LayoutDashboard className="h-4 w-4" />) : <LogIn className="h-4 w-4" />}
+            {session ? (session.role === "DOAN_VIEN" ? <MessagesSquare className="h-3.5 w-3.5" /> : <LayoutDashboard className="h-3.5 w-3.5" />) : <LogIn className="h-3.5 w-3.5" />}
             {session ? (session.role === "DOAN_VIEN" ? "Diễn đàn" : "Khu quản trị") : "Đăng nhập"}
           </Link>
           <button
-            className="rounded-full p-2 text-slate-600 transition-colors hover:bg-slate-900/5 xl:hidden"
+            className="rounded-full p-2 text-slate-600 transition-colors hover:bg-slate-900/5 lg:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label="Menu"
           >
@@ -167,7 +171,7 @@ export function SiteHeader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="glass-nav mx-auto mt-2 max-w-7xl rounded-2xl p-3 shadow-[0_14px_44px_rgb(15,23,42,0.12)] xl:hidden"
+            className="glass-nav mx-auto mt-2 max-w-7xl rounded-2xl p-3 shadow-[0_14px_44px_rgb(15,23,42,0.12)] lg:hidden"
           >
             {NAV.map((item) => (
               <Link
@@ -187,19 +191,18 @@ export function SiteHeader() {
                 ) : null}
               </Link>
             ))}
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               {UTILITIES.map((u) => (
                 <Link
                   key={u.href}
                   href={u.href}
                   onClick={() => setOpen(false)}
-                  className="flex flex-col items-center gap-1.5 rounded-xl border border-white/70 bg-white/70 px-2 py-2.5 text-center text-[10.5px] font-medium text-slate-600"
+                  className="flex flex-col items-center gap-1.5 rounded-xl border border-white/70 bg-white/70 px-2 py-2.5 text-center text-[11px] font-medium text-slate-600"
                 >
                   <u.icon className="h-4 w-4 text-cyan-600" strokeWidth={1.75} />
                   {u.label}
                 </Link>
               ))}
-              <LanguageSwitcher tile />
             </div>
             {session?.role === "DOAN_VIEN" ? (
               <Link
@@ -220,9 +223,6 @@ export function SiteHeader() {
           </motion.nav>
         ) : null}
       </AnimatePresence>
-
-      {/* Khung gadget ẩn của Google Translate — render đúng 1 lần cho cả header */}
-      <GoogleTranslatePlaceholder />
     </header>
   );
 }
