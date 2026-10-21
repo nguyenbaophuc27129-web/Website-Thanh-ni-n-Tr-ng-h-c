@@ -12,7 +12,6 @@ import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { DocumentStatusBadge } from "@/components/dashboard/status-badge";
-import { MockExportButton } from "@/components/dashboard/mock-export-button";
 import { formatDateTime, formatDate, todayISO } from "@/lib/utils";
 import { documentCategories } from "@/data/categories";
 
@@ -156,9 +155,6 @@ export default function VanBanAdminPage() {
                     ) : (
                       <span className="text-xs text-stone-400">Chưa phát hành đến đơn vị nào</span>
                     )}
-                    <div className="ml-auto">
-                      <MockExportButton fileName={`van-ban-${d.id}`} format="DOCX" size="sm" />
-                    </div>
                   </div>
                   {detailId === d.id && recs.length > 0 ? (
                     <ul className="divide-y divide-stone-100 rounded-lg border border-stone-100">
@@ -220,9 +216,6 @@ export default function VanBanAdminPage() {
                         <Eye className="h-3.5 w-3.5" /> Đánh dấu đã đọc
                       </Button>
                     )}
-                    <div className="ml-auto">
-                      <MockExportButton fileName={`van-ban-${d.id}`} format="PDF" size="sm" />
-                    </div>
                   </div>
                 </CardBody>
               </Card>

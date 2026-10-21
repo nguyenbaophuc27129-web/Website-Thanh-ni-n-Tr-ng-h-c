@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Sparkles, Trash2, Loader2, CheckCircle2, Info, ShieldAlert, Eraser,
-  ClipboardPaste, ArrowRight, BellRing,
+  ArrowRight, BellRing,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -12,7 +12,7 @@ import { useToast } from "@/lib/toast-context";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Field } from "@/components/ui/input";
-import { parseDirective, demoDirectiveText, type DirectiveDraft } from "@/lib/ai-directive";
+import { parseDirective, type DirectiveDraft } from "@/lib/ai-directive";
 import { addDaysISO } from "@/lib/utils";
 
 /** AI phân tích chỉ mở cho cấp quản lý (TW / Tỉnh / Cấp 3) */
@@ -85,12 +85,6 @@ export default function AiPhanTichPage() {
     setSourceDocNumber("");
     setDrafts([]);
     setSelectedUnits([]);
-    setDone(null);
-  };
-
-  const pasteDemo = () => {
-    setText(demoDirectiveText());
-    setDrafts([]);
     setDone(null);
   };
 
@@ -220,9 +214,6 @@ export default function AiPhanTichPage() {
                 <Button onClick={runAnalyze} disabled={analyzing || text.trim().length < 40}>
                   {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {analyzing ? "AI đang phân tích…" : "AI phân tích"}
-                </Button>
-                <Button variant="secondary" onClick={pasteDemo}>
-                  <ClipboardPaste className="h-4 w-4" /> Dán mẫu
                 </Button>
                 <Button variant="ghost" onClick={resetAll}>
                   <Eraser className="h-4 w-4" /> Xoá

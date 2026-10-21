@@ -338,7 +338,9 @@ export default function TongQuanPage() {
         {[
           { title: "Hoạt động theo tháng", sub: "Nguồn: hoạt động đã cập nhật trong phạm vi của bạn", chart: <ActivitiesBarChart data={byMonth} /> },
           { title: "Tiến độ nhiệm vụ thi đua", sub: "Theo trạng thái của các lượt giao trong phạm vi", chart: <TaskProgressPie data={progressPie} /> },
-          { title: "Lượt xem tin bài (tháng 9/2026)", sub: "post_view_daily — tổng hợp theo ngày", chart: <PostViewsAreaChart data={postViewDaily.map((d) => ({ name: d.date, value: d.views }))} /> },
+          ...(postViewDaily.length > 0
+            ? [{ title: "Lượt xem tin bài (tháng 9/2026)", sub: "post_view_daily — tổng hợp theo ngày", chart: <PostViewsAreaChart data={postViewDaily.map((d) => ({ name: d.date, value: d.views }))} /> }]
+            : []),
           { title: "Điểm thi đua đơn vị cấp trường", sub: `Bộ tiêu chí ${store.activeCriteriaSet()?.name ?? ""}`, chart: <ScoresHorizontalBar data={topUnits} /> },
         ].map((c) => (
           <motion.div key={c.title} variants={itemVariants}>
