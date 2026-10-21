@@ -96,18 +96,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     contactPerson: "Võ Ngọc Lan",
     contactPosition: "Phóng viên biên tập",
   },
-  {
-    id: 6,
-    username: "dv.demo",
-    displayName: "Nguyễn Minh Đức",
-    orgUnitId: 31,
-    orgUnitName: "Đoàn Trường THPT Chánh Phú Hưng",
-    role: "DOAN_VIEN",
-    email: "minhduc.doanvien@thptchanhphu.edu.vn",
-    contactPerson: "Nguyễn Minh Đức",
-    contactPosition: "Ủy viên Ban Chấp hành Chi Đoàn",
-    className: "12A1",
-  },
+
   /* Chức danh TW quyền giới hạn — demo phân quyền theo chức danh (xem data/chuc-danh-quyen.ts) */
   {
     id: 16,
