@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, PenLine, ImagePlus, Loader2, X, ShieldCheck } from "lucide-react";
+import { Search, PenLine, ImagePlus, Loader2, X, ShieldCheck, Filter, ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -177,22 +177,59 @@ export default function TinTucPage() {
           {/* Vạch phân cách dọc */}
           <span aria-hidden className="hidden h-6 w-px shrink-0 bg-slate-200 lg:block" />
 
-          {/* Tab danh mục — pill tối kiểu Linear, cuộn ngang khi chật */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-            {(["all", ...categories] as Cat[]).map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCat(c)}
-                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-all duration-200 ${
-                  cat === c
-                    ? "bg-slate-900 text-white shadow-md shadow-slate-900/15"
-                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                }`}
+          {/* Sổ xuống các chủ đề lớn (góp ý 9) */}
+          <div className="flex flex-1 flex-wrap items-center gap-2.5">
+            <div className="relative min-w-[220px] max-w-xs flex-1">
+              <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                <Filter className="h-3.5 w-3.5 text-blue-500" />
+              </div>
+              <select
+                value={cat}
+                onChange={(e) => setCat(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-slate-200/90 bg-white/90 py-2.5 pl-9 pr-9 text-xs font-semibold text-slate-700 shadow-sm outline-none transition-all focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]"
               >
-                {c === "all" ? "Tất cả" : c}
-              </button>
-            ))}
+                <option value="all">
+                  📂 Tất cả chủ đề lớn ({publishedPosts.filter((p) => p.status === "PUBLISHED").length})
+                </option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    🏷️ {c}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            </div>
+
+            {/* Quick-chips tiện ích cho các chủ đề hot */}
+            <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+              {["all", ...categories.slice(0, 3)].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCat(c)}
+                  className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                    cat === c
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-slate-100/80 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  {c === "all" ? "Tất cả" : c}
+                </button>
+              ))}
+              {(cat !== "all" || q.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCat("all");
+                    setQ("");
+                  }}
+                  className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-rose-500 hover:bg-rose-50"
+                  title="Đặt lại bộ lọc"
+                >
+                  <X className="mr-1 inline h-3 w-3" /> Xóa lọc
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

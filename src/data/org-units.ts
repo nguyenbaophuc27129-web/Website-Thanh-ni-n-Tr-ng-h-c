@@ -6,6 +6,7 @@ export const schoolTypes: SchoolType[] = [
   { id: 3, code: "TIEU_HOC", name: "Tiểu học" },
   { id: 4, code: "MAM_NON", name: "Mầm non" },
   { id: 5, code: "Dai_Hoc_CĐ", name: "Đại học, Cao đẳng" },
+  { id: 6, code: "GDNN_GDTX", name: "Trung tâm GDNN - GDTX" },
 ];
 
 /**
@@ -52,13 +53,36 @@ export const orgUnits: OrgUnit[] = [
   // Cấp 4 (con của Đoàn Phường Phú Hòa)
   { id: 34, parentId: 26, code: "BD-PH-THPT-NTN", name: "Đoàn Trường THPT Ngô Thời Nhậm", shortName: "THPT Ngô Thời Nhậm", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung học phổ thông", isActive: true },
   { id: 35, parentId: 26, code: "BD-PH-MN-AS", name: "Đoàn Trường Mầm non Ánh Sao", shortName: "MN Ánh Sao", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Mầm non", isActive: true },
+  { id: 36, parentId: 25, code: "BD-HT-GDNN", name: "Đoàn Trung tâm GDNN - GDTX TP. Thủ Dầu Một", shortName: "GDNN-GDTX Thủ Dầu Một", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung tâm GDNN-GDTX", isActive: true },
   // Cấp 4 (con của Đoàn Phường Lê Lợi, Bắc Giang)
   { id: 42, parentId: 40, code: "BG-LL-THPT-BG", name: "Đoàn Trường THPT Bắc Giang", shortName: "THPT Bắc Giang", orgLevel: 4, adminUnitName: "TP Bắc Giang", schoolTypeName: "Trung học phổ thông", isActive: true },
   { id: 43, parentId: 40, code: "BG-LL-THCS-LL", name: "Đoàn Trường THCS Lê Lợi", shortName: "THCS Lê Lợi", orgLevel: 4, adminUnitName: "TP Bắc Giang", schoolTypeName: "Trung học cơ sở", isActive: true },
   // Cấp 4 (con của Đoàn Phường Vinh)
   { id: 46, parentId: 45, code: "NA-VINH-SP", name: "Đoàn Trường ĐH Sư phạm Nghệ An", shortName: "ĐHSP Nghệ An", orgLevel: 4, adminUnitName: "TP Vinh, Nghệ An", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
-  // Cấp 4 (con của Đoàn Phường An Hải)
+  { id: 47, parentId: 15, code: "NA-THPT-PBC", name: "Đoàn Trường THPT Chuyên Phan Bội Châu", shortName: "THPT Phan Bội Châu", orgLevel: 4, adminUnitName: "TP Vinh, Nghệ An", schoolTypeName: "Trung học phổ thông", isActive: true },
+
+  // Cấp 4 (con của Đoàn Phường An Hải & Thành Đoàn Đà Nẵng)
   { id: 52, parentId: 50, code: "DN-AH-KT", name: "Đoàn Trường ĐH Kinh tế Đà Nẵng", shortName: "ĐH Kinh tế ĐN", orgLevel: 4, adminUnitName: "TP Đà Nẵng", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
+  { id: 53, parentId: 16, code: "DN-THPT-LQD", name: "Đoàn Trường THPT Chuyên Lê Quý Đôn", shortName: "THPT Lê Quý Đôn ĐN", orgLevel: 4, adminUnitName: "TP Đà Nẵng", schoolTypeName: "Trung học phổ thông", isActive: true },
+
+  // Cấp 4 (Thành Đoàn TP. Hồ Chí Minh)
+  { id: 61, parentId: 13, code: "HCM-THPT-LHP", name: "Đoàn Trường THPT Chuyên Lê Hồng Phong", shortName: "THPT Lê Hồng Phong", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung học phổ thông", isActive: true },
+  { id: 62, parentId: 29, code: "HCM-BN-THPT-NTMK", name: "Đoàn Trường THPT Nguyễn Thị Minh Khai", shortName: "THPT Minh Khai", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung học phổ thông", isActive: true },
+  { id: 63, parentId: 13, code: "HCM-DH-KHTN", name: "Đoàn Trường ĐH Khoa học Tự nhiên - ĐHQG TP.HCM", shortName: "ĐH KHTN TP.HCM", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
+  { id: 64, parentId: 13, code: "HCM-DH-SP", name: "Đoàn Trường ĐH Sư phạm TP. Hồ Chí Minh", shortName: "ĐHSP TP.HCM", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
+
+  // Cấp 3 & 4 (Thành Đoàn Hà Nội)
+  { id: 70, parentId: 17, code: "HN-HK", name: "Đoàn Quận Hoàn Kiếm", shortName: "Đoàn Q. Hoàn Kiếm", orgLevel: 3, adminUnitName: "TP Hà Nội", isActive: true },
+  { id: 71, parentId: 17, code: "HN-THPT-CVA", name: "Đoàn Trường THPT Chu Văn An", shortName: "THPT Chu Văn An", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung học phổ thông", isActive: true },
+  { id: 72, parentId: 17, code: "HN-THPT-AMS", name: "Đoàn Trường THPT Chuyên Hà Nội - Amsterdam", shortName: "THPT Chuyên Hà Nội-Amsterdam", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung học phổ thông", isActive: true },
+  { id: 73, parentId: 17, code: "HN-DH-BKHN", name: "Đoàn Đại học Bách khoa Hà Nội", shortName: "ĐH Bách khoa HN", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
+  { id: 74, parentId: 17, code: "HN-DH-QGHN", name: "Đoàn Trường ĐH Khoa học Xã hội và Nhân văn - ĐHQGHN", shortName: "ĐH KHXH&NV HN", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
+  { id: 75, parentId: 70, code: "HN-HK-THPT-TP", name: "Đoàn Trường THPT Trần Phú - Hoàn Kiếm", shortName: "THPT Trần Phú - HK", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung học phổ thông", isActive: true },
+  { id: 76, parentId: 17, code: "HN-GDNN-BD", name: "Đoàn Trung tâm GDNN - GDTX Ba Đình", shortName: "GDNN-GDTX Ba Đình", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung tâm GDNN-GDTX", isActive: true },
+  { id: 65, parentId: 13, code: "HCM-THPT-GD", name: "Đoàn Trường THPT Gia Định", shortName: "THPT Gia Định", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung học phổ thông", isActive: true },
+  { id: 66, parentId: 29, code: "HCM-BN-GDNN-Q1", name: "Đoàn Trung tâm GDNN - GDTX Quận 1", shortName: "GDNN-GDTX Quận 1", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung tâm GDNN-GDTX", isActive: true },
+  { id: 54, parentId: 51, code: "DN-TT-THPT-PCT", name: "Đoàn Trường THPT Phan Châu Trinh", shortName: "THPT Phan Châu Trinh", orgLevel: 4, adminUnitName: "TP Đà Nẵng", schoolTypeName: "Trung học phổ thông", isActive: true },
+  { id: 48, parentId: 45, code: "NA-VINH-THPT-HTK", name: "Đoàn Trường THPT Huỳnh Thúc Kháng", shortName: "THPT Huỳnh Thúc Kháng", orgLevel: 4, adminUnitName: "TP Vinh, Nghệ An", schoolTypeName: "Trung học phổ thông", isActive: true },
 ];
 
 /** Đơn vị hành chính cho form phản ánh (admin_units) — chuẩn hóa Thành Đoàn, Tỉnh Đoàn */

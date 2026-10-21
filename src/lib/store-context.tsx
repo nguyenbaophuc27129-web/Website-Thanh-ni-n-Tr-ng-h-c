@@ -213,7 +213,7 @@ interface StoreValue {
   /* posts (R2) */
   savePost: (post: PublishedPost) => void;
   setPostStatus: (id: number, status: PublishedPost["status"]) => void;
-  createPostFromActivity: (session: Session, activityId: number, title: string, excerpt: string, extras?: Partial<PublishedPost>) => number;
+  createPostFromActivity: (session: Session, activityId: number | null, title: string, excerpt: string, extras?: Partial<PublishedPost>) => number;
 
   /* tasks (R3) */
   distributeAssignment: (session: Session, taskId: number, parentAssignmentId: number | null, orgUnitId: number, dueDate: string, targets: { taskMetricId: number; targetValue: number }[], note?: string) => void;
@@ -742,18 +742,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createPostFromActivity = useCallback(
-    (session: Session, activityId: number, title: string, excerpt: string, extras?: Partial<PublishedPost>) => {
-      const act = activities.find((a) => a.id === activityId);
+    (session: Session, activityId: number | null, title: string, excerpt: string, extras?: Partial<PublishedPost>) => {
+      const act = activityId ? activities.find((a) => a.id === activityId) : undefined;
       const slug = title
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D")
         .toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 70);
       const id = nextId();
       const post: PublishedPost = {
-        id, activityId, slug: slug || `bai-viet-${id}`, title, excerpt,
-        content: act?.summary ?? "",
+        id, activityId: activityId ?? null, slug: slug || `bai-viet-${id}`, title, excerpt,
+        content: extras?.content ?? act?.summary ?? "",
         coverSeed: act?.imageSeed ?? 1,
         status: "DRAFT", isFeatured: false, viewCount: 0,
-        authorOrgUnitName: act ? orgName(act.orgUnitId) : "Ban Biên tập",
+        authorOrgUnitName: act ? orgName(act.orgUnitId) : orgName(session.orgUnitId),
         editorAccountId: session.accountId,
         categoryNames: [],
         createdAt: nowISO(),

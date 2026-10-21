@@ -69,21 +69,30 @@ export default function HocSinh3TotPage() {
 
   if (!session) {
     return (
-      <div className="mx-auto max-w-md px-4 py-24 text-center">
+      <div className="mx-auto max-w-lg px-4 py-20 text-center">
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
           <GraduationCap className="h-7 w-7" />
         </span>
         <h1 className="mt-4 text-xl font-bold text-stone-900">Hồ sơ Học sinh 3 tốt</h1>
         <p className="mt-2 text-sm leading-relaxed text-stone-500">
-          Chương trình dành cho học sinh — đăng nhập bằng tài khoản Đoàn viên để mở hồ sơ,
-          cập nhật thành tích và theo dõi tiến độ xét danh hiệu.
+          Chương trình dành cho học sinh — Trung ương Đoàn TNCS Hồ Chí Minh đã chính thức triển khai Cổng quản lý hồ sơ và khen thưởng trực tuyến.
         </p>
-        <Link
-          href="/dang-nhap"
-          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          Đăng nhập để mở hồ sơ
-        </Link>
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a
+            href="https://khenthuong.doanthanhnien.vn/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700"
+          >
+            Mở Cổng Học sinh 3 tốt TW Đoàn <ArrowRight className="h-4 w-4" />
+          </a>
+          <Link
+            href="/dang-nhap"
+            className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+          >
+            Đăng nhập tài khoản nội bộ
+          </Link>
+        </div>
       </div>
     );
   }
@@ -154,6 +163,33 @@ export default function HocSinh3TotPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
+      {/* Banner liên kết Cổng Khen thưởng TW Đoàn */}
+      <div className="mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+              <Award className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-slate-900">
+                Hệ thống Quản lý Khen thưởng & Danh hiệu Học sinh 3 tốt — TW Đoàn
+              </p>
+              <p className="text-xs text-slate-600">
+                Trung ương Đoàn TNCS Hồ Chí Minh đã triển khai Cổng nộp và xét duyệt hồ sơ trực tuyến chính thức.
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://khenthuong.doanthanhnien.vn/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 hover:shadow-lg"
+          >
+            Chuyển tới khenthuong.doanthanhnien.vn <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+
       <div className="h-1 w-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />
       <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
         Hồ sơ Học sinh 3 tốt

@@ -2,7 +2,22 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Megaphone, Plus, Eye, Star, Trash2, Send, Globe, Sparkles, ImagePlus, X, Pencil, Link2, Loader2 } from "lucide-react";
+import {
+  Megaphone,
+  Plus,
+  Eye,
+  Star,
+  Trash2,
+  Send,
+  Globe,
+  Sparkles,
+  ImagePlus,
+  X,
+  Pencil,
+  Link2,
+  Loader2,
+  PenSquare,
+} from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -43,7 +58,7 @@ function mockFromUrl(url: string): ImportedArticle {
         .join(" ");
     }
   } catch {
-    // URL đã được kiểm tra hợp lệ trước khi gọi — bỏ qua
+    // URL đã được kiểm tra hợp lệ trước khi gọi
   }
   const title = `Bài viết từ ${host}: ${words}`.slice(0, 120);
   return {
@@ -59,7 +74,122 @@ function mockFromUrl(url: string): ImportedArticle {
   };
 }
 
-/** Chọn từ khóa sự kiện + chuyên mục trang chủ từ danh mục cố định — thống nhất thẻ (#) trên trang tin tức */
+/** Thanh công cụ soạn thảo phong phú: In đậm, In nghiêng, H2, H3, Chèn ảnh, Chèn link, Trích dẫn, Đếm từ & ký tự */
+function EditorToolbar({
+  textareaRef,
+  value,
+  onChange,
+}: {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const insertText = (before: string, after: string = "", placeholder: string = "") => {
+    const el = textareaRef.current;
+    if (!el) {
+      onChange(value + before + placeholder + after);
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = value.slice(start, end) || placeholder;
+    const next = value.slice(0, start) + before + selected + after + value.slice(end);
+    onChange(next);
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + before.length, start + before.length + selected.length);
+    }, 40);
+  };
+
+  const insertImage = () => {
+    const url = window.prompt("Nhập đường dẫn hình ảnh (URL bắt đầu bằng https://):", "https://");
+    if (!url || url === "https://") return;
+    const caption = window.prompt("Nhập chú thích ảnh (tùy chọn):", "") || "";
+    insertText(`\n\n![${caption}](${url})` + (caption ? `\n*${caption}*\n\n` : "\n\n"));
+  };
+
+  const insertLink = () => {
+    const url = window.prompt("Nhập địa chỉ liên kết (URL):", "https://");
+    if (!url || url === "https://") return;
+    const label = window.prompt("Nhập tên hiển thị cho liên kết:", "Xem chi tiết") || "Liên kết";
+    insertText(`[${label}](${url})`);
+  };
+
+  const words = value.trim() ? value.trim().split(/\s+/).length : 0;
+  const chars = value.length;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-b-0 border-stone-200 bg-stone-50 px-3 py-1.5 text-xs text-stone-600">
+      <div className="flex flex-wrap items-center gap-1">
+        <button
+          type="button"
+          onClick={() => insertText("**", "**", "chữ đậm")}
+          title="In đậm (Bold)"
+          className="flex h-7 w-7 items-center justify-center rounded font-bold hover:bg-stone-200 text-stone-800"
+        >
+          B
+        </button>
+        <button
+          type="button"
+          onClick={() => insertText("*", "*", "chữ nghiêng")}
+          title="In nghiêng (Italic)"
+          className="flex h-7 w-7 items-center justify-center rounded italic font-serif hover:bg-stone-200 text-stone-800"
+        >
+          I
+        </button>
+        <span className="mx-1 h-4 w-px bg-stone-300" />
+        <button
+          type="button"
+          onClick={() => insertText("\n## ", "\n", "Tiêu đề mục lớn")}
+          title="Tiêu đề mục lớn (H2)"
+          className="rounded px-2 py-1 font-bold text-[11px] hover:bg-stone-200 text-stone-800"
+        >
+          H2
+        </button>
+        <button
+          type="button"
+          onClick={() => insertText("\n### ", "\n", "Tiêu đề phụ")}
+          title="Tiêu đề phụ (H3)"
+          className="rounded px-2 py-1 font-bold text-[11px] hover:bg-stone-200 text-stone-800"
+        >
+          H3
+        </button>
+        <span className="mx-1 h-4 w-px bg-stone-300" />
+        <button
+          type="button"
+          onClick={insertImage}
+          title="Chèn hình ảnh từ URL"
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800"
+        >
+          <ImagePlus className="h-3.5 w-3.5" /> Chèn ảnh
+        </button>
+        <button
+          type="button"
+          onClick={insertLink}
+          title="Chèn liên kết"
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800"
+        >
+          <Link2 className="h-3.5 w-3.5" /> Chèn link
+        </button>
+        <button
+          type="button"
+          onClick={() => insertText("\n> ", "\n", "Nội dung trích dẫn")}
+          title="Trích dẫn (Quote)"
+          className="rounded px-2 py-1 font-mono text-[11px] hover:bg-stone-200 text-stone-800"
+        >
+          “ ”
+        </button>
+      </div>
+
+      <div className="font-mono text-[11px] text-stone-500">
+        Từ: <strong className="text-stone-800">{words}</strong> · Ký tự:{" "}
+        <strong className="text-stone-800">{chars}</strong>
+      </div>
+    </div>
+  );
+}
+
+/** Chọn từ khóa sự kiện + chuyên mục trang chủ từ danh mục cố định */
 function KeywordPicker({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
   return (
     <div className="space-y-2.5">
@@ -82,7 +212,6 @@ function KeywordPicker({ value, onChange }: { value: string[]; onChange: (next: 
           );
         })}
       </div>
-      {/* Chuyên mục trang chủ — gắn tag để bài TỰ ĐỘNG xuất hiện ở khu vực tương ứng */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-600">
           Chuyên mục trang chủ
@@ -114,22 +243,36 @@ export default function XuatBanPage() {
   const store = useStore();
   const { toast } = useToast();
   const [tab, setTab] = useState("all");
+
+  // Tạo bài viết (thủ công hoặc từ hoạt động)
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ activityId: "", title: "", excerpt: "" });
+  const [createMode, setCreateMode] = useState<"manual" | "activity">("manual");
+  const [form, setForm] = useState({
+    activityId: "",
+    title: "",
+    excerpt: "",
+    content: "",
+    coverUrl: "",
+  });
   const [keywords, setKeywords] = useState<string[]>([]);
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const createTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   // Chỉnh sửa bài đã có
   const [editing, setEditing] = useState<PublishedPost | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", excerpt: "", content: "" });
+  const [editForm, setEditForm] = useState({ title: "", excerpt: "", content: "", coverUrl: "" });
   const [editKeywords, setEditKeywords] = useState<string[]>([]);
   const [editCover, setEditCover] = useState<string | null | undefined>(undefined);
   const editCoverInputRef = useRef<HTMLInputElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   // Nhập tin từ đường link
   const [importOpen, setImportOpen] = useState(false);
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState<ImportedArticle | null>(null);
+  const importTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const readCover = (file: File | undefined, setter: (v: string | null) => void) => {
     if (!file) return;
@@ -170,24 +313,52 @@ export default function XuatBanPage() {
     UNPUBLISHED: store.publishedPosts.filter((p) => p.status === "UNPUBLISHED").length,
   };
 
+  const openManualCreate = () => {
+    setCreateMode("manual");
+    setForm({ activityId: "", title: "", excerpt: "", content: "", coverUrl: "" });
+    setKeywords([]);
+    setCoverDataUrl(null);
+    setCreateOpen(true);
+  };
+
+  const openActivityCreate = () => {
+    setCreateMode("activity");
+    setForm({ activityId: "", title: "", excerpt: "", content: "", coverUrl: "" });
+    setKeywords([]);
+    setCoverDataUrl(null);
+    setCreateOpen(true);
+  };
+
   const handleCreate = () => {
     if (!session) return;
-    if (!form.activityId || !form.title.trim()) {
-      toast("Chọn hoạt động và nhập tiêu đề bài viết.", "warning");
+    if (!form.title.trim()) {
+      toast("Vui lòng nhập tiêu đề bài viết.", "warning");
       return;
     }
-    const act = store.activities.find((a) => a.id === Number(form.activityId));
-    const excerpt = form.excerpt.trim() || (act?.summary.slice(0, 200) ?? "");
+
+    const actId = form.activityId ? Number(form.activityId) : null;
+    const act = actId ? store.activities.find((a) => a.id === actId) : undefined;
+    const excerpt =
+      form.excerpt.trim() ||
+      act?.summary.slice(0, 200) ||
+      form.content.trim().slice(0, 180) ||
+      form.title.trim();
+
     const derived = act?.categoryIds.map((cid) => store.contentCategories.find((c) => c.id === cid)?.name ?? "").filter(Boolean) ?? [];
     const categoryNames = Array.from(new Set([...derived, ...keywords]));
-    store.createPostFromActivity(session, Number(form.activityId), form.title.trim(), excerpt, {
+
+    const finalCover = form.coverUrl.trim() || coverDataUrl || undefined;
+
+    store.createPostFromActivity(session, actId, form.title.trim(), excerpt, {
+      content: form.content.trim() || act?.summary || "",
       categoryNames,
       metaDescription: excerpt.slice(0, 160),
-      coverDataUrl: coverDataUrl ?? undefined,
+      coverDataUrl: finalCover,
     });
-    toast("Đã tạo bản nháp từ hoạt động. Bạn biên tập và đăng công khai khi sẵn sàng.");
+
+    toast(actId ? "Đã tạo bản nháp từ hoạt động." : "Đã tạo bài viết thủ công mới thành công!");
     setCreateOpen(false);
-    setForm({ activityId: "", title: "", excerpt: "" });
+    setForm({ activityId: "", title: "", excerpt: "", content: "", coverUrl: "" });
     setKeywords([]);
     setCoverDataUrl(null);
   };
@@ -221,7 +392,6 @@ export default function XuatBanPage() {
         mock: false,
       });
     } catch {
-      // Trang chặn bot / hỏng → dựng bản mô phỏng từ slug để vẫn có bản nháp
       setImported(mockFromUrl(url));
       toast("Không trích xuất được trang thật — hệ thống tạo bản nháp mô phỏng từ đường link.", "info");
     } finally {
@@ -258,7 +428,12 @@ export default function XuatBanPage() {
 
   const openEdit = (p: PublishedPost) => {
     setEditing(p);
-    setEditForm({ title: p.title, excerpt: p.excerpt, content: p.content });
+    setEditForm({
+      title: p.title,
+      excerpt: p.excerpt,
+      content: p.content,
+      coverUrl: p.coverDataUrl?.startsWith("http") ? p.coverDataUrl : "",
+    });
     setEditKeywords(p.categoryNames);
     setEditCover(undefined);
   };
@@ -269,6 +444,16 @@ export default function XuatBanPage() {
       toast("Tiêu đề bài viết không được để trống.", "warning");
       return;
     }
+
+    let finalCover: string | undefined = undefined;
+    if (editForm.coverUrl.trim()) {
+      finalCover = editForm.coverUrl.trim();
+    } else if (editCover === undefined) {
+      finalCover = editing.coverDataUrl;
+    } else {
+      finalCover = editCover ?? undefined;
+    }
+
     store.savePost({
       ...editing,
       title: editForm.title.trim(),
@@ -276,7 +461,7 @@ export default function XuatBanPage() {
       content: editForm.content,
       categoryNames: editKeywords,
       metaDescription: editForm.excerpt.trim().slice(0, 160),
-      coverDataUrl: editCover === undefined ? editing.coverDataUrl : (editCover ?? undefined),
+      coverDataUrl: finalCover,
     });
     toast("Đã cập nhật bài viết.");
     setEditing(null);
@@ -293,20 +478,25 @@ export default function XuatBanPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif-display text-xl font-bold text-stone-900">Xuất bản tin bài</h1>
+          <h1 className="font-serif-display text-2xl font-black tracking-tight text-stone-900">
+            Biên tập &amp; Xuất bản tin bài
+          </h1>
           <p className="mt-0.5 text-sm text-stone-500">
-            Mọi đơn vị tự biên tập tin từ hoạt động của mình và đăng công khai — Ban Công tác Thanh Thiếu Nhi giám sát, gỡ bài nếu không phù hợp.
+            Biên tập tin bài thủ công hoặc liên kết từ hoạt động — Ban Công tác Thanh Thiếu Nhi giám sát, xuất bản công khai.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Link2 className="h-4 w-4" /> Nhập tin từ đường link
           </Button>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> Tạo bài từ hoạt động
+          <Button variant="secondary" onClick={openActivityCreate}>
+            <Sparkles className="h-4 w-4" /> Tạo bài từ hoạt động
+          </Button>
+          <Button onClick={openManualCreate}>
+            <PenSquare className="h-4 w-4" /> Viết bài mới (thủ công)
           </Button>
         </div>
       </div>
@@ -328,10 +518,14 @@ export default function XuatBanPage() {
           <Card key={p.id} className="overflow-hidden">
             <div className="relative">
               <PhotoPlaceholder seed={p.coverSeed} src={p.coverDataUrl} className="h-32 w-full" />
-              <div className="absolute left-2 top-2"><PostStatusBadge status={p.status} /></div>
+              <div className="absolute left-2 top-2">
+                <PostStatusBadge status={p.status} />
+              </div>
               {p.isFeatured ? (
                 <div className="absolute right-2 top-2">
-                  <span className="rounded bg-vang-300 px-1.5 py-0.5 text-[10px] font-bold text-doan-800">NỔI BẬT</span>
+                  <span className="rounded bg-vang-300 px-1.5 py-0.5 text-[10px] font-bold text-doan-800">
+                    NỔI BẬT
+                  </span>
                 </div>
               ) : null}
             </div>
@@ -350,7 +544,11 @@ export default function XuatBanPage() {
                 >
                   <Sparkles className="h-3 w-3" /> Gắn với hoạt động #{p.activityId}
                 </Link>
-              ) : null}
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                  <PenSquare className="h-3 w-3 text-slate-400" /> Bài viết độc lập
+                </span>
+              )}
               <div className="flex flex-wrap gap-1.5 border-t border-stone-100 pt-2.5">
                 {p.status === "DRAFT" || p.status === "UNPUBLISHED" ? (
                   <Button size="sm" variant="secondary" onClick={() => changeStatus(p.id, "PUBLISHED")}>
@@ -369,51 +567,75 @@ export default function XuatBanPage() {
                     </Button>
                   </>
                 ) : null}
-                {session && (p.editorAccountId === session.accountId || session.role === "QUAN_TRI_TW" || session.role === "BIEN_TAP_VIEN") ? (
+                {session &&
+                (p.editorAccountId === session.accountId ||
+                  session.role === "QUAN_TRI_TW" ||
+                  session.role === "BIEN_TAP_VIEN") ? (
                   <Button size="sm" variant="outline" onClick={() => openEdit(p)}>
                     <Pencil className="h-3.5 w-3.5" /> Sửa
                   </Button>
                 ) : null}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    store.savePost({ ...p, isFeatured: !p.isFeatured });
-                    toast(p.isFeatured ? "Đã bỏ nổi bật." : "Đã đặt làm bài nổi bật trang chủ.");
-                  }}
-                >
-                  <Star className={`h-3.5 w-3.5 ${p.isFeatured ? "fill-amber-400 text-amber-400" : ""}`} />
-                  {p.isFeatured ? "Bỏ nổi bật" : "Nổi bật"}
-                </Button>
               </div>
             </CardBody>
           </Card>
         ))}
       </div>
 
+      {/* Modal Soạn tin / Tạo bài viết (Thủ công hoặc Hoạt động) */}
       <Modal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        title="Tạo bài viết từ hoạt động"
+        title={createMode === "manual" ? "Viết bài mới (thủ công)" : "Tạo bài viết từ hoạt động"}
         wide
         footer={
           <>
-            <Button variant="secondary" onClick={() => setCreateOpen(false)}>Hủy</Button>
-            <Button onClick={handleCreate}><Megaphone className="h-4 w-4" /> Tạo bản nháp</Button>
+            <Button variant="secondary" onClick={() => setCreateOpen(false)}>
+              Hủy
+            </Button>
+            <Button onClick={handleCreate}>
+              <Megaphone className="h-4 w-4" /> Tạo bản nháp
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <Field label="Chọn hoạt động đã xác nhận" required hint="Chỉ hiển thị hoạt động trong phạm vi của bạn đã được cấp trên xác nhận.">
-            <Select value={form.activityId} onChange={(e) => setForm((f) => ({ ...f, activityId: e.target.value }))}>
-              <option value="">— Chọn hoạt động —</option>
-              {confirmedActivities.map((a) => (
-                <option key={a.id} value={a.id}>
-                  #{a.id} — {a.title.slice(0, 70)}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {createMode === "activity" ? (
+            <Field
+              label="Chọn hoạt động đã xác nhận"
+              required
+              hint="Chỉ hiển thị hoạt động trong phạm vi của bạn đã được cấp trên xác nhận."
+            >
+              <Select
+                value={form.activityId}
+                onChange={(e) => setForm((f) => ({ ...f, activityId: e.target.value }))}
+              >
+                <option value="">— Chọn hoạt động —</option>
+                {confirmedActivities.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    #{a.id} — {a.title.slice(0, 70)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <Field
+              label="Hoạt động liên quan (tùy chọn)"
+              hint="Có thể để trống nếu đây là tin bài thông báo, nghiên cứu, kỹ năng hoặc bài viết tự do."
+            >
+              <Select
+                value={form.activityId}
+                onChange={(e) => setForm((f) => ({ ...f, activityId: e.target.value }))}
+              >
+                <option value="">— Bài viết độc lập (không gắn hoạt động) —</option>
+                {confirmedActivities.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    #{a.id} — {a.title.slice(0, 70)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+
           <Field label="Tiêu đề bài viết" required>
             <Input
               value={form.title}
@@ -423,51 +645,106 @@ export default function XuatBanPage() {
           </Field>
           {form.title.trim() ? (
             <p className="text-[11px] text-stone-400">
-              Đường dẫn: <code className="rounded bg-stone-100 px-1">/tin-tuc/{slugify(form.title)}</code>
+              Đường dẫn dự kiến:{" "}
+              <code className="rounded bg-stone-100 px-1 text-slate-600">/tin-tuc/{slugify(form.title)}</code>
             </p>
           ) : null}
-          <Field label="Tóm tắt (lead)" hint="Để trống sẽ lấy tóm tắt hoạt động.">
+
+          <Field label="Tóm tắt (lead)" hint="Đoạn mở đầu nổi bật hiển thị in nghiêng ở đầu bài viết và thẻ xem trước.">
             <Textarea
               value={form.excerpt}
               onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))}
-              rows={3}
+              rows={2}
+              placeholder="Tóm tắt ngắn gọn 1-2 câu nội dung chính của bài viết…"
             />
           </Field>
-          <Field label="Từ khóa sự kiện" hint="Chọn từ danh mục cố định — thống nhất thẻ (#) và bộ lọc trên trang tin tức.">
+
+          <div>
+            <label className="text-xs font-medium text-stone-600">
+              Nội dung bài viết <span className="text-rose-500">*</span>
+            </label>
+            <div className="mt-1">
+              <EditorToolbar
+                textareaRef={createTextareaRef}
+                value={form.content}
+                onChange={(content) => setForm((f) => ({ ...f, content }))}
+              />
+              <textarea
+                ref={createTextareaRef}
+                value={form.content}
+                onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+                rows={10}
+                placeholder="Nhập nội dung bài viết. Bạn có thể sử dụng thanh công cụ bên trên để in đậm, in nghiêng, chèn ảnh, chèn liên kết, tiêu đề mục H2/H3..."
+                className="w-full rounded-b-xl border border-stone-200 bg-white p-3 text-sm text-stone-800 outline-none transition-all placeholder:text-stone-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-stone-400">
+              * Hỗ trợ định dạng Markdown, chèn ảnh bằng cú pháp ![chú thích](url), tiêu đề ## mục lớn.
+            </p>
+          </div>
+
+          <Field label="Từ khóa &amp; chuyên mục trang chủ" hint="Chọn để bài viết hiển thị ở chuyên mục tương ứng trên website.">
             <KeywordPicker value={keywords} onChange={setKeywords} />
           </Field>
-          <Field label="Ảnh bìa" hint="JPG/PNG tối đa 2MB — hiển thị thay ảnh minh họa mặc định ở trang tin tức.">
-            <input
-              ref={coverInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                pickCover(e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            {coverDataUrl ? (
-              <div className="flex items-start gap-3">
-                <img src={coverDataUrl} alt="Ảnh bìa" className="h-24 w-40 rounded-lg border border-stone-200 object-cover" />
-                <div className="space-y-2">
-                  <Button size="sm" variant="outline" onClick={() => coverInputRef.current?.click()}>
-                    <ImagePlus className="h-3.5 w-3.5" /> Đổi ảnh khác
-                  </Button>
-                  <Button size="sm" variant="danger" onClick={() => setCoverDataUrl(null)}>
-                    <X className="h-3.5 w-3.5" /> Bỏ ảnh
-                  </Button>
-                </div>
+
+          <Field label="Ảnh bìa (Đại diện bài viết)" hint="Tải tệp lên (JPG/PNG tối đa 2MB) hoặc dán trực tiếp đường dẫn ảnh (URL).">
+            <div className="space-y-3">
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  pickCover(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.coverUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, coverUrl: e.target.value }))}
+                  placeholder="https://... dán link ảnh trực tuyến"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => coverInputRef.current?.click()}
+                  className="shrink-0"
+                >
+                  <ImagePlus className="h-4 w-4" /> Tải tệp lên
+                </Button>
               </div>
-            ) : (
-              <Button variant="outline" onClick={() => coverInputRef.current?.click()}>
-                <ImagePlus className="h-4 w-4" /> Tải hình lên
-              </Button>
-            )}
+
+              {form.coverUrl.trim() || coverDataUrl ? (
+                <div className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={form.coverUrl.trim() || coverDataUrl || ""}
+                    alt="Xem trước ảnh bìa"
+                    className="h-24 w-40 rounded-lg border border-stone-200 object-cover"
+                  />
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-stone-700">Xem trước ảnh bìa</p>
+                    <p className="text-[11px] text-stone-500">Kích thước khuyến nghị: 1200 x 630 hoặc 600 x 315</p>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => {
+                        setCoverDataUrl(null);
+                        setForm((f) => ({ ...f, coverUrl: "" }));
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" /> Bỏ ảnh
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </Field>
         </div>
       </Modal>
 
+      {/* Modal Nhập tin từ đường link */}
       <Modal
         open={importOpen}
         onClose={() => setImportOpen(false)}
@@ -475,7 +752,9 @@ export default function XuatBanPage() {
         wide
         footer={
           <>
-            <Button variant="secondary" onClick={() => setImportOpen(false)}>Hủy</Button>
+            <Button variant="secondary" onClick={() => setImportOpen(false)}>
+              Hủy
+            </Button>
             <Button onClick={saveImported} disabled={!imported || importing}>
               <Megaphone className="h-4 w-4" /> Tạo bản nháp
             </Button>
@@ -483,12 +762,15 @@ export default function XuatBanPage() {
         }
       >
         <div className="space-y-4">
-          <Field label="Đường dẫn bài viết" hint="Dán link bài báo / bài đăng chính thống — hệ thống tự đọc tiêu đề, mô tả, ảnh và nội dung.">
+          <Field
+            label="Đường dẫn bài viết"
+            hint="Dán link bài báo / bài đăng Facebook — hệ thống tự đọc tiêu đề, tóm tắt, ảnh và nội dung có định dạng."
+          >
             <div className="flex gap-2">
               <Input
                 value={importUrl}
                 onChange={(e) => setImportUrl(e.target.value)}
-                placeholder="https://baochinhphu.vn/..."
+                placeholder="https://baochinhphu.vn/... hoặc https://facebook.com/..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter") runExtract();
                 }}
@@ -504,7 +786,7 @@ export default function XuatBanPage() {
             <div className="space-y-3 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
               {imported.mock ? (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-700 ring-1 ring-amber-100">
-                  Bản nháp mô phỏng — trang gốc không đọc được, bạn cần dán nội dung thật vào ô bên dưới.
+                  Bản nháp mô phỏng — trang gốc bị hạn chế truy cập trực tiếp, bạn hãy kiểm tra và hoàn thiện nội dung.
                 </p>
               ) : (
                 <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
@@ -521,16 +803,26 @@ export default function XuatBanPage() {
                 <Textarea
                   value={imported.excerpt}
                   onChange={(e) => setImported((prev) => (prev ? { ...prev, excerpt: e.target.value } : prev))}
-                  rows={3}
+                  rows={2}
                 />
               </Field>
-              <Field label="Nội dung" hint="Các đoạn văn cách nhau bởi một dòng trống.">
-                <Textarea
-                  value={imported.content}
-                  onChange={(e) => setImported((prev) => (prev ? { ...prev, content: e.target.value } : prev))}
-                  rows={9}
-                />
-              </Field>
+              <div>
+                <label className="text-xs font-medium text-stone-600">Nội dung bài viết</label>
+                <div className="mt-1">
+                  <EditorToolbar
+                    textareaRef={importTextareaRef}
+                    value={imported.content}
+                    onChange={(content) => setImported((prev) => (prev ? { ...prev, content } : prev))}
+                  />
+                  <textarea
+                    ref={importTextareaRef}
+                    value={imported.content}
+                    onChange={(e) => setImported((prev) => (prev ? { ...prev, content: e.target.value } : prev))}
+                    rows={10}
+                    className="w-full rounded-b-xl border border-stone-200 bg-white p-3 text-sm text-stone-800 outline-none transition-all focus:border-cyan-400"
+                  />
+                </div>
+              </div>
               {imported.imageUrl ? (
                 <Field label="Ảnh bìa từ nguồn">
                   <div className="flex items-start gap-3">
@@ -540,7 +832,11 @@ export default function XuatBanPage() {
                       alt="Ảnh bìa từ nguồn"
                       className="h-24 w-40 rounded-lg border border-stone-200 object-cover"
                     />
-                    <Button size="sm" variant="danger" onClick={() => setImported((prev) => (prev ? { ...prev, imageUrl: undefined } : prev))}>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => setImported((prev) => (prev ? { ...prev, imageUrl: undefined } : prev))}
+                    >
                       <X className="h-3.5 w-3.5" /> Bỏ ảnh
                     </Button>
                   </div>
@@ -548,13 +844,12 @@ export default function XuatBanPage() {
               ) : null}
             </div>
           ) : (
-            <p className="text-[11px] text-stone-400">
-              Chưa có nội dung — dán đường dẫn rồi bấm "Trích xuất".
-            </p>
+            <p className="text-[11px] text-stone-400">Chưa có nội dung — dán đường dẫn rồi bấm "Trích xuất".</p>
           )}
         </div>
       </Modal>
 
+      {/* Modal Chỉnh sửa bài viết */}
       <Modal
         open={editing !== null}
         onClose={() => setEditing(null)}
@@ -562,8 +857,12 @@ export default function XuatBanPage() {
         wide
         footer={
           <>
-            <Button variant="secondary" onClick={() => setEditing(null)}>Hủy</Button>
-            <Button onClick={saveEdit}><Pencil className="h-4 w-4" /> Lưu thay đổi</Button>
+            <Button variant="secondary" onClick={() => setEditing(null)}>
+              Hủy
+            </Button>
+            <Button onClick={saveEdit}>
+              <Pencil className="h-4 w-4" /> Lưu thay đổi
+            </Button>
           </>
         }
       >
@@ -578,20 +877,36 @@ export default function XuatBanPage() {
             <Textarea
               value={editForm.excerpt}
               onChange={(e) => setEditForm((f) => ({ ...f, excerpt: e.target.value }))}
-              rows={3}
+              rows={2}
             />
           </Field>
-          <Field label="Nội dung" hint="Các đoạn văn cách nhau bởi một dòng trống.">
-            <Textarea
-              value={editForm.content}
-              onChange={(e) => setEditForm((f) => ({ ...f, content: e.target.value }))}
-              rows={9}
-            />
-          </Field>
-          <Field label="Từ khóa sự kiện" hint="Chọn từ danh mục cố định — thống nhất thẻ (#) và bộ lọc trên trang tin tức.">
+
+          <div>
+            <label className="text-xs font-medium text-stone-600">Nội dung bài viết</label>
+            <div className="mt-1">
+              <EditorToolbar
+                textareaRef={editTextareaRef}
+                value={editForm.content}
+                onChange={(content) => setEditForm((f) => ({ ...f, content }))}
+              />
+              <textarea
+                ref={editTextareaRef}
+                value={editForm.content}
+                onChange={(e) => setEditForm((f) => ({ ...f, content: e.target.value }))}
+                rows={10}
+                className="w-full rounded-b-xl border border-stone-200 bg-white p-3 text-sm text-stone-800 outline-none transition-all focus:border-cyan-400"
+              />
+            </div>
+          </div>
+
+          <Field
+            label="Từ khóa &amp; chuyên mục"
+            hint="Chọn từ danh mục cố định — thống nhất thẻ (#) và bộ lọc trên trang tin tức."
+          >
             <KeywordPicker value={editKeywords} onChange={setEditKeywords} />
           </Field>
-          <Field label="Ảnh bìa" hint="Giữ nguyên nếu không thao tác; JPG/PNG tối đa 2MB.">
+
+          <Field label="Ảnh bìa" hint="Dán đường dẫn ảnh trực tuyến hoặc tải tệp lên (JPG/PNG tối đa 2MB).">
             <input
               ref={editCoverInputRef}
               type="file"
@@ -602,29 +917,57 @@ export default function XuatBanPage() {
                 e.target.value = "";
               }}
             />
-            {(() => {
-              const preview = editCover === undefined ? (editing?.coverDataUrl ?? null) : editCover;
-              if (preview) {
-                return (
-                  <div className="flex items-start gap-3">
-                    <img src={preview} alt="Ảnh bìa" className="h-24 w-40 rounded-lg border border-stone-200 object-cover" />
-                    <div className="space-y-2">
-                      <Button size="sm" variant="outline" onClick={() => editCoverInputRef.current?.click()}>
-                        <ImagePlus className="h-3.5 w-3.5" /> Đổi ảnh khác
-                      </Button>
-                      <Button size="sm" variant="danger" onClick={() => setEditCover(null)}>
-                        <X className="h-3.5 w-3.5" /> Bỏ ảnh
-                      </Button>
-                    </div>
-                  </div>
-                );
-              }
-              return (
-                <Button variant="outline" onClick={() => editCoverInputRef.current?.click()}>
-                  <ImagePlus className="h-4 w-4" /> Tải hình lên
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={editForm.coverUrl}
+                  onChange={(e) => setEditForm((f) => ({ ...f, coverUrl: e.target.value }))}
+                  placeholder="https://... dán link ảnh mới"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => editCoverInputRef.current?.click()}
+                  className="shrink-0"
+                >
+                  <ImagePlus className="h-4 w-4" /> Tải tệp lên
                 </Button>
-              );
-            })()}
+              </div>
+
+              {(() => {
+                const preview =
+                  editForm.coverUrl.trim() ||
+                  (editCover === undefined ? (editing?.coverDataUrl ?? null) : editCover);
+                if (preview) {
+                  return (
+                    <div className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={preview}
+                        alt="Ảnh bìa"
+                        className="h-24 w-40 rounded-lg border border-stone-200 object-cover"
+                      />
+                      <div className="space-y-1.5">
+                        <Button size="sm" variant="outline" onClick={() => editCoverInputRef.current?.click()}>
+                          <ImagePlus className="h-3.5 w-3.5" /> Đổi ảnh
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => {
+                            setEditCover(null);
+                            setEditForm((f) => ({ ...f, coverUrl: "" }));
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" /> Bỏ ảnh
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
           </Field>
         </div>
       </Modal>
