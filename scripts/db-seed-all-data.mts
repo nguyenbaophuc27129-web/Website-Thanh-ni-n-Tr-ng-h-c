@@ -38,7 +38,12 @@ if (!url || url.includes("<MAT-KHAU>")) {
   process.exit(1);
 }
 
-const attendances: unknown[] = [];
+const attendances = [
+  { id: 1, activityId: 101, memberName: "Nguyễn Thị Kim Ngân", memberClass: "12A1", orgUnitId: 31, checkedInAt: "2026-08-15T01:10:00Z" },
+  { id: 2, activityId: 101, memberName: "Trần Hoàng Phú", memberClass: "11A3", orgUnitId: 31, checkedInAt: "2026-08-15T01:12:00Z" },
+  { id: 3, activityId: 101, memberName: "Lê Thanh Trúc", memberClass: "10A2", orgUnitId: 31, checkedInAt: "2026-08-15T01:15:00Z" },
+  { id: 4, activityId: 102, memberName: "Phạm Mỹ Duyên", memberClass: "12A5", orgUnitId: 31, checkedInAt: "2026-08-02T02:30:00Z" },
+];
 
 const entities: Record<string, unknown[]> = {
   criteriaSets,
@@ -97,28 +102,6 @@ try {
     await client.query(`DELETE FROM ${ENTITY_SPECS[name].table}`);
   }
 
-  // Dọn tài khoản + phiên đăng nhập: CHỈ giữ tw.admin (id 1) nguyên trạng mật khẩu
-  await client.query("DELETE FROM auth_sessions");
-  const accGone = await client.query("DELETE FROM accounts WHERE id <> 1");
-
-  // Quét các bảng ngoài ENTITY_ORDER còn sót dữ liệu (bảng vận hành: audit_logs, post_views…)
-  // → xoá nốt. DANH MỤC + cây tổ chức được GIỮ NGUYÊN.
-  const keepTables = new Set([
-    ...ENTITY_ORDER.map((n) => ENTITY_SPECS[n].table),
-    "ranking_entries", "ranking_snapshots",
-    "org_units", "school_types", "accounts", "schema_migrations",
-    "roles", "content_categories", "document_categories", "feedback_topics", "resource_types",
-  ]);
-  const leftovers = await client.query<{ table_name: string }>(
-    `SELECT table_name FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> ALL($1)`,
-    [[...keepTables]]
-  );
-  for (const { table_name } of leftovers.rows) {
-    const n = await client.query(`DELETE FROM ${table_name}`);
-    if (n.rowCount && n.rowCount > 0) console.log(`   + dọn bảng ngoài ${table_name}: ${n.rowCount} dòng`);
-  }
-
   const counts: Record<string, number> = {};
   for (const name of ENTITY_ORDER) {
     const list = entities[name];
@@ -135,9 +118,7 @@ try {
       [s.id, s.name, s.criteriaSetId, s.scopeOrgUnitId, s.rankedOrgLevel, s.rankingType, s.periodType, s.periodStart, s.periodEnd, s.totalUnits, s.generatedByAccountId, s.status]
     );
   }
-  if (rankingSnapshots.length > 0) {
-    await client.query("SELECT setval(pg_get_serial_sequence('ranking_snapshots', 'id'), (SELECT max(id) FROM ranking_snapshots))");
-  }
+  await client.query("SELECT setval(pg_get_serial_sequence('ranking_snapshots', 'id'), (SELECT max(id) FROM ranking_snapshots))");
   counts["rankingSnapshots"] = rankingSnapshots.length;
 
   // Insert ranking_entries
@@ -148,18 +129,15 @@ try {
       [e.id, e.snapshotId, e.orgUnitId, e.rankPosition, e.totalScore, e.completionRate, e.completedTasks, e.totalTasks, e.activityCount]
     );
   }
-  if (rankingEntries.length > 0) {
-    await client.query("SELECT setval(pg_get_serial_sequence('ranking_entries', 'id'), (SELECT max(id) FROM ranking_entries))");
-  }
+  await client.query("SELECT setval(pg_get_serial_sequence('ranking_entries', 'id'), (SELECT max(id) FROM ranking_entries))");
   counts["rankingEntries"] = rankingEntries.length;
 
   await client.query("COMMIT");
 
-  console.log("🎉 Reset tnth_dev về baseline sạch (chỉ còn dữ liệu gốc + 01 admin TW):");
+  console.log("🎉 Seed toàn bộ 35 entities thành công vào PostgreSQL tnth_dev:");
   for (const [k, v] of Object.entries(counts)) {
     console.log(`   ${k}: ${v} dòng`);
   }
-  console.log(`   accounts: xoá ${accGone.rowCount ?? 0} tài khoản, chỉ còn tw.admin (id 1)`);
 } catch (err) {
   await client.query("ROLLBACK").catch(() => {});
   console.error("❌ Lỗi khi seed entities:", err);

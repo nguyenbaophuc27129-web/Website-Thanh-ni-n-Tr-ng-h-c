@@ -108,8 +108,13 @@ function buildRandomLiveEvent(unit: (typeof seedOrgUnits)[number]): Omit<LiveEve
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** Điểm danh — ghi từ thao tác thật, không seed mẫu */
-const seedAttendances: Attendance[] = [];
+/** Seed điểm danh cho activity 101/102 */
+const seedAttendances: Attendance[] = [
+  { id: 1, activityId: 101, memberName: "Nguyễn Thị Kim Ngân", memberClass: "12A1", orgUnitId: 31, checkedInAt: "2026-08-15T01:10:00Z" },
+  { id: 2, activityId: 101, memberName: "Trần Hoàng Phú", memberClass: "11A3", orgUnitId: 31, checkedInAt: "2026-08-15T01:12:00Z" },
+  { id: 3, activityId: 101, memberName: "Lê Thanh Trúc", memberClass: "10A2", orgUnitId: 31, checkedInAt: "2026-08-15T01:15:00Z" },
+  { id: 4, activityId: 102, memberName: "Phạm Mỹ Duyên", memberClass: "12A5", orgUnitId: 31, checkedInAt: "2026-08-02T02:30:00Z" },
+];
 
 /* ---------------- v15 — Đồng bộ PostgreSQL qua /api/store ----------------
  * Mỗi entity ghi từ UI được đánh dấu "bẩn" rồi gộp nhóm gửi POST /api/store

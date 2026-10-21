@@ -284,20 +284,11 @@ export default function HomePage() {
                   Xem tất cả <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
-              {published.length === 0 ? (
-                <div className="mt-4 rounded-xl border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
-                  <p className="text-sm font-medium text-stone-500">Chưa có tin bài nào được xuất bản.</p>
-                  <p className="mt-1 text-xs text-stone-400">
-                    Tin tức hoạt động từ các đơn vị sẽ được cập nhật tại đây sau khi biên tập, duyệt đăng.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {gridNews.map((p) => (
-                    <NewsCard key={p.id} post={p} />
-                  ))}
-                </div>
-              )}
+              <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {gridNews.map((p) => (
+                  <NewsCard key={p.id} post={p} />
+                ))}
+              </div>
             </section>
 
             <aside className="space-y-8">

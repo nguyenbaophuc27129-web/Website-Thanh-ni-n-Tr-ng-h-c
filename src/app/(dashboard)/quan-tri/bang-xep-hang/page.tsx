@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { TableWrap, THead, Th, Tr, Td, EmptyRow } from "@/components/ui/table";
+import { MockExportButton } from "@/components/dashboard/mock-export-button";
 import { Progress } from "@/components/dashboard/progress-bar";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import type { RankingSnapshot } from "@/types";
@@ -123,6 +124,7 @@ export default function BangXepHangAdminPage() {
               subtitle={`${RANK_TYPE_LABEL[selected.rankingType]} · ${store.orgName(selected.scopeOrgUnitId)} · Tổng hợp ${formatDateTime(selected.generatedAt)}`}
               action={
                 <div className="flex items-center gap-2">
+                  <MockExportButton fileName={`bxh-${selected.id}`} format="XLSX" size="sm" />
                   {selected.status === "DRAFT" ? (
                     <Button size="sm" onClick={() => finalize(selected.id)} disabled={finalizing !== null}>
                       {finalizing === selected.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}

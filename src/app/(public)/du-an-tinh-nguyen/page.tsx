@@ -17,6 +17,12 @@ import { relTime } from "@/lib/utils";
 import { FIELD_META, PHASE_META } from "@/lib/volunteer-meta";
 import type { VolunteerProject, VolunteerProjectField, VolunteerProjectPhase } from "@/types";
 
+/** Danh sách tỉnh thành đơn vị có thể chọn khi đăng dự án */
+const PROVINCE_OPTIONS = [
+  "Lào Cai", "Hà Nội", "Bắc Giang", "Nghệ An", "Đà Nẵng",
+  "Bình Dương", "TP Hồ Chí Minh", "Cần Thơ", "Bến Tre",
+];
+
 const REPORT_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5MB
 
 /** Chip đính kèm file báo cáo (card + khối chờ duyệt dùng chung) */
@@ -40,7 +46,7 @@ function ReportFileChip({ p }: { p: Pick<VolunteerProject, "reportFile"> }) {
 type PhaseFilter = "ALL" | VolunteerProjectPhase;
 
 export default function DuAnTinhNguyenPage() {
-  const { volunteerProjects, orgUnits, orgName, submitVolunteerProject } = useStore();
+  const { volunteerProjects, orgName, submitVolunteerProject } = useStore();
   const { session } = useAuth();
   const { toast } = useToast();
 
@@ -49,19 +55,9 @@ export default function DuAnTinhNguyenPage() {
   const [provinceFilter, setProvinceFilter] = useState<string>("ALL");
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("ALL");
 
-  /** Tỉnh/thành khi đăng dự án — suy từ cây tổ chức cấp 2 cho khớp đơn vị thật */
-  const provinceOptions = useMemo(
-    () =>
-      orgUnits
-        .filter((u) => u.orgLevel === 2 && u.isActive)
-        .map((u) => u.adminUnitName.replace(/^(Tỉnh|TP)\s+/i, ""))
-        .sort((a, b) => a.localeCompare(b, "vi")),
-    [orgUnits]
-  );
-
   const [openSubmit, setOpenSubmit] = useState(false);
   const [pName, setPName] = useState("");
-  const [pProvince, setPProvince] = useState(provinceOptions[0] ?? "");
+  const [pProvince, setPProvince] = useState(PROVINCE_OPTIONS[0]);
   const [pField, setPField] = useState<VolunteerProjectField>("KHAC");
   const [pPhase, setPPhase] = useState<VolunteerProjectPhase>("DANG_TRIEN_KHAI");
   const [pSummary, setPSummary] = useState("");
@@ -450,7 +446,7 @@ export default function DuAnTinhNguyenPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Tỉnh thành">
               <Select value={pProvince} onChange={(e) => setPProvince(e.target.value)}>
-                {provinceOptions.map((prov) => (
+                {PROVINCE_OPTIONS.map((prov) => (
                   <option key={prov} value={prov}>{prov}</option>
                 ))}
               </Select>

@@ -1,7 +1,9 @@
 /**
- * AI lượng hoá công văn → chỉ tiêu KPI (thuần — không dùng Date trong parse
- * để an toàn hydration).
+ * AI lượng hoá công văn → chỉ tiêu KPI (mô phỏng, thuần — không dùng Date trong parse
+ * để an toàn hydration; demoDirectiveText sinh hạn tại thời điểm CLICK).
  */
+
+import { addDaysISO } from "@/lib/utils";
 
 export interface DirectiveDraft {
   metricName: string;
@@ -152,4 +154,28 @@ export function parseDirective(text: string): DirectiveDraft[] {
     if (drafts.length >= 8) break;
   }
   return drafts;
+}
+
+const fmtDMY = (iso: string) => {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+};
+
+/** 6 câu công văn mẫu — hạn sinh TẠI THỜI ĐIỂM GỌI (an toàn hydration):
+ *  D+15 (bình thường), D+2 (tới hạn), D−3 (quá hạn), tháng của D+20, D+7, D+20 */
+export function demoDirectiveText(): string {
+  const d15 = fmtDMY(addDaysISO(15));
+  const d2 = fmtDMY(addDaysISO(2));
+  const dm3 = fmtDMY(addDaysISO(-3));
+  const d7 = fmtDMY(addDaysISO(7));
+  const d20 = fmtDMY(addDaysISO(20));
+  const monthOfD20 = parseInt(d20.split("/")[1], 10);
+  return [
+    `Triển khai phong trào "Thanh niên tình nguyện vì cộng đồng" trên toàn địa bàn, phấn đấu đạt 1.200 lượt đoàn viên tham gia, gửi về các phường, xã trực thuộc; hoàn thành trước ngày ${d15}.`,
+    `Mỗi trường phải tổ chức ít nhất 3 sân chơi an toàn cho học sinh trong hè; hoàn thành trước ngày ${d2}.`,
+    `Báo cáo kết quả đợt cao điểm bảo vệ môi trường, mỗi đơn vị nộp tối thiểu 2 biên bản kiểm tra kèm minh chứng; hạn trước ngày ${dm3}.`,
+    `Phát động phong trào "Học sinh 3 tốt", nâng cao tỷ lệ đoàn viên đăng ký đạt 75% trở lên, phổ cập trong tháng ${monthOfD20}.`,
+    `Đẩy mạnh truyền thông hoạt động hè trên Cổng TNTH, mỗi chi đoàn đăng tải 5 bài tin về hoạt động của đơn vị; hoàn thành trước ngày ${d7}.`,
+    `Tổ chức lớp tập nghiệp vụ Đoàn, mỗi đơn vị cử 10 đoàn viên ưu tú tham gia; hoàn thành trước ngày ${d20}.`,
+  ].join("\n");
 }

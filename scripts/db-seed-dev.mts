@@ -5,8 +5,11 @@
 //
 // Nguồn dữ liệu — đọc THẲNG file dữ liệu của app (Node 24 chạy TS gốc) nên không thể lệch:
 //   - org_units, school_types  ← src/data/org-units.ts
-//   - accounts: DUY NHẤT tw.admin (id 1) — tài khoản khởi tạo, các tài khoản khác
-//     do đơn vị đăng ký / TW tạo qua app. Mật khẩu: demo123 (chạy script này để reset).
+//   - accounts: 10 tài khoản demo đăng nhập (ids khớp DEMO_ACCOUNTS trong
+//     src/lib/auth-context.tsx: 1–6, 16–19) + các tài khoản minh hoạ khác của trang
+//     Hệ thống (ids 101+) — bóc từ src/data/accounts.ts. Mật khẩu chung: demo123.
+//   - 901/902: 2 tài khoản học sinh mô phỏng trường 31 — hồ sơ HS3T mẫu
+//     (src/data/hs3t.ts) gắn accountId 901/902 nên bắt buộc phải tồn tại.
 import { existsSync, readFileSync } from "node:fs";
 import { randomBytes, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";
@@ -57,9 +60,39 @@ interface SeedAccount {
   className?: string;
 }
 
-// Tài khoản khởi tạo duy nhất (đồng bộ src/lib/auth-context.tsx — DEMO_ACCOUNTS)
+// 10 tài khoản đăng nhập demo (đồng bộ src/lib/auth-context.tsx — DEMO_ACCOUNTS)
 const demoAccounts: SeedAccount[] = [
   { id: 1, orgUnitId: 1, username: "tw.admin", email: "tnth@doanthanhnienvn.vn", contactPerson: "Nguyễn Văn Toàn", contactPosition: "Phó Trưởng Ban Công tác Thanh Thiếu Nhi", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 2, orgUnitId: 12, username: "bd.province", email: "bandoan@binhduong.doan.vn", contactPerson: "Trần Thị Mai", contactPosition: "Phó Bí thư Tỉnh Đoàn", role: "QUAN_TRI_TINH", status: "ACTIVE" },
+  { id: 3, orgUnitId: 25, username: "hc.hiepthanh", email: "hiepthanh@bd.doan.vn", contactPerson: "Lê Quốc Hùng", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
+  { id: 4, orgUnitId: 31, username: "thpt.chanhphu", email: "thptchanhphuhung@bd.edu.vn", contactPerson: "Phạm Minh Tuấn", contactPosition: "Bí thư Đoàn Trường", role: "DON_VI", status: "ACTIVE" },
+  { id: 5, orgUnitId: 2, username: "btv.tw", email: "bientap@tnth.vn", contactPerson: "Võ Ngọc Lan", contactPosition: "Phóng viên biên tập", role: "BIEN_TAP_VIEN", status: "ACTIVE" },
+  { id: 6, orgUnitId: 31, username: "dv.demo", email: "minhduc.doanvien@thptchanhphu.edu.vn", contactPerson: "Nguyễn Minh Đức", contactPosition: "Ủy viên Ban Chấp hành Chi Đoàn", role: "DOAN_VIEN", status: "ACTIVE", className: "12A1" },
+  { id: 16, orgUnitId: 1, username: "cv.hs3t", email: "hs3t@tnth.vn", contactPerson: "Trần Thị Thu Hà", contactPosition: "Chuyên viên phụ trách xét hồ sơ Học sinh 3 tốt", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 17, orgUnitId: 1, username: "cv.kiemtra", email: "kiemtra@tnth.vn", contactPerson: "Lê Minh Đức", contactPosition: "Chuyên viên phụ trách công tác kiểm tra", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 18, orgUnitId: 1, username: "ctv.tintuc", email: "tintuc@tnth.vn", contactPerson: "Nguyễn Hải Yến", contactPosition: "CTV phụ trách chuyên mục Tin tức", role: "QUAN_TRI_TW", status: "ACTIVE" },
+  { id: 19, orgUnitId: 1, username: "ctv.duan", email: "duan@tnth.vn", contactPerson: "Phạm Đức Anh", contactPosition: 'CTV phụ trách chuyên mục "Mỗi trường THPT 01 dự án tình nguyện vì cộng đồng"', role: "QUAN_TRI_TW", status: "ACTIVE" },
+];
+
+// Các tài khoản minh hoạ còn lại của trang Hệ thống (bóc từ src/data/accounts.ts,
+// đổi id sang dải 101+ để không đụng dải demo) — status giữ nguyên để thử đủ tình huống
+const extraAccounts: SeedAccount[] = [
+  { id: 101, orgUnitId: 13, username: "hcm.city", email: "thanhdoan@hcm.doan.vn", contactPerson: "Hoàng Anh Dũng", contactPosition: "Chuyên viên Thành Đoàn", role: "QUAN_TRI_TINH", status: "ACTIVE" },
+  { id: 102, orgUnitId: 26, username: "hc.phuhoa", email: "phuhoa@bd.doan.vn", contactPerson: "Đặng Thị Thủy", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
+  { id: 103, orgUnitId: 27, username: "hc.tuongbinhhiep", email: "tbh@bd.doan.vn", contactPerson: "Nguyễn Đắc Lợi", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
+  { id: 104, orgUnitId: 28, username: "hc.hiepan", email: "hiepan@bd.doan.vn", contactPerson: "Trương Mỹ Duyên", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "PENDING" },
+  { id: 105, orgUnitId: 32, username: "thcs.hiepthanh", email: "thcsht@bd.edu.vn", contactPerson: "Lý Thanh Bình", contactPosition: "Tổng phụ trách Đội", role: "DON_VI", status: "ACTIVE" },
+  { id: 106, orgUnitId: 34, username: "thpt.ngothoinham", email: "ntn@bd.edu.vn", contactPerson: "Đỗ Việt Khoa", contactPosition: "Bí thư Đoàn Trường", role: "DON_VI", status: "LOCKED" },
+  { id: 107, orgUnitId: 40, username: "hc.leloi", email: "leloi@bg.doan.vn", contactPerson: "Vũ Hải Yến", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
+  { id: 108, orgUnitId: 42, username: "thpt.bacgiang", email: "thptbg@bg.edu.vn", contactPerson: "Hoàng Tuấn Kiệt", contactPosition: "Bí thư Đoàn Trường", role: "DON_VI", status: "DISABLED" },
+  { id: 109, orgUnitId: 14, username: "bg.province", email: "bandoan@bacgiang.doan.vn", contactPerson: "Lý Hồng Nhung", contactPosition: "Phó Bí thư Tỉnh Đoàn", role: "QUAN_TRI_TINH", status: "ACTIVE" },
+  { id: 110, orgUnitId: 29, username: "hc.benghe", email: "benghe@hcm.doan.vn", contactPerson: "Ngô Thanh Trúc", contactPosition: "Bí thư Đoàn Phường", role: "QUAN_TRI_CAP3", status: "ACTIVE" },
+];
+
+// Học sinh mô phỏng cùng trường 31 — hồ sơ HS3T mẫu 942/943 trỏ accountId 901/902
+const hs3tStudentAccounts: SeedAccount[] = [
+  { id: 901, orgUnitId: 31, username: "hs.mophong1", email: "hsmophong1@thptchanhphu.edu.vn", contactPerson: "Trần Hoàng Phú", contactPosition: "Đoàn viên", role: "DOAN_VIEN", status: "ACTIVE", className: "11A3" },
+  { id: 902, orgUnitId: 31, username: "hs.mophong2", email: "hsmophong2@thptchanhphu.edu.vn", contactPerson: "Lê Thanh Trúc", contactPosition: "Đoàn viên", role: "DOAN_VIEN", status: "ACTIVE", className: "12A5" },
 ];
 
 const client = new Client({ connectionString: url, connectionTimeoutMillis: 8000 });
@@ -121,7 +154,7 @@ try {
 
   // 3) accounts — mật khẩu chung demo123, kích hoạt sẵn (must_change_password = false)
   const passwordHash = await hashPassword("demo123");
-  for (const acc of demoAccounts) {
+  for (const acc of [...demoAccounts, ...extraAccounts, ...hs3tStudentAccounts]) {
     await client.query(
       `INSERT INTO accounts (id, org_unit_id, username, email, password_hash, contact_person,
          contact_position, status, role_code, class_name, must_change_password, password_changed_at)
@@ -164,7 +197,7 @@ try {
   );
   console.log("✅ Seed tnth_dev xong:");
   for (const c of counts) console.log(`   ${c.bang}: ${c.so}`);
-  console.log("   Tài khoản quản trị: tw.admin / demo123");
+  console.log("   Đăng nhập demo: tw.admin / demo123 (đủ 10 TK trong src/lib/auth-context.tsx)");
 } catch (err) {
   await client.query("ROLLBACK");
   console.error("❌ Seed lỗi, đã rollback:", err instanceof Error ? err.message : err);

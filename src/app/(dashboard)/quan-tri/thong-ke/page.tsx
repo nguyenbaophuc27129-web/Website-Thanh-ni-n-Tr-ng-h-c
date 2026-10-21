@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Select, Field } from "@/components/ui/input";
+import { MockExportButton } from "@/components/dashboard/mock-export-button";
 import { SectionTitle } from "@/components/dashboard/stat-card";
 import {
   ActivitiesBarChart, TaskProgressPie, PostViewsAreaChart, ScoresHorizontalBar, TrendLineChart,
@@ -96,6 +97,7 @@ export default function ThongKePage() {
             Số liệu tổng hợp trong phạm vi của bạn theo kỳ, có thể xuất Excel phục vụ lãnh đạo.
           </p>
         </div>
+        <MockExportButton fileName={`thong-ke-${year}`} format="XLSX" />
       </div>
 
       <Card>
@@ -165,19 +167,15 @@ export default function ThongKePage() {
       </div>
 
       <Card>
-        <CardHeader title="Lượt xem tin bài" />
+        <CardHeader title="Lượt xem tin bài (tháng 9/2026)" />
         <CardBody>
-          {postViewDaily.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400">Chưa có dữ liệu lượt xem tin bài.</p>
-          ) : (
-            <PostViewsAreaChart data={postViewDaily.map((d) => ({ name: d.date, value: d.views }))} />
-          )}
+          <PostViewsAreaChart data={postViewDaily.map((d) => ({ name: d.date, value: d.views }))} />
         </CardBody>
       </Card>
 
       <p className="flex items-center gap-1.5 text-[11px] text-stone-400">
         <BarChart3 className="h-3.5 w-3.5" />
-        Số liệu tổng hợp trực tiếp từ dữ liệu hoạt động, nhiệm vụ, điểm thi đua và tin bài trên hệ thống.
+        Số liệu sinh từ mock data của prototype — khi tích hợp CSDL sẽ truy vấn trực tiếp từ bảng activities, task_assignments, scores, published_posts.
       </p>
     </div>
   );

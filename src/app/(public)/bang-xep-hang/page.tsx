@@ -5,6 +5,9 @@ import { motion } from "framer-motion";
 import {
   Trophy,
   Crown,
+  TrendingUp,
+  TrendingDown,
+  Minus,
   CalendarRange,
   Users,
   Target,
@@ -12,6 +15,7 @@ import {
 import { useStore } from "@/lib/store-context";
 import { Select } from "@/components/ui/input";
 import { formatPercent, formatDate, cn } from "@/lib/utils";
+import type { RankingEntry } from "@/types";
 import { EmptyState } from "@/components/public/empty-state";
 
 /* Staggered fade-up — đồng bộ ngôn ngữ chuyển động của cổng */
@@ -69,6 +73,29 @@ const PODIUM: Record<
     label: "Hạng ba",
   },
 };
+
+/** Biến động thứ hạng mô phỏng so với kỳ trước (deterministic theo id) */
+const rankDelta = (e: RankingEntry) => ((e.id * 37 + e.rankPosition * 11) % 5) - 2;
+
+function DeltaChip({ delta }: { delta: number }) {
+  if (delta > 0)
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-600">
+        <TrendingUp className="h-3 w-3" /> +{delta}
+      </span>
+    );
+  if (delta < 0)
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-500">
+        <TrendingDown className="h-3 w-3" /> {delta}
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-400">
+      <Minus className="h-3 w-3" /> 0
+    </span>
+  );
+}
 
 /** Thanh tiến độ mỏng tinh tế — gradient xanh dương thương hiệu */
 function GlowBar({ value, className }: { value: number; className?: string }) {
@@ -160,6 +187,7 @@ export default function BangXepHangPage() {
               if (!e) return null;
               const p = PODIUM[e.rankPosition];
               const unit = orgById(e.orgUnitId);
+              const delta = rankDelta(e);
               const big = e.rankPosition === 1;
               return (
                 <motion.div
@@ -217,6 +245,11 @@ export default function BangXepHangPage() {
                         <span className="font-semibold text-blue-600">{formatPercent(e.completionRate)}</span>
                       </div>
                     </div>
+
+                    <div className="mt-4 flex items-center justify-center gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+                      <DeltaChip delta={delta} />
+                      <span>so với kỳ trước</span>
+                    </div>
                   </div>
 
                   {/* Bục podium */}
@@ -261,6 +294,7 @@ export default function BangXepHangPage() {
                         {e.completedTasks}/{e.totalTasks} nhiệm vụ · {e.activityCount} hoạt động
                       </p>
                     </div>
+                    <DeltaChip delta={rankDelta(e)} />
                     <div className="w-16 text-right">
                       <p className="text-base font-black text-slate-900">{e.totalScore}</p>
                       <p className="text-[10px] font-light text-slate-400">điểm</p>

@@ -12,6 +12,8 @@ export interface ChucDanhQuyen {
   moTa: string;
   toanQuyen: boolean;
   quyen: { code: string; ten: string }[];
+  /** Tài khoản demo thử quyền của chức danh này (nếu có) */
+  demoUser?: string;
 }
 
 /** Các quyền chi tiết dùng cho chức danh giới hạn */
@@ -47,6 +49,7 @@ export const chucDanhQuyenList: ChucDanhQuyen[] = [
     moTa: "Chỉ chức năng xem, trả lời phản ánh, kiến nghị của Học sinh THPT",
     toanQuyen: false,
     quyen: QUYEN_KIEM_TRA,
+    demoUser: "cv.kiemtra",
   },
   {
     id: 10,
@@ -54,6 +57,7 @@ export const chucDanhQuyenList: ChucDanhQuyen[] = [
     moTa: "Chỉ chức năng xem, thẩm định, duyệt, đánh giá hồ sơ Học sinh 3 tốt",
     toanQuyen: false,
     quyen: QUYEN_HS3T,
+    demoUser: "cv.hs3t",
   },
   { id: 11, ten: "Trưởng Ban Biên tập", moTa: "Tất cả chức năng hiện nay", toanQuyen: true, quyen: [] },
   { id: 12, ten: "Phó Trưởng Ban Biên tập", moTa: "Tất cả chức năng hiện nay", toanQuyen: true, quyen: [] },
@@ -63,6 +67,7 @@ export const chucDanhQuyenList: ChucDanhQuyen[] = [
     moTa: "Chỉ chức năng đọc, thẩm định, duyệt đăng, bình luận các chủ đề trong mục Tin tức + Forum",
     toanQuyen: false,
     quyen: QUYEN_TIN_TUC,
+    demoUser: "ctv.tintuc",
   },
   {
     id: 14,
@@ -70,6 +75,7 @@ export const chucDanhQuyenList: ChucDanhQuyen[] = [
     moTa: "Chỉ chức năng đọc, thẩm định, duyệt đăng, bình luận các chủ đề trong mục liên quan",
     toanQuyen: false,
     quyen: QUYEN_DU_AN_TN,
+    demoUser: "ctv.duan",
   },
   {
     id: 15,
@@ -77,5 +83,6 @@ export const chucDanhQuyenList: ChucDanhQuyen[] = [
     moTa: "Chỉ chức năng xem, thẩm định, duyệt, đánh giá hồ sơ Học sinh 3 tốt",
     toanQuyen: false,
     quyen: QUYEN_HS3T,
+    demoUser: "cv.hs3t",
   },
 ];

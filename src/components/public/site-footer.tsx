@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Mail, MapPin, Phone } from "lucide-react";
+import { ChevronRight, Mail, MapPin, Phone, Send } from "lucide-react";
+import { useToast } from "@/lib/toast-context";
 import { ScrollTopButton } from "./scroll-top-button";
 
 function FbIcon({ className }: { className?: string }) {
@@ -44,11 +46,62 @@ function ColLink({ href, label }: { href: string; label: string }) {
 }
 
 export function SiteFooter() {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.includes("@")) {
+      toast("Vui lòng nhập email hợp lệ.", "warning");
+      return;
+    }
+    toast(`Đã đăng ký nhận bản tin thành công tại ${email}.`);
+    setEmail("");
+  };
+
   return (
     <footer className="portal-footer-bg relative mt-16 overflow-hidden text-slate-300">
       {/* Viền sáng hai lớp trên đỉnh footer */}
       <div className="h-1 bg-gradient-to-r from-cyan-400 via-blue-600 to-indigo-500" />
       <div className="h-px bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
+
+      {/* ===== Band đăng ký nhận tin ===== */}
+      <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-300/90">
+            Bản tin TNTH
+          </p>
+          <h3 className="mt-1.5 font-serif-display text-2xl font-bold tracking-tight text-white">
+            Theo dõi dòng chảy Thanh niên Trường học
+          </h3>
+          <p className="mt-1.5 max-w-lg text-[13px] font-light leading-relaxed text-slate-400">
+            Tin hoạt động, văn bản chỉ đạo và lịch thi đua mới nhất — gửi thẳng vào hộp thư của bạn mỗi tuần.
+          </p>
+        </div>
+        <form
+          onSubmit={handleSubscribe}
+          className="flex w-full max-w-md shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1.5 backdrop-blur transition-colors duration-300 focus-within:border-cyan-400/50 focus-within:shadow-[0_0_24px_rgba(6,182,212,0.15)]"
+        >
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email nhận tin của bạn…"
+            className="min-w-0 flex-1 bg-transparent px-3.5 text-sm text-white outline-none placeholder:text-slate-500"
+          />
+          <button
+            type="submit"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all duration-300 hover:brightness-110"
+          >
+            <Send className="h-3.5 w-3.5" />
+            Đăng ký
+          </button>
+        </form>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="border-t border-white/5" />
+      </div>
 
       {/* ===== Lưới chính ===== */}
       <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1.15fr]">

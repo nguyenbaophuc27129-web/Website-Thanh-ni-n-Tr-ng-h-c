@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { MockExportButton } from "@/components/dashboard/mock-export-button";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { reportTemplates, suggestDocCode, templateById } from "@/data/report-templates";
 import { buildReportWordData, buildTemplateWordData, downloadWordDoc, vnDateStr, type WordDocData } from "@/lib/word-export";
@@ -372,6 +373,8 @@ export default function BaoCaoPage() {
                   <Button size="sm" variant="outline" onClick={() => openExport(r.id)}>
                     <FileDown className="h-3.5 w-3.5" /> Xuất Word thể thức
                   </Button>
+                  <MockExportButton fileName={`bao-cao-${r.id}`} format="PDF" size="sm" />
+                  <MockExportButton fileName={`bao-cao-${r.id}`} format="XLSX" size="sm" />
                 </div>
               </div>
 
@@ -405,6 +408,7 @@ export default function BaoCaoPage() {
                     <p className="text-[11px] text-stone-400">{store.orgName(r.orgUnitId)} · {formatDateTime(r.createdAt)}</p>
                   </div>
                   {r.status === "FINALIZED" ? <Badge tone="green">Đã chốt</Badge> : <Badge tone="yellow">Nháp</Badge>}
+                  <MockExportButton fileName={`bao-cao-${r.id}`} format="XLSX" size="sm" />
                 </li>
               ))}
             </ul>
