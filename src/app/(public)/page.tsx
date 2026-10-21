@@ -210,12 +210,10 @@ export default function HomePage() {
       </Reveal>
 
       {/* 🫧 Tin tiêu điểm — Bento Master & Satellite (đồng bộ sắc xanh nhạt) */}
-      {bentoPosts.length > 0 ? <SpotlightBento posts={bentoPosts} /> : null}
+      <SpotlightBento posts={bentoPosts} />
 
       {/* ❤️ MỖI NGÀY MỘT TIN TỐT, MỖI TUẦN MỘT CÂU CHUYỆN ĐẸP — Dòng truyện ánh sáng (chuyên mục riêng, trống thì lấy bài mới) */}
-      {published.length > 0 ? (
-        <GlowCarousel posts={(storyPosts.length > 0 ? storyPosts : published).slice(0, 12)} />
-      ) : null}
+      <GlowCarousel posts={(storyPosts.length > 0 ? storyPosts : published).slice(0, 12)} />
 
       {/* 🌌 STORY FLOW — Dòng chảy ấn phẩm: Infographic số liệu + Poster NCKH, nền đêm liền mạch */}
       <StoryFlow posts={researchPosts} />
@@ -284,11 +282,33 @@ export default function HomePage() {
                   Xem tất cả <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
-              <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {gridNews.map((p) => (
-                  <NewsCard key={p.id} post={p} />
-                ))}
-              </div>
+              {gridNews.length > 0 ? (
+                <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {gridNews.map((p) => (
+                    <NewsCard key={p.id} post={p} />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50/60 p-8 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-doan-50 text-doan-600">
+                    <Newspaper className="h-6 w-6" />
+                  </div>
+                  <h3 className="mt-3 font-serif-display text-base font-bold text-stone-900">
+                    Khung tin tức sẵn sàng hiển thị
+                  </h3>
+                  <p className="mx-auto mt-1 max-w-md text-xs text-stone-500">
+                    Các bài viết mới nhất từ Đoàn các trường và đơn vị trực thuộc sẽ xuất hiện tại đây ngay khi được xuất bản trên hệ thống.
+                  </p>
+                  <div className="mt-4">
+                    <Link
+                      href="/quan-tri/xuat-ban"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-doan-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-doan-700"
+                    >
+                      Đăng bài viết mới <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              )}
             </section>
 
             <aside className="space-y-8">
@@ -336,7 +356,27 @@ export default function HomePage() {
                     </div>
                   </CardBody>
                 </Card>
-              ) : null}
+              ) : (
+                <Card>
+                  <CardHeader
+                    title="Bảng xếp hạng thi đua"
+                    subtitle="Dữ liệu kỳ thi đua đang được tổng hợp"
+                  />
+                  <CardBody>
+                    <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/50 p-6 text-center">
+                      <Trophy className="mx-auto h-8 w-8 text-stone-300" />
+                      <p className="mt-2 text-xs font-semibold text-stone-700">Chưa công bố bảng xếp hạng kỳ này</p>
+                      <p className="mt-1 text-[11px] text-stone-400">Kết quả thi đua sẽ được công bố sau khi Trung ương Đoàn chốt điểm.</p>
+                      <Link
+                        href="/bang-xep-hang"
+                        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-doan-600 hover:underline"
+                      >
+                        Xem thể lệ tính điểm <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  </CardBody>
+                </Card>
+              )}
 
               <Hs3tBanner />
             </aside>

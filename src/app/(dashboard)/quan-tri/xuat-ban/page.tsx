@@ -513,8 +513,25 @@ export default function XuatBanPage() {
         ]}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {posts.map((p) => (
+      {posts.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50/60 p-12 text-center">
+          <Megaphone className="mx-auto h-12 w-12 text-stone-300" />
+          <h3 className="mt-3 font-serif-display text-base font-bold text-stone-700">Chưa có bài viết nào</h3>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-stone-500">
+            Hãy bắt đầu tạo bài viết mới hoặc nhập từ đường link website/báo chí để xuất bản lên cổng.
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button size="sm" onClick={openManualCreate}>
+              <Plus className="h-4 w-4" /> Viết bài mới
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}>
+              <Link2 className="h-4 w-4" /> Nhập từ link
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {posts.map((p) => (
           <Card key={p.id} className="overflow-hidden">
             <div className="relative">
               <PhotoPlaceholder seed={p.coverSeed} src={p.coverDataUrl} className="h-32 w-full" />
@@ -579,7 +596,8 @@ export default function XuatBanPage() {
             </CardBody>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Modal Soạn tin / Tạo bài viết (Thủ công hoặc Hoạt động) */}
       <Modal

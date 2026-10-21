@@ -24,7 +24,14 @@ export function HeroBanner({
   ticker?: string[];
 }) {
   const p = featured[0];
-  if (!p) return null;
+
+  const defaultTicker = [
+    "Cổng thông tin Thanh niên Trường học — Ban Thanh niên Trường học Trung ương Đoàn",
+    "Số hoá công tác Đoàn và phong trào thanh niên trường học toàn quốc",
+    "Chương trình Học sinh 3 tốt — Hồ sơ thành tích và tuyên dương",
+    "Hệ thống quản lý hoạt động, minh chứng và đánh giá thi đua trực tuyến",
+  ];
+  const activeTicker = ticker.length > 0 ? ticker : defaultTicker;
 
   return (
     <section className="relative overflow-hidden bg-[#040b1c] text-white">
@@ -44,48 +51,60 @@ export function HeroBanner({
         {/* Trái — nội dung tin */}
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-white/5 px-4 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.28em] text-amber-200/95 shadow-[inset_0_0_18px_rgba(251,191,36,0.08),0_0_24px_rgba(251,191,36,0.12)] backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5" /> Tin nổi bật
+            <Sparkles className="h-3.5 w-3.5" /> {p ? "Tin nổi bật" : "CỔNG THÔNG TIN ĐIỆN TỬ"}
           </span>
 
           <h1 className="mt-5 max-w-2xl text-2xl font-bold leading-[1.25] tracking-tight sm:text-3xl lg:text-4xl">
-            <Link
-              href={`/tin-tuc/${p.slug}`}
-              className="bg-gradient-to-br from-white via-white to-sky-300/90 bg-clip-text text-transparent transition-colors duration-300 hover:from-cyan-100 hover:via-white hover:to-cyan-300"
-            >
-              {/* Ngắt dòng chủ động sau dấu ":" để câu ngắt đúng nhịp nghĩa — không xẻ đôi từ ghép tiếng Việt */}
-              {p.title.split(":").map((part, i, arr) => (
-                <span key={i}>
-                  {part}
-                  {i < arr.length - 1 ? ":" : ""}
-                  {i < arr.length - 1 ? <br className="hidden lg:block" /> : null}
-                  {i < arr.length - 1 ? " " : ""}
-                </span>
-              ))}
-            </Link>
+            {p ? (
+              <Link
+                href={`/tin-tuc/${p.slug}`}
+                className="bg-gradient-to-br from-white via-white to-sky-300/90 bg-clip-text text-transparent transition-colors duration-300 hover:from-cyan-100 hover:via-white hover:to-cyan-300"
+              >
+                {/* Ngắt dòng chủ động sau dấu ":" để câu ngắt đúng nhịp nghĩa — không xẻ đôi từ ghép tiếng Việt */}
+                {p.title.split(":").map((part, i, arr) => (
+                  <span key={i}>
+                    {part}
+                    {i < arr.length - 1 ? ":" : ""}
+                    {i < arr.length - 1 ? <br className="hidden lg:block" /> : null}
+                    {i < arr.length - 1 ? " " : ""}
+                  </span>
+                ))}
+              </Link>
+            ) : (
+              <span className="bg-gradient-to-br from-white via-white to-sky-300/90 bg-clip-text text-transparent">
+                Tuổi trẻ Học đường: Tiên phong — Bản lĩnh — Sáng tạo — Khát vọng cống hiến
+              </span>
+            )}
           </h1>
 
           <p className="my-4 line-clamp-3 max-w-2xl text-sm font-normal leading-relaxed text-slate-300 sm:text-[15px]">
-            {p.excerpt}
+            {p
+              ? p.excerpt
+              : "Hệ thống thông tin quản lý, truyền thông số hoá và đánh giá thi đua công tác Đoàn và phong trào thanh niên trường học toàn quốc thuộc Trung ương Đoàn TNCS Hồ Chí Minh."}
           </p>
 
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-medium text-slate-400">
-            <span>{p.authorOrgUnitName}</span>
+            <span>{p ? p.authorOrgUnitName : "Trung ương Đoàn TNCS Hồ Chí Minh"}</span>
             <span className="text-slate-600">•</span>
-            <span>{formatDate(p.publishedAt ?? p.createdAt)}</span>
-            <span className="text-slate-600">•</span>
-            <span>{formatNumber(p.viewCount)} lượt xem</span>
+            <span>{p ? formatDate(p.publishedAt ?? p.createdAt) : "Hệ thống toàn quốc"}</span>
+            {p ? (
+              <>
+                <span className="text-slate-600">•</span>
+                <span>{formatNumber(p.viewCount)} lượt xem</span>
+              </>
+            ) : null}
           </div>
 
           {/* CTA gradient — shimmer trượt sáng khi hover */}
           <Link
-            href={`/tin-tuc/${p.slug}`}
+            href={p ? `/tin-tuc/${p.slug}` : "/tin-tuc"}
             className="group relative mt-7 inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-doan-600 to-cyan-500 px-7 py-3.5 text-sm font-bold text-white shadow-[0_10px_36px_-8px_rgba(34,211,238,0.65)] ring-1 ring-cyan-300/40 transition-shadow duration-300 hover:shadow-[0_14px_46px_-6px_rgba(34,211,238,0.85)]"
           >
             <span
               className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
               aria-hidden="true"
             />
-            <span className="relative">Đọc chi tiết</span>
+            <span className="relative">{p ? "Đọc chi tiết" : "Khám phá hoạt động"}</span>
             <ArrowRight className="relative h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         </div>
@@ -96,52 +115,67 @@ export function HeroBanner({
             className="absolute -inset-5 rounded-[2.5rem] bg-gradient-to-tr from-doan-600/40 via-cyan-400/25 to-transparent blur-2xl"
             aria-hidden="true"
           />
-          <Link
-            href={`/tin-tuc/${p.slug}`}
-            className="group relative block overflow-hidden rounded-3xl border border-white/15 shadow-[0_30px_90px_-24px_rgba(34,211,238,0.45)]"
-          >
-            <PhotoPlaceholder
-              seed={p.coverSeed}
-              src={p.coverDataUrl}
-              className="aspect-[4/3] w-full transition-transform duration-700 ease-out group-hover:scale-[1.05]"
-              icon={false}
-            />
-            <span
-              className="absolute inset-0 bg-gradient-to-t from-[#040b1c]/70 via-transparent to-transparent"
-              aria-hidden="true"
-            />
-            {/* Live indicator */}
-            <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-md">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-300" />
+          {p ? (
+            <Link
+              href={`/tin-tuc/${p.slug}`}
+              className="group relative block overflow-hidden rounded-3xl border border-white/15 shadow-[0_30px_90px_-24px_rgba(34,211,238,0.45)]"
+            >
+              <PhotoPlaceholder
+                seed={p.coverSeed}
+                src={p.coverDataUrl}
+                className="aspect-[4/3] w-full transition-transform duration-700 ease-out group-hover:scale-[1.05]"
+                icon={false}
+              />
+              <span
+                className="absolute inset-0 bg-gradient-to-t from-[#040b1c]/70 via-transparent to-transparent"
+                aria-hidden="true"
+              />
+              {/* Live indicator */}
+              <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-300" />
+                </span>
+                Cập nhật trực tiếp
               </span>
-              Cập nhật trực tiếp
-            </span>
-          </Link>
+            </Link>
+          ) : (
+            <div className="relative flex aspect-[4/3] w-full flex-col items-center justify-center overflow-hidden rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-white/[0.08] via-cyan-950/40 to-slate-950/80 p-8 text-center shadow-[0_30px_90px_-24px_rgba(34,211,238,0.35)] backdrop-blur-xl">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl border border-cyan-300/40 bg-gradient-to-br from-cyan-400/20 to-doan-600/40 text-cyan-200 shadow-[0_0_40px_rgba(34,211,238,0.4)]">
+                <Flame className="h-10 w-10 text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
+              </div>
+              <h3 className="mt-5 font-serif-display text-xl font-bold text-white">
+                Cổng Thông Tin Thanh Niên Trường Học
+              </h3>
+              <p className="mt-2 max-w-sm text-xs leading-relaxed text-sky-100/70">
+                Sẵn sàng tiếp nhận và xuất bản bài viết, tin tức hoạt động phong trào từ các tổ chức Đoàn trường học trên toàn quốc.
+              </p>
+              <span className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-200">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" /> Vận hành chính thức
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ===== Dải ticker kính mờ ===== */}
-      {ticker.length > 0 ? (
-        <div className="relative border-t border-white/10 bg-white/[0.04] py-3 backdrop-blur-md">
-          <div className="flex w-max animate-marquee gap-10" style={{ animationDuration: "40s" }}>
-            {[0, 1].map((dup) => (
-              <div key={dup} className="flex shrink-0 items-center gap-10" aria-hidden={dup === 1}>
-                {ticker.map((t, i) => (
-                  <span
-                    key={`${dup}-${i}`}
-                    className="flex items-center gap-2.5 whitespace-nowrap text-xs font-medium text-sky-100/85"
-                  >
-                    <Flame className="h-3.5 w-3.5 shrink-0 text-amber-300" />
-                    {t}
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
+      <div className="relative border-t border-white/10 bg-white/[0.04] py-3 backdrop-blur-md">
+        <div className="flex w-max animate-marquee gap-10" style={{ animationDuration: "40s" }}>
+          {[0, 1].map((dup) => (
+            <div key={dup} className="flex shrink-0 items-center gap-10" aria-hidden={dup === 1}>
+              {activeTicker.map((t, i) => (
+                <span
+                  key={`${dup}-${i}`}
+                  className="flex items-center gap-2.5 whitespace-nowrap text-xs font-medium text-sky-100/85"
+                >
+                  <Flame className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+                  {t}
+                </span>
+              ))}
+            </div>
+          ))}
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

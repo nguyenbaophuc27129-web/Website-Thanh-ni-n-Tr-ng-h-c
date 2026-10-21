@@ -154,7 +154,6 @@ function SpotlightRow({ post, index }: { post: PublishedPost; index: number }) {
 }
 
 export function SpotlightBento({ posts }: { posts: PublishedPost[] }) {
-  if (posts.length === 0) return null;
   const [hero, second, ...rest] = posts;
   const rows = rest.slice(0, 4);
 
@@ -179,17 +178,95 @@ export function SpotlightBento({ posts }: { posts: PublishedPost[] }) {
         </div>
 
         {/* ===== Grid: Khối 01 lớn trái · Khối 02 + danh sách 03–06 phải ===== */}
-        <div className="mt-9 grid gap-6 lg:grid-cols-5 lg:gap-7">
-          <SpotlightHero
-            post={hero}
-            index={1}
-            className="min-h-[380px] sm:min-h-[460px] lg:col-span-3 lg:min-h-[560px]"
-          />
-          <div className="flex flex-col gap-6 lg:col-span-2">
-            <SpotlightHero post={second} index={2} className="min-h-[250px] sm:min-h-[300px]" />
-            {rows.length > 0 ? <div className="lg:flex-1">{rows.map((p, i) => <SpotlightRow key={p.id} post={p} index={i + 3} />)}</div> : null}
+        {posts.length > 0 ? (
+          <div className="mt-9 grid gap-6 lg:grid-cols-5 lg:gap-7">
+            {hero && (
+              <SpotlightHero
+                post={hero}
+                index={1}
+                className="min-h-[380px] sm:min-h-[460px] lg:col-span-3 lg:min-h-[560px]"
+              />
+            )}
+            <div className="flex flex-col gap-6 lg:col-span-2">
+              {second && <SpotlightHero post={second} index={2} className="min-h-[250px] sm:min-h-[300px]" />}
+              {rows.length > 0 ? (
+                <div className="lg:flex-1">
+                  {rows.map((p, i) => (
+                    <SpotlightRow key={p.id} post={p} index={i + 3} />
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-9 grid gap-6 lg:grid-cols-5 lg:gap-7">
+            {/* Khối tiêu điểm lớn 01 placeholder */}
+            <div className="relative flex min-h-[380px] flex-col justify-end overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-gradient-to-b from-slate-100 to-slate-200/80 p-8 shadow-sm sm:min-h-[460px] lg:col-span-3 lg:min-h-[520px]">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -right-3 -top-7 select-none font-serif-display text-9xl font-black leading-none text-slate-300/40"
+              >
+                01
+              </span>
+              <div className="relative z-10">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-blue-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Vị trí tiêu điểm số 01
+                </span>
+                <h3 className="mt-3 font-serif-display text-2xl font-bold leading-snug text-slate-800 sm:text-3xl">
+                  Khung bài viết tiêu điểm Trung ương & Tỉnh, Thành đoàn
+                </h3>
+                <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-slate-600">
+                  Vị trí trang trọng nhất trên trang chủ dành riêng cho các sự kiện, chỉ thị và phong trào trọng tâm của Đoàn trường học các cấp.
+                </p>
+                <div className="mt-5">
+                  <Link
+                    href="/quan-tri/xuat-ban"
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+                  >
+                    Đăng tin bài tiêu điểm tại Quản trị xuất bản
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Cột phải: 02 + danh sách */}
+            <div className="flex flex-col gap-6 lg:col-span-2">
+              <div className="relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-gradient-to-b from-slate-100 to-slate-200/80 p-6 shadow-sm">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -right-2 -top-5 select-none font-serif-display text-8xl font-black leading-none text-slate-300/40"
+                >
+                  02
+                </span>
+                <div className="relative z-10">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600">
+                    Vị trí tiêu điểm số 02
+                  </span>
+                  <h4 className="mt-1 font-serif-display text-lg font-bold text-slate-800">
+                    Khung bài viết hoạt động Đoàn cơ sở & cấp huyện
+                  </h4>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Hiển thị các mô hình sáng tạo, gương sáng học đường tiêu biểu.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-1 flex-col justify-center rounded-2xl border border-dashed border-slate-200 bg-white/60 p-4">
+                {[
+                  { num: "03", label: "Khung tin tức phong trào học sinh 3 tốt" },
+                  { num: "04", label: "Khung tin tức nghiên cứu khoa học & STEM" },
+                  { num: "05", label: "Khung tin tức tình nguyện & an sinh trường học" },
+                ].map((item) => (
+                  <div key={item.num} className="flex items-center gap-4 border-b border-slate-100 py-3 last:border-b-0">
+                    <span className="font-serif-display text-lg font-light text-slate-300">{item.num}</span>
+                    <span className="text-xs font-medium text-slate-500">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
