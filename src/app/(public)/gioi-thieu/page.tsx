@@ -309,7 +309,7 @@ export default function GioiThieuPage() {
         ))}
       </motion.div>
 
-      {/* ===== Hướng dẫn trải nghiệm demo ===== */}
+      {/* ===== Quy trình vận hành hệ thống ===== */}
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -317,17 +317,10 @@ export default function GioiThieuPage() {
         transition={{ duration: 0.5 }}
         className="mt-10 rounded-3xl bg-white p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-200 sm:p-9"
       >
-        <h2 className="text-lg font-bold text-slate-900">Hướng dẫn trải nghiệm bản demo</h2>
+        <h2 className="text-lg font-bold text-slate-900">Quy trình vận hành và tương tác hệ thống</h2>
         <ol className="mt-4 list-decimal space-y-2.5 pl-5 text-sm leading-relaxed text-slate-500">
           <li>
-            Đăng nhập khu quản trị bằng 1 trong 5 tài khoản demo
-            (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">tw.admin</code>,{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">bd.province</code>,{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">hc.hiepthanh</code>,{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">thpt.chanhphu</code>,{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">btv.tw</code> — mật khẩu chung{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">demo123</code>) để thấy sự khác biệt
-            phạm vi dữ liệu theo cấp.
+            Đăng nhập khu quản trị bằng tài khoản được phân quyền theo cấp (Trung ương, Tỉnh/Thành đoàn, Đoàn cấp huyện/xã, Đoàn trường học hoặc Biên tập viên) để thao tác đúng thẩm quyền và phạm vi dữ liệu.
           </li>
           <li>Đơn vị cơ sở tạo hoạt động → nộp → đăng nhập cấp trên xác nhận → quay lại cập nhật kết quả nhiệm vụ.</li>
           <li>Bạn muốn xem luồng công khai: gửi phản ánh → nhận mã PA-2026-XXXXX → tra cứu tiến độ xử lý.</li>
@@ -344,7 +337,7 @@ export default function GioiThieuPage() {
             href="/phan-anh"
             className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-blue-600 ring-1 ring-blue-200 transition-colors hover:bg-blue-50"
           >
-            Gửi phản ánh thử
+            Gửi phản ánh
           </Link>
         </div>
       </motion.div>

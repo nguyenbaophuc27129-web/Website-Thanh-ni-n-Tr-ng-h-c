@@ -113,8 +113,7 @@ export default function HuongDanPage() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-stone-900">Sẵn sàng trải nghiệm?</p>
             <p className="text-xs text-stone-500">
-              Đăng nhập bằng tài khoản demo (mật khẩu <code className="rounded bg-stone-100 px-1">demo123</code>):
-              tw.admin · bd.province · hc.hiepthanh · thpt.chanhphu · btv.tw
+              Đăng nhập bằng tài khoản được phân quyền bởi Đoàn cấp trên hoặc cơ quan quản trị để bắt đầu thực hiện nhiệm vụ.
             </p>
           </div>
           <Link href="/dang-nhap">
@@ -128,7 +127,7 @@ export default function HuongDanPage() {
       <div className="mt-6 rounded-xl bg-stone-50 px-4 py-3 text-[11px] leading-relaxed text-stone-500">
         <p className="font-semibold text-stone-600">Mẹo nhanh</p>
         <p className="mt-1">
-          · Mọi hành động trong bản demo chỉ lưu trên trình duyệt của bạn (tải lại trang sẽ về dữ liệu mẫu).<br />
+          · Dữ liệu được đồng bộ và lưu trữ bảo mật trên cơ sở dữ liệu tập trung của hệ thống.<br />
           · Sự cố kỹ thuật app Thanh niên Việt Nam / web Quản lý Đoàn gửi qua form{" "}
           <Link href="/phan-anh" className="text-doan-600 hover:underline">Phản ánh</Link>, chọn lĩnh vực tương ứng.
         </p>

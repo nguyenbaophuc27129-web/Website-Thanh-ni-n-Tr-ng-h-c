@@ -22,7 +22,7 @@ const NAV = [
   { href: "/", label: "Trang chủ" },
   { href: "/gioi-thieu", label: "Giới thiệu" },
   { href: "/tin-tuc", label: "Tin tức" },
-  { href: "/hoc-sinh-3-tot", label: "Học sinh 3 tốt" },
+  { href: "https://khenthuong.doanthanhnien.vn/login", label: "Học sinh 3 tốt", external: true },
   { href: "/nhan-tai", label: "Nhân tài" },
   { href: "/dien-dan", label: "Diễn đàn" },
   { href: "/tai-nguyen", label: "Tài nguyên" },
@@ -96,18 +96,32 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        {/* Desktop nav — dải pill trượt con nhộng (hiện từ màn hình lg >= 1024px) */}
+        {/* Desktop nav — dải pill trượt con nhộng */}
         <nav className="hidden shrink-0 items-center gap-0.5 rounded-full bg-slate-900/[0.045] p-1 lg:flex">
           {NAV.map((item) => {
             const active = isActive(item.href);
+            const className = cn(
+              "relative whitespace-nowrap rounded-full px-1.5 py-1 text-[11.5px] font-medium transition-colors duration-200 xl:px-2.5 xl:py-1.5 xl:text-[12.5px] 2xl:px-3 2xl:text-[13px]",
+              active ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
+            );
+            if (item.external) {
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={className}
+                >
+                  <span className="relative z-10">{item.label}</span>
+                </a>
+              );
+            }
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={cn(
-                  "relative whitespace-nowrap rounded-full px-2 py-1 text-[12px] font-medium transition-colors duration-200 xl:px-3 xl:py-1.5 xl:text-[13px]",
-                  active ? "text-slate-900" : "text-slate-500 hover:text-slate-900"
-                )}
+                className={className}
               >
                 {active ? (
                   <motion.span
@@ -124,7 +138,7 @@ export function SiteHeader() {
 
         {/* Cụm phải: tiện ích + CTA */}
         <div className="flex shrink-0 items-center gap-1.5">
-          <div className="hidden items-center gap-0.5 xl:flex">
+          <div className="hidden items-center gap-0.5 2xl:flex">
             {UTILITIES.map((u) => (
               <Link
                 key={u.href}
@@ -140,7 +154,7 @@ export function SiteHeader() {
           {session?.role === "DOAN_VIEN" ? (
             <Link
               href="/tai-khoan"
-              className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:inline-flex"
+              className="hidden shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:inline-flex"
               aria-label="Tài khoản của tôi"
             >
               <User className="h-3.5 w-3.5" /> Tài khoản
@@ -148,7 +162,7 @@ export function SiteHeader() {
           ) : null}
           <Link
             href={session ? (session.role === "DOAN_VIEN" ? "/dien-dan" : "/quan-tri") : "/dang-nhap"}
-            className="hidden items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:brightness-110 sm:inline-flex"
+            className="hidden shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:brightness-110 sm:inline-flex"
           >
             {session ? (session.role === "DOAN_VIEN" ? <MessagesSquare className="h-3.5 w-3.5" /> : <LayoutDashboard className="h-3.5 w-3.5" />) : <LogIn className="h-3.5 w-3.5" />}
             {session ? (session.role === "DOAN_VIEN" ? "Diễn đàn" : "Khu quản trị") : "Đăng nhập"}
@@ -173,24 +187,43 @@ export function SiteHeader() {
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="glass-nav mx-auto mt-2 max-w-7xl rounded-2xl p-3 shadow-[0_14px_44px_rgb(15,23,42,0.12)] lg:hidden"
           >
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium",
-                  isActive(item.href)
-                    ? "bg-gradient-to-r from-cyan-50 to-blue-50 text-slate-900"
-                    : "text-slate-600 hover:bg-slate-900/[0.04]"
-                )}
-              >
-                {item.label}
-                {isActive(item.href) ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
-                ) : null}
-              </Link>
-            ))}
+            {NAV.map((item) => {
+              const active = isActive(item.href);
+              const className = cn(
+                "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium",
+                active
+                  ? "bg-gradient-to-r from-cyan-50 to-blue-50 text-slate-900"
+                  : "text-slate-600 hover:bg-slate-900/[0.04]"
+              );
+              if (item.external) {
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpen(false)}
+                    className={className}
+                  >
+                    <span>{item.label}</span>
+                    <span className="text-xs text-cyan-600 font-semibold">↗ TW</span>
+                  </a>
+                );
+              }
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={className}
+                >
+                  {item.label}
+                  {active ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
+                  ) : null}
+                </Link>
+              );
+            })}
             <div className="mt-2 grid grid-cols-2 gap-2">
               {UTILITIES.map((u) => (
                 <Link

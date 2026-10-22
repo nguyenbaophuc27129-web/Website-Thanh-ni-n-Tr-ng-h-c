@@ -168,19 +168,51 @@ export function GlowCarousel({ posts }: { posts: PublishedPost[] }) {
   /* Hình học lane: vị trí từng thẻ + đường cong SVG sinh từ cùng waveY */
   const { meta, laneW, d, cta } = useMemo(() => {
     let x = PAD;
-    const cards = posts.map((post, i) => {
-      const big = i % 4 === 0; // mỗi tuần 1 câu chuyện (thẻ to), ngày thường là tin tốt (thẻ nhỏ)
-      const w = big ? BIG.w : SMALL.w;
-      const h = big ? BIG.h : SMALL.h;
-      const left = x;
-      const cx = left + w / 2;
-      const top = Math.min(LANE_H - h - 16, Math.max(16, waveY(cx) - h / 2));
-      x = left + w + GAP;
-      return { post, big, w, h, left, top, rot: (i % 2 === 0 ? -1 : 1) * (big ? 1.1 : 1.8) };
-    });
+    const isPlaceholder = posts.length === 0;
+
+    const dummyItems = isPlaceholder
+      ? [
+          {
+            id: -1,
+            big: true,
+            title: "Khung: Câu chuyện của tuần",
+            desc: "Khu vực tôn vinh tấm gương thanh niên, việc làm đẹp và mô hình học đường tiêu biểu trong tuần.",
+            tag: "Câu chuyện của tuần",
+          },
+          {
+            id: -2,
+            big: false,
+            title: "Khung: Tin tốt mỗi ngày",
+            desc: "Chia sẻ hành động đẹp, thông điệp tích cực lan toả trong đoàn viên, học sinh, sinh viên.",
+            tag: "Tin tốt ngày",
+          },
+        ]
+      : [];
+
+    const cards = isPlaceholder
+      ? dummyItems.map((item, i) => {
+          const w = item.big ? BIG.w : SMALL.w;
+          const h = item.big ? BIG.h : SMALL.h;
+          const left = x;
+          const cx = left + w / 2;
+          const top = Math.min(LANE_H - h - 16, Math.max(16, waveY(cx) - h / 2));
+          x = left + w + GAP;
+          return { post: null, dummy: item, big: item.big, w, h, left, top, rot: (i % 2 === 0 ? -1 : 1) * (item.big ? 1.1 : 1.8) };
+        })
+      : posts.map((post, i) => {
+          const big = i % 4 === 0; // mỗi tuần 1 câu chuyện (thẻ to), ngày thường là tin tốt (thẻ nhỏ)
+          const w = big ? BIG.w : SMALL.w;
+          const h = big ? BIG.h : SMALL.h;
+          const left = x;
+          const cx = left + w / 2;
+          const top = Math.min(LANE_H - h - 16, Math.max(16, waveY(cx) - h / 2));
+          x = left + w + GAP;
+          return { post, dummy: null, big, w, h, left, top, rot: (i % 2 === 0 ? -1 : 1) * (big ? 1.1 : 1.8) };
+        });
+
     const ctaLeft = x;
     const ctaTop = Math.max(16, waveY(ctaLeft + CTA_W / 2) - CTA_H / 2);
-    const width = ctaLeft + CTA_W + PAD;
+    const width = Math.max(1150, ctaLeft + CTA_W + PAD);
     /* Đường cong: lấy mẫu dày 24px → polyline mịn như bezier, đúng hàm sóng */
     const pts: string[] = [];
     for (let px = PAD - 34; px <= width - PAD + 34; px += 24) {
@@ -263,7 +295,7 @@ export function GlowCarousel({ posts }: { posts: PublishedPost[] }) {
     el?.scrollBy({ left: dir * el.clientWidth * 0.72, behavior: "smooth" });
   };
 
-  const current = Math.round(progress * (posts.length - 1)) + 1;
+  const current = posts.length === 0 ? 0 : Math.round(progress * (posts.length - 1)) + 1;
 
   return (
     <section
@@ -375,12 +407,54 @@ export function GlowCarousel({ posts }: { posts: PublishedPost[] }) {
             {/* --- Các thẻ truyện bám sóng --- */}
             {meta.map((m, i) => (
               <div
-                key={m.post.id}
+                key={m.post ? m.post.id : `dummy-${i}`}
                 className="absolute snap-center"
                 style={{ left: m.left, top: m.top, width: m.w, height: m.h }}
               >
                 <Tilt rotate={m.rot}>
-                  <StoryCard post={m.post} big={m.big} index={i} />
+                  {m.post ? (
+                    <StoryCard post={m.post} big={m.big} index={i} />
+                  ) : m.dummy ? (
+                    <div className="group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/20 bg-white/[0.05] p-5 shadow-2xl backdrop-blur-md transition-colors hover:border-rose-300/40 hover:bg-white/[0.08]">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9.5px] font-bold uppercase tracking-wider",
+                            m.big
+                              ? "bg-gradient-to-r from-amber-200 to-rose-200 text-rose-950 shadow-md"
+                              : "border border-white/25 bg-white/10 text-sky-100"
+                          )}
+                        >
+                          <Heart className="h-3 w-3 fill-rose-600 text-rose-600" /> {m.dummy.tag}
+                        </span>
+                        <span className="text-[10px] text-white/40">Khung bài viết</span>
+                      </div>
+
+                      <div className="my-auto py-3">
+                        <h3
+                          className={cn(
+                            "font-serif-display font-bold text-white",
+                            m.big ? "text-lg sm:text-xl" : "text-sm sm:text-base"
+                          )}
+                        >
+                          {m.dummy.title}
+                        </h3>
+                        <p className="mt-2 text-xs leading-relaxed text-white/60">
+                          {m.dummy.desc}
+                        </p>
+                      </div>
+
+                      <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-3 text-[11px] text-sky-200/70">
+                        <span>Chờ các đơn vị đăng bài</span>
+                        <Link
+                          href="/quan-tri/xuat-ban"
+                          className="font-semibold text-rose-300 hover:underline"
+                        >
+                          Đăng ngay &rarr;
+                        </Link>
+                      </div>
+                    </div>
+                  ) : null}
                 </Tilt>
               </div>
             ))}

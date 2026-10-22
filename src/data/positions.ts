@@ -1,6 +1,7 @@
 /**
- * Chức vụ Đoàn - Hội của Đoàn viên / Hội viên (dùng cho đăng ký tài khoản Đoàn viên
- * và khi admin cấp tài khoản cá nhân) — đúng thứ bậc, gộp theo tổ chức.
+ * Chức vụ Đoàn của Đoàn viên / Học sinh (dùng cho đăng ký tài khoản Đoàn viên
+ * và khi admin cấp tài khoản cá nhân) — chuẩn hóa chỉ tập trung Đoàn TNCS Hồ Chí Minh
+ * và Ban cán sự lớp học (theo yêu cầu Ban TNTH TW Đoàn).
  */
 export const DV_HOI_POSITION_GROUPS: { label: string; positions: string[] }[] = [
   {
@@ -11,25 +12,19 @@ export const DV_HOI_POSITION_GROUPS: { label: string; positions: string[] }[] = 
       "Phó Bí thư Chi Đoàn",
       "Bí thư Chi Đoàn",
       "Ủy viên Ban Chấp hành Đoàn trường",
+      "Ủy viên Ban Thường vụ Đoàn trường",
       "Phó Bí thư Đoàn trường",
       "Bí thư Đoàn trường",
     ],
   },
   {
-    label: "Hội LHTN Việt Nam",
+    label: "Ban cán sự lớp",
     positions: [
-      "Hội viên Hội LHTN Việt Nam",
-      "Bí thư Chi hội Hội LHTN Việt Nam",
-      "Ủy viên Ban Chấp hành Hội LHTN Việt Nam",
+      "Lớp trưởng",
+      "Lớp phó học tập",
+      "Lớp phó phong trào",
+      "Thành viên lớp",
     ],
-  },
-  {
-    label: "Đội TNTP Hồ Chí Minh",
-    positions: ["Đội viên", "Đội phó", "Đội trưởng"],
-  },
-  {
-    label: "Lớp học",
-    positions: ["Lớp trưởng", "Lớp phó"],
   },
 ];
 

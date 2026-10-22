@@ -467,6 +467,19 @@ export const PUBLIC_WRITE_ENTITIES = new Set([
   "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
 ]);
 
+/** Entity đoàn viên (DOAN_VIEN) được phép đọc thêm (ngoài public) */
+export const MEMBER_READ_ENTITIES = new Set([
+  "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
+  "hs3tUnitStandards", "notifications", "quizAttempts",
+]);
+
+/** Entity đoàn viên (DOAN_VIEN) được phép ghi qua sync */
+export const MEMBER_ALLOWED_WRITE_ENTITIES = new Set([
+  "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
+  "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
+  "forumThreads", "forumComments",
+]);
+
 /** Entity khách vãng lai được đọc — còn lại chỉ khi có phiên đăng nhập */
 export const PUBLIC_READ_ENTITIES = new Set([
   "orgUnits", "publishedPosts", "activities", "activityCategories", "activityLinks",
@@ -555,13 +568,18 @@ export function toObj(entity: string, row: Record<string, unknown>): Record<stri
 /** Đọc toàn bộ 1 bảng, trả về mảng object theo field client */
 export async function readEntity(
   entity: string,
+  filterSql?: { where: string; params: unknown[] },
 ): Promise<Record<string, unknown>[]> {
   const spec = ENTITY_SPECS[entity];
+  const whereClause = filterSql?.where ? ` WHERE ${filterSql.where}` : "";
+  const params = filterSql?.params ?? [];
   const rows = await query<Record<string, unknown>>(
-    `SELECT * FROM ${spec.table} ORDER BY ${spec.orderBy ?? "id"}`,
+    `SELECT * FROM ${spec.table}${whereClause} ORDER BY ${spec.orderBy ?? "id"}`,
+    params,
   );
   return rows.map((r) => toObj(entity, r));
 }
+
 
 /** Điền account đại diện theo đơn vị (cho cột created_by NOT NULL) */
 export async function buildDeriveCtx(): Promise<DeriveCtx> {
@@ -582,20 +600,42 @@ export async function writeEntity(
   ctx: DeriveCtx,
 ): Promise<number> {
   const spec = ENTITY_SPECS[entity];
-  await client.query(`DELETE FROM ${spec.table}`);
+  if (!spec || objs.length === 0) return 0;
+
   const overriding = spec.noIdentity ? "" : " OVERRIDING SYSTEM VALUE";
   for (const obj of objs) {
     const { cols, values } = toRow(entity, obj, ctx);
+    if (cols.length === 0) continue;
     const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
+    const colList = cols.map((c) => `"${c}"`).join(", ");
+
+    let conflictClause = "";
+    if (entity === "settings") {
+      const updateCols = cols.filter((c) => c !== "setting_key");
+      conflictClause = updateCols.length > 0
+        ? ` ON CONFLICT (setting_key) DO UPDATE SET ${updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")}`
+        : " ON CONFLICT (setting_key) DO NOTHING";
+    } else if (entity === "activityCategories") {
+      conflictClause = " ON CONFLICT (activity_id, content_category_id) DO NOTHING";
+    } else if (entity === "documentRecipients") {
+      conflictClause = " ON CONFLICT (document_id, org_unit_id) DO NOTHING";
+    } else if (cols.includes("id")) {
+      const updateCols = cols.filter((c) => c !== "id");
+      conflictClause = updateCols.length > 0
+        ? ` ON CONFLICT (id) DO UPDATE SET ${updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")}`
+        : " ON CONFLICT (id) DO NOTHING";
+    }
+
     await client.query(
-      `INSERT INTO ${spec.table} (${cols.join(", ")})${overriding} VALUES (${placeholders})`,
+      `INSERT INTO ${spec.table} (${colList})${overriding} VALUES (${placeholders})${conflictClause}`,
       values,
     );
   }
   if (!spec.noIdentity && objs.length > 0) {
     await client.query(
-      `SELECT setval(pg_get_serial_sequence('${spec.table}', 'id'), (SELECT max(id) FROM ${spec.table}))`,
+      `SELECT setval(pg_get_serial_sequence('${spec.table}', 'id'), COALESCE((SELECT max(id) FROM ${spec.table}), 1))`,
     );
   }
   return objs.length;
 }
+

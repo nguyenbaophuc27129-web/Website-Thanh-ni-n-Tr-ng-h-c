@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -34,9 +34,30 @@ export default function DangKyPage() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectedProvinceId, setSelectedProvinceId] = useState<string>("");
+  const [selectedCommuneId, setSelectedCommuneId] = useState<string>("");
+
+  const filteredCommunes = useMemo(() => {
+    if (!selectedProvinceId) return [];
+    const pId = Number(selectedProvinceId);
+    return COMMUNES.filter((c) => c.parentId === pId);
+  }, [selectedProvinceId]);
+
+  const filteredSchools = useMemo(() => {
+    if (selectedCommuneId) {
+      const cId = Number(selectedCommuneId);
+      return SCHOOLS.filter((s) => s.parentId === cId);
+    }
+    if (selectedProvinceId) {
+      const pId = Number(selectedProvinceId);
+      const cIds = filteredCommunes.map((c) => c.id);
+      return SCHOOLS.filter((s) => s.parentId === pId || (s.parentId !== null && cIds.includes(s.parentId)));
+    }
+    return SCHOOLS;
+  }, [selectedProvinceId, selectedCommuneId, filteredCommunes]);
 
   // Đổi đơn vị thuộc nhóm khác thì reset chọn (value chưa tồn tại trong nhóm mới)
-  const orgGroups = [PROVINCES, COMMUNES, SCHOOLS];
+
 
   // Đã đăng nhập thì vào thẳng diễn đàn
   useEffect(() => {
@@ -192,20 +213,89 @@ export default function DangKyPage() {
               </select>
             </div>
           </div>
-          <div>
-            <label className="text-sm font-medium text-slate-500">Trường / Đơn vị</label>
-            <select value={form.orgUnitId} onChange={set("orgUnitId")} className={SOFT_INPUT}>
-              <option value="">— Chọn đơn vị —</option>
-              {orgGroups.map((group, gi) => (
-                <optgroup key={gi} label={gi === 0 ? "Đoàn tỉnh / thành phố" : gi === 1 ? "Đoàn xã / phường / đặc khu" : "Đoàn trường / cơ sở"}>
-                  {group.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
+          {/* Phân cấp chọn đơn vị: Tỉnh/Thành -> Quận/Huyện/Xã -> Trường/Cơ sở */}
+          <div className="space-y-3.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                  1
+                </span>
+                <span className="text-xs font-bold text-slate-700">Đơn vị Đoàn &amp; Trường học</span>
+              </div>
+              <span className="text-[11px] font-medium text-blue-600">Phân cấp 3 tầng</span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  1. Tỉnh / Thành đoàn <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={selectedProvinceId}
+                  onChange={(e) => {
+                    setSelectedProvinceId(e.target.value);
+                    setSelectedCommuneId("");
+                    setForm((f) => ({ ...f, orgUnitId: "" }));
+                  }}
+                  className={SOFT_INPUT}
+                >
+                  <option value="">— Chọn Tỉnh / Thành đoàn —</option>
+                  {PROVINCES.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
                     </option>
                   ))}
-                </optgroup>
-              ))}
-            </select>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  2. Quận / Huyện / Phường / Xã
+                </label>
+                <select
+                  value={selectedCommuneId}
+                  onChange={(e) => {
+                    setSelectedCommuneId(e.target.value);
+                    setForm((f) => ({ ...f, orgUnitId: "" }));
+                  }}
+                  disabled={!selectedProvinceId}
+                  className={SOFT_INPUT}
+                >
+                  <option value="">— Tất cả / Trực thuộc Tỉnh/Thành —</option>
+                  {filteredCommunes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-600">
+                3. Trường học / Cơ sở đào tạo (Cấp cơ sở) <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={form.orgUnitId}
+                onChange={set("orgUnitId")}
+                className={SOFT_INPUT}
+                required
+              >
+                <option value="">
+                  {filteredSchools.length === 0
+                    ? "— Không tìm thấy trường thuộc phân cấp này —"
+                    : "— Chọn trường / cơ sở giáo dục —"}
+                </option>
+                {filteredSchools.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} {s.schoolTypeName ? `(${s.schoolTypeName})` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-400">
+                * Tài khoản Đoàn viên được kích hoạt tại Đoàn cơ sở Trường THPT, THCS, ĐH/CĐ hoặc GDNN-GDTX.
+              </p>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-500">Tên đăng nhập</label>

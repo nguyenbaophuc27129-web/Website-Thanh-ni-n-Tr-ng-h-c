@@ -65,7 +65,10 @@ Biến môi trường (`.env.local`) — **đều tùy chọn**, không có cấ
 | `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` | AI thật cho 5 route `/api/ai/*` (`AI_MODEL` đổi model nếu cần) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Gửi email kết quả phản ánh thật |
 
-## Tài khoản demo — `/dang-nhap` (mật khẩu chung `demo123`)
+## Danh sách tài khoản mẫu (Môi trường phát triển & Thử nghiệm)
+
+> [!IMPORTANT]
+> Mật khẩu dùng thử chỉ phục vụ phát triển nội bộ. Khi đưa vào vận hành thí điểm chính thức, quản trị viên bắt buộc phải cấu hình mật khẩu mạnh riêng biệt và tuân thủ [Hướng dẫn triển khai an toàn](./db/DEPLOY-PROD.md).
 
 | Tài khoản | Đơn vị | Vai trò |
 |---|---|---|

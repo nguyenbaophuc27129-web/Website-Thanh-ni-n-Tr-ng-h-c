@@ -4,6 +4,22 @@ Tài liệu này gói lại toàn bộ thay đổi DB so với schema v1 ban đ�
 migration trên **tnth_prod** khi đưa hệ thống vào chính thức. Toàn bộ file đã
 commit trên repo, không có gì chỉ tồn tại trong tnth_dev.
 
+## 0. Yêu cầu an toàn & bảo mật
+
+> [!CAUTION]
+> **Tuyệt đối không dùng mật khẩu thử nghiệm (`demo123`) trên môi trường thử nghiệm diện rộng hoặc chính thức.**
+> Mọi tài khoản khởi tạo phải dùng mật khẩu mạnh và đổi mật khẩu ngay lần đầu đăng nhập.
+
+1. **Mật khẩu mạnh**: tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.
+   Tài khoản `QUAN_TRI_TW`, `QUAN_TRI_TINH`, `QUAN_TRI_CAP3` cấp riêng, không dùng chung mật khẩu.
+2. **Cờ `must_change_password`**: tài khoản tạo qua API quản trị được đặt `true`.
+   *Lưu ý: hiện chưa có màn hình đổi mật khẩu và đăng nhập chưa chặn theo cờ này — cần bổ sung.*
+3. **Phân quyền tầng API (RBAC)**: `/api/accounts` và `/api/accounts/[id]` kiểm tra `session.role`
+   và cây đơn vị (`path`); đoàn viên/khách bị chặn (403). Không cho tự khoá chính mình hoặc khoá
+   `tw.admin` (id 1).
+4. **`/api/store`**: bỏ cơ chế xoá cả bảng (`DELETE FROM`), đồng bộ bằng UPSERT (`ON CONFLICT`);
+   khách và đoàn viên chỉ được ghi/đọc nhóm dữ liệu cho phép.
+
 ## 1. Các file migration cần chạy (theo đúng thứ tự)
 
 | File | Nội dung |
@@ -20,6 +36,10 @@ commit trên repo, không có gì chỉ tồn tại trong tnth_dev.
 | `0011_seed_danh_muc_noi_dung.sql` | Seed danh mục nội dung id khớp app: `content_categories` 8, `document_categories` 6, `feedback_topics` 7 — id tường minh + ON CONFLICT (code) DO UPDATE, idempotent |
 | `0012_xoa_nha_tai_tro.sql` | **Bãi bỏ chức năng nhà tài trợ** (quyết định giai đoạn 01) — drop bảng `sponsors`; web đã xoá toàn bộ trang quản trị + dải hiển thị tương ứng |
 | `0013_task_metrics_name_text.sql` | Nới `task_metrics.name` varchar(255) → text — BTS 2027 có tên chỉ tiêu dài 269–376 ký tự (trích nguyên văn Excel phân tích KPI), AI lượng hoá công văn cũng tạo tên dài tương tự |
+| `0014_ngan_hang_du_an_tinh_nguyen.sql` | Bản đồ dự án tình nguyện → Ngân hàng dự án: thêm `volunteer_projects.field` (lĩnh vực), `phase` (giai đoạn); thả NOT NULL `map_x/map_y` |
+| `0015_an_toan_hoc_duong.sql` | Lĩnh vực phản ánh `AN_TOAN` (id 8 — bắt buộc cho trang An toàn học đường); 3 bài truyền thông mẫu 5032–5034 **chỉ chèn khi đã có tài khoản id 2** (DB trống thì bỏ qua) |
+| `0016_cong_thong_tin_nhan_tai.sql` | Gắn chuyên mục "Nhân tài" cho bài 5017/5019/5026 (nếu có); bài ra mắt cổng 5035 **chỉ chèn khi đã có tài khoản id 2** |
+| `0017_xoa_doan_vien_3_tot.sql` | Xoá danh mục sai quy chuẩn `DN_3_TOT` ("Đoàn viên 3 tốt") |
 
 ## 2. Cách chạy trên tnth_prod
 
@@ -45,6 +65,16 @@ node scripts/db-seed-dev.mts     # idempotent — chỉ nên chạy 1 lần lúc
 Script nạp: 28 đơn vị 4 cấp, tài khoản `tw.admin` + các TK demo (`demo123`),
 2 học sinh mô phỏng `hs.mophong1/2` (ids 901/902 — hồ sơ HS3T mẫu gắn vào đây).
 Sau khi vận hành thật **không chạy lại** (sẽ đè mật khẩu đã đổi).
+
+Đặt mật khẩu mạnh cho quản trị Trung ương ngay sau khi nạp. Mật khẩu lưu dạng **scrypt**
+(`scrypt:16384:8:1:<salt hex>:<key hex>`, sinh bằng `hashPassword()` trong
+`src/lib/server/auth.ts`) — không phải bcrypt:
+
+```sql
+UPDATE accounts
+SET password_hash = '<CHUOI_SCRYPT_CUA_MAT_KHAU_MANH>', must_change_password = true, updated_at = now()
+WHERE id = 1;
+```
 
 ## 3. Thay đổi so với schema ban đầu (điểm cần biết)
 
@@ -92,3 +122,12 @@ Sau khi vận hành thật **không chạy lại** (sẽ đè mật khẩu đã 
 - `.env.local` chứa mật khẩu DB đã gitignore từ đầu; chưa từng commit vào repo.
 - Nhờ anh **rotate mật khẩu** `coder_dev`/`coder_readonly` khi tiện (đã từng gửi
   qua kênh chat).
+
+## 6. Vai trò
+
+- `QUAN_TRI_TW`: toàn quyền quản trị hệ thống toàn quốc.
+- `QUAN_TRI_TINH`: quản lý dữ liệu và đơn vị trực thuộc trong tỉnh/thành.
+- `QUAN_TRI_CAP3`: quản lý đơn vị cơ sở và đoàn viên trong quận/huyện/xã/phường.
+- `DON_VI`: tài khoản dùng chung của Đoàn cơ sở (trường học).
+- `BIEN_TAP_VIEN`: thẩm định, duyệt và xuất bản tin bài, tài nguyên.
+- `DOAN_VIEN`: học sinh, đoàn viên — diễn đàn, hồ sơ Học sinh 3 tốt, phản ánh học đường.

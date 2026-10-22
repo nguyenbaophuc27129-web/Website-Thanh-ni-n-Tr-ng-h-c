@@ -22,7 +22,7 @@
 
 | Route | Trang | Tính năng |
 |---|---|---|
-| `/dang-nhap` | Đăng nhập | Bấm nhanh 1 trong 5 thẻ tài khoản demo, hoặc nhập tay username + password (`demo123`). Bao gồm cả tài khoản tạo mới. Phiên lưu `localStorage` |
+| `/dang-nhap` | Đăng nhập | Đăng nhập bảo mật bằng username + password, cấp phiên httpOnly cookie qua máy chủ DB PostgreSQL. Hỗ trợ đầy đủ phân quyền theo cấp. |
 
 ## 4.3. Khu quản trị — `/quan-tri` (19 trang, theo phân hệ)
 

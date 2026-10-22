@@ -58,12 +58,12 @@ type DataNode = {
 };
 
 const DATA_NODES: DataNode[] = [
-  { code: "#DATA.01", icon: Rocket, grad: "from-blue-500 to-cyan-400", value: 5210, suffix: "", label: "Lượt truy cập Cổng TNTH ngay ngày đầu vận hành", href: "/tin-tuc/cong-thanh-nien-truong-hoc-chinh-thuc-van-hanh" },
-  { code: "#DATA.02", icon: Trophy, grad: "from-amber-400 to-orange-500", value: 1200, suffix: "", label: "Thí sinh dự Hội thi Học sinh 3 tốt cấp tỉnh", href: "/tin-tuc/hoi-thi-hoc-sinh-3-tot-cap-tinh-2026-binh-duong" },
-  { code: "#DATA.03", icon: ShieldCheck, grad: "from-cyan-500 to-blue-600", value: 50000, suffix: "", label: "Học sinh hoàn thành khoá Kỹ năng số chống lừa đảo", href: "/tin-tuc/50-nghin-hoc-sinh-khoa-ky-nang-so-chong-lua-dao" },
-  { code: "#DATA.04", icon: HeartHandshake, grad: "from-violet-500 to-indigo-500", value: 3500, suffix: "", label: "Tình nguyện viên trong mùa Tiếp sức mùa thi", href: "/tin-tuc/nhin-lai-tiep-suc-mua-thi-2026" },
-  { code: "#DATA.05", icon: Recycle, grad: "from-emerald-500 to-teal-500", value: 500, suffix: " kg", label: "Rác thải nhựa được thu gom Chủ nhật xanh", href: "/tin-tuc/chu-nhat-xanh-tuoi-tre-hiep-thanh-500kg-rac-thai-nhua" },
-  { code: "#DATA.06", icon: Star, grad: "from-blue-600 to-indigo-500", value: 95, suffix: " năm", label: "Lịch sử vẻ vang Đoàn TNCS Hồ Chí Minh", href: "/tin-tuc/95-nam-ngay-thanh-lap-doan-tncs-ho-chi-minh" },
+  { code: "#DATA.01", icon: Rocket, grad: "from-blue-500 to-cyan-400", value: 5210, suffix: "", label: "Lượt truy cập Cổng TNTH ngay ngày đầu vận hành", href: "/tin-tuc" },
+  { code: "#DATA.02", icon: Trophy, grad: "from-amber-400 to-orange-500", value: 1200, suffix: "", label: "Thí sinh dự Hội thi Học sinh 3 tốt cấp tỉnh", href: "/hoc-sinh-3-tot" },
+  { code: "#DATA.03", icon: ShieldCheck, grad: "from-cyan-500 to-blue-600", value: 50000, suffix: "", label: "Học sinh hoàn thành khoá Kỹ năng số chống lừa đảo", href: "/tin-tuc" },
+  { code: "#DATA.04", icon: HeartHandshake, grad: "from-violet-500 to-indigo-500", value: 3500, suffix: "", label: "Tình nguyện viên trong mùa Tiếp sức mùa thi", href: "/tin-tuc" },
+  { code: "#DATA.05", icon: Recycle, grad: "from-emerald-500 to-teal-500", value: 500, suffix: " kg", label: "Rác thải nhựa được thu gom Chủ nhật xanh", href: "/tin-tuc" },
+  { code: "#DATA.06", icon: Star, grad: "from-blue-600 to-indigo-500", value: 95, suffix: " năm", label: "Lịch sử vẻ vang Đoàn TNCS Hồ Chí Minh", href: "/gioi-thieu" },
   { code: "#DATA.07", icon: Landmark, grad: "from-indigo-500 to-blue-600", value: 28, suffix: "", label: "Đơn vị Đoàn trường cùng vận hành cổng trên toàn quốc", href: "/gioi-thieu" },
 ];
 
@@ -240,7 +240,38 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
     };
   }, [zoom]);
 
-  if (posts.length === 0) return null;
+  if (posts.length === 0) {
+    return (
+      <div className="relative mt-24">
+        <SectionTitle
+          eyebrow="#RESEARCH • ẤN PHẨM NGHIÊN CỨU"
+          title="Bản tin HSSV: Nghiên cứu khoa học"
+          sub="Khung chuyên mục ấn phẩm khoa học sáng tạo — sẵn sàng đón nhận bài viết mới"
+        />
+        <div className="mt-6 px-5 sm:px-8">
+          <div className="relative overflow-hidden rounded-3xl border border-dashed border-white/20 bg-white/[0.03] p-8 text-center backdrop-blur-md sm:p-12">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-300 ring-1 ring-cyan-400/20">
+              <Rocket className="h-7 w-7" />
+            </div>
+            <h4 className="mt-4 font-serif-display text-lg font-bold text-white">
+              Chuyên mục Nghiên cứu Khoa học & Sáng tạo Trẻ
+            </h4>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-300">
+              Khu vực đăng tải các công trình nghiên cứu, dự án STEM, sáng kiến khởi nghiệp và ấn phẩm khoa học của đoàn viên, học sinh, sinh viên.
+            </p>
+            <div className="mt-5 inline-flex items-center gap-2">
+              <Link
+                href="/quan-tri/xuat-ban"
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.07] px-5 py-2 text-xs font-semibold text-cyan-100 backdrop-blur-md hover:bg-white/[0.12]"
+              >
+                Đăng bài nghiên cứu khoa học <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const featured = posts[0];
   const satellites = posts.slice(1, 4);
   const featuredSrc = featured.coverDataUrl ?? FALLBACKS[0];
