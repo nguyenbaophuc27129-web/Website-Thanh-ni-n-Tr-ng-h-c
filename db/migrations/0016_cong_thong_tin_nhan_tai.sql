@@ -11,6 +11,12 @@ SET category_names = (
 WHERE id IN (5017, 5019, 5026)
   AND NOT ('Nhân tài' = ANY (category_names));
 
+-- Bài viết mẫu (bài 5035) cần editor_account_id = 2 (NOT NULL, FK accounts):
+-- chỉ chèn khi tài khoản 2 đã tồn tại — DB trống (tnth_prod mới) thì bỏ qua.
+-- (Không thụt lề khối INSERT để giữ nguyên nội dung chuỗi nhiều dòng.)
+DO $$
+BEGIN
+IF EXISTS (SELECT 1 FROM accounts WHERE id = 2) THEN
 INSERT INTO published_posts (
   id, activity_id, slug, title, excerpt, content, status, is_featured,
   published_at, view_count, editor_account_id, category_names, cover_seed,
@@ -32,5 +38,7 @@ Chuyên trang sẽ lần lượt công bố danh sách cố vấn, đối tác t
    ARRAY['Nhân tài', 'Tin tức hoạt động Đoàn'], 47,
    'Ban Thanh niên Trường học — Trung ương Đoàn', '2026-10-16T01:00:00Z')
 ON CONFLICT (id) DO NOTHING;
+END IF;
+END $$;
 
 COMMIT;

@@ -8,6 +8,12 @@ OVERRIDING SYSTEM VALUE
 VALUES (8, 'AN_TOAN', 'Bảo vệ an toàn — bạo lực, bạo hành, xâm hại', 7, true)
 ON CONFLICT (code) DO NOTHING;
 
+-- Bài viết mẫu (3 bài 5032–5034) cần editor_account_id = 2 (NOT NULL, FK accounts):
+-- chỉ chèn khi tài khoản 2 đã tồn tại — DB trống (tnth_prod mới) thì bỏ qua.
+-- (Không thụt lề khối INSERT để giữ nguyên nội dung chuỗi nhiều dòng.)
+DO $$
+BEGIN
+IF EXISTS (SELECT 1 FROM accounts WHERE id = 2) THEN
 INSERT INTO published_posts (
   id, activity_id, slug, title, excerpt, content, status, is_featured,
   published_at, view_count, editor_account_id, category_names, cover_seed,
@@ -55,5 +61,7 @@ Nếu bạn hoặc bạn bè gặp tình huống này, gọi Tổng đài quốc
    ARRAY['An toàn học đường'], 46,
    'Ban Thanh niên Trường học — Trung ương Đoàn', '2026-10-14T01:00:00Z')
 ON CONFLICT (id) DO NOTHING;
+END IF;
+END $$;
 
 COMMIT;
