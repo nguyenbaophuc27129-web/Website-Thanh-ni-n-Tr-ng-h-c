@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   LogIn,
   Network,
   Trophy,
   Globe2,
+  KeyRound,
+  CheckCircle2,
+  X,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
@@ -27,7 +32,17 @@ export default function DangNhapPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Modal tự đặt lại mật khẩu mới
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetIdentifier, setResetIdentifier] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState("");
 
   useEffect(() => {
     if (ready && session) router.replace(destFor(session.role));
@@ -37,21 +52,73 @@ export default function DangNhapPage() {
     e?.preventDefault();
     if (submitting) return;
     setError("");
+    setSuccessMsg("");
     setSubmitting(true);
     try {
-      if (await login(username.trim(), password)) {
+      const res = await login(username.trim(), password);
+      if (res.ok) {
         // Auth context handles session & redirect via useEffect
       } else {
-        setError("Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.");
+        setError(res.error || "Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.");
       }
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError("");
+    setResetSuccess("");
+
+    if (!resetIdentifier.trim()) {
+      setResetError("Vui lòng nhập tên đăng nhập hoặc email tài khoản.");
+      return;
+    }
+    if (!resetNewPassword || resetNewPassword.length < 6) {
+      setResetError("Mật khẩu mới phải có ít nhất 6 ký tự.");
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError("Mật khẩu xác nhận không trùng khớp.");
+      return;
+    }
+
+    setResetSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier: resetIdentifier.trim(),
+          newPassword: resetNewPassword,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        setResetSuccess(data.message || "Đặt lại mật khẩu thành công!");
+        setUsername(data.username || resetIdentifier.trim());
+        setPassword(resetNewPassword);
+        setSuccessMsg("Mật khẩu đã được cập nhật thành công. Bạn có thể nhấn Đăng nhập ngay!");
+        setTimeout(() => {
+          setResetModalOpen(false);
+          setResetNewPassword("");
+          setResetConfirmPassword("");
+          setResetSuccess("");
+        }, 1500);
+      } else {
+        setResetError(data?.error || "Không thể đặt lại mật khẩu. Vui lòng kiểm tra lại thông tin.");
+      }
+    } catch {
+      setResetError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
   return (
     <div className="relative flex min-h-screen bg-slate-50">
-      {/* ===== Nút ra màn hình chính — nổi góc trên trái, hiện mọi breakpoint ===== */}
+      {/* ===== Nút ra màn hình chính — nổi góc trên phải, hiện mọi breakpoint ===== */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -110,7 +177,7 @@ export default function DangNhapPage() {
           </h1>
           <p className="mt-5 max-w-md text-sm leading-relaxed text-white/65">
             Một hệ thống duy nhất cho phân quyền 4 cấp — từ Trung ương Đoàn đến trường THPT:
-            giao nhiệm vụ, chấm điểm từng điều kiện, xuất bản tin bài và lắng nghe người dân.
+            giao nhiệm vụ, chấm điểm từng điều kiện, xuất bản tin bài và theo dõi toàn diện.
           </p>
           <div className="mt-8 flex flex-wrap gap-2">
             {[
@@ -152,20 +219,45 @@ export default function DangNhapPage() {
             Dành cho cán bộ Đoàn các cấp và đơn vị trường học quản lý nghiệp vụ.
           </p>
 
-          <form onSubmit={handleLogin} className="mt-7 space-y-4">
+          {successMsg ? (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200"
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>{successMsg}</span>
+            </motion.div>
+          ) : null}
+
+          <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <div>
               <label className="text-sm font-medium text-slate-600">Tên đăng nhập / Email đơn vị</label>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Nhập tên đăng nhập được cấp"
+                placeholder="Nhập tên đăng nhập hoặc email"
                 autoComplete="username"
                 required
                 className="mt-1.5 w-full rounded-xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-300 focus:border-blue-500/70 focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-600">Mật khẩu</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-600">Mật khẩu</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetIdentifier(username);
+                    setResetError("");
+                    setResetSuccess("");
+                    setResetModalOpen(true);
+                  }}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Quên mật khẩu?
+                </button>
+              </div>
               <input
                 type="password"
                 value={password}
@@ -178,13 +270,14 @@ export default function DangNhapPage() {
             </div>
 
             {error ? (
-              <motion.p
+              <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-600"
+                className="flex items-start gap-2 rounded-xl bg-rose-50 p-3 text-xs font-medium text-rose-600 ring-1 ring-rose-200"
               >
-                {error}
-              </motion.p>
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-500" />
+                <span>{error}</span>
+              </motion.div>
             ) : null}
 
             <button
@@ -203,16 +296,149 @@ export default function DangNhapPage() {
             </Link>
           </p>
 
-          <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-center">
-            <p className="text-xs leading-relaxed text-slate-500">
-              Cán bộ Đoàn cơ sở quên mật khẩu hoặc cần cấp mới tài khoản quản trị đơn vị, vui lòng liên hệ Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn qua email{" "}
-              <a href="mailto:tnth@doanthanhnienvn.vn" className="font-semibold text-blue-600 hover:underline">
-                tnth@doanthanhnienvn.vn
-              </a>
+          {/* Khối tự đặt lại mật khẩu mới tự phục vụ */}
+          <div className="mt-8 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-sky-50/60 p-4 text-center">
+            <p className="text-xs font-semibold text-slate-700">
+              Quên mật khẩu hoặc cần khởi tạo lại mật khẩu quản trị đơn vị?
             </p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Hệ thống hỗ trợ tự động đặt lại mật khẩu ngay lập tức không cần gửi email hỗ trợ.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setResetIdentifier(username);
+                setResetError("");
+                setResetSuccess("");
+                setResetModalOpen(true);
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-blue-700 shadow-sm ring-1 ring-blue-200 transition-all hover:bg-blue-600 hover:text-white"
+            >
+              <KeyRound className="h-3.5 w-3.5" /> Tự đặt lại mật khẩu mới ngay
+            </button>
           </div>
         </motion.div>
       </div>
+
+      {/* ===== Modal Tự đặt lại mật khẩu mới ===== */}
+      <AnimatePresence>
+        {resetModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !resetSubmitting && setResetModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="relative w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl ring-1 ring-slate-900/10"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                    <KeyRound className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Đặt lại mật khẩu mới</h3>
+                    <p className="text-xs text-slate-500">Tự cập nhật mật khẩu trực tiếp vào hệ thống</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !resetSubmitting && setResetModalOpen(false)}
+                  className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleResetPassword} className="mt-5 space-y-3.5">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Tên đăng nhập hoặc Email đã cấp</label>
+                  <input
+                    type="text"
+                    value={resetIdentifier}
+                    onChange={(e) => setResetIdentifier(e.target.value)}
+                    placeholder="Ví dụ: tuoitrenghean hoặc email đơn vị"
+                    required
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Mật khẩu mới (tối thiểu 6 ký tự)</label>
+                  <input
+                    type="password"
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu mới"
+                    required
+                    minLength={6}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Xác nhận lại mật khẩu mới</label>
+                  <input
+                    type="password"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    placeholder="Nhập lại mật khẩu mới"
+                    required
+                    minLength={6}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                {resetError ? (
+                  <div className="flex items-start gap-2 rounded-xl bg-rose-50 p-2.5 text-xs text-rose-600 ring-1 ring-rose-200">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{resetError}</span>
+                  </div>
+                ) : null}
+
+                {resetSuccess ? (
+                  <div className="flex items-start gap-2 rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-700 ring-1 ring-emerald-200">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{resetSuccess}</span>
+                  </div>
+                ) : null}
+
+                <div className="mt-5 flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    disabled={resetSubmitting}
+                    onClick={() => setResetModalOpen(false)}
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetSubmitting}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {resetSubmitting ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang cập nhật...
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="h-3.5 w-3.5" /> Cập nhật mật khẩu ngay
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
