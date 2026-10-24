@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   Users,
   Search,
-  Lock,
-  Unlock,
+  Trash2,
+  KeyRound,
   UserPlus,
   FileUp,
   Download,
@@ -139,6 +139,18 @@ export default function PhanQuyenVaTaiKhoanPage() {
     accType: "canbo" as "canbo" | "doanvien",
   });
   const [savingCreate, setSavingCreate] = useState(false);
+
+  // Modal Xóa Tài khoản (Đoàn cấp trên xóa cấp dưới)
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
+  const [savingDelete, setSavingDelete] = useState(false);
+
+  // Modal Đặt lại Mật khẩu (Đoàn cấp trên đổi mật khẩu cho cấp dưới)
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetTargetAccount, setResetTargetAccount] = useState<Account | null>(null);
+  const [resetPasswordInput, setResetPasswordInput] = useState("KhoiTao@2026");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [savingResetPassword, setSavingResetPassword] = useState(false);
 
   // Modal Quản lý Chức danh
   const [nametagModalOpen, setNametagModalOpen] = useState(false);
@@ -418,23 +430,41 @@ export default function PhanQuyenVaTaiKhoanPage() {
     setEditOpen(false);
   };
 
-  /* ================= Xử lý khóa / mở nhanh ================= */
-  const toggleAccountStatus = async (account: Account) => {
-    if (!isSuperior(account)) {
-      toast("Bạn không có quyền thay đổi trạng thái tài khoản này.", "warning");
-      return;
-    }
-    const nextStatus = account.status === "ACTIVE" ? "LOCKED" : "ACTIVE";
-    const res = await store.updateAccount(account.id, { status: nextStatus });
+  /* ================= Xử lý Đoàn cấp trên Xóa tài khoản cấp dưới ================= */
+  const handleDeleteAccount = async () => {
+    if (!deletingAccount) return;
+    setSavingDelete(true);
+    const res = await store.deleteAccount(deletingAccount.id);
+    setSavingDelete(false);
     if (!res.ok) {
-      toast(res.error ?? "Không thể đổi trạng thái tài khoản.", "warning");
+      toast(res.error ?? "Không thể xóa tài khoản.", "warning");
       return;
     }
     void store.refreshAccounts();
-    toast(
-      `Đã ${nextStatus === "ACTIVE" ? "mở khóa" : "khóa"} tài khoản @${account.username}.`,
-      "success"
-    );
+    toast(`Đã xóa tài khoản @${deletingAccount.username} thành công!`, "success");
+    setDeleteOpen(false);
+    setDeletingAccount(null);
+  };
+
+  /* ================= Xử lý Đoàn cấp trên Đặt lại Mật khẩu cấp dưới ================= */
+  const handleResetPassword = async () => {
+    if (!resetTargetAccount) return;
+    if (!resetPasswordInput.trim() || resetPasswordInput.trim().length < 6) {
+      toast("Mật khẩu mới cần tối thiểu 6 ký tự.", "warning");
+      return;
+    }
+    setSavingResetPassword(true);
+    const res = await store.updateAccount(resetTargetAccount.id, {
+      password: resetPasswordInput.trim(),
+    });
+    setSavingResetPassword(false);
+    if (!res.ok) {
+      toast(res.error ?? "Không thể đặt lại mật khẩu.", "warning");
+      return;
+    }
+    toast(`Đã đổi mật khẩu cho tài khoản @${resetTargetAccount.username} thành công!`, "success");
+    setResetPasswordOpen(false);
+    setResetTargetAccount(null);
   };
 
   /* ================= Xử lý tạo tài khoản mới ================= */
@@ -932,7 +962,6 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   <Th>Chức vụ trong Đoàn</Th>
                   <Th>Chức danh</Th>
                   <Th>Phân quyền nhiệm vụ</Th>
-                  <Th className="text-center">Trạng thái</Th>
                   <Th className="text-right">Thao tác</Th>
                 </THead>
                 <tbody>
@@ -1027,24 +1056,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                             )}
                           </Td>
 
-                          {/* Cột 6: Trạng thái */}
-                          <Td className="text-center">
-                            {account.status === "ACTIVE" ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
-                                <CircleCheck className="h-3.5 w-3.5 text-blue-600" /> Hoạt động
-                              </span>
-                            ) : account.status === "LOCKED" ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600">
-                                <CircleX className="h-3.5 w-3.5" /> Đã khóa
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
-                                <AlertTriangle className="h-3.5 w-3.5" /> Chờ duyệt
-                              </span>
-                            )}
-                          </Td>
-
-                          {/* Cột 7: Thao tác (Cân đối thẳng hàng, người dùng được quyền sửa tài khoản của mình) */}
+                          {/* Cột Thao tác: Phân quyền, Sửa, Đổi MK, Xóa */}
                           <Td className="text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {/* Nút Phân quyền */}
@@ -1056,32 +1068,43 @@ export default function PhanQuyenVaTaiKhoanPage() {
                                 <ShieldCheck className="h-3.5 w-3.5" /> Phân quyền
                               </Link>
 
-                              {/* Nút Sửa thông tin — Người dùng được sửa tài khoản của mình hoặc cấp trên sửa cấp dưới */}
+                              {/* Nút Sửa thông tin — Người dùng sửa của mình hoặc cấp trên sửa cấp dưới */}
                               <button
                                 onClick={() => openEditModal(account)}
                                 disabled={!canManage && !isOwner}
                                 className="inline-flex h-8 items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 shadow-xs transition-colors hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                title={isOwner ? "Sửa thông tin tài khoản của bạn" : "Sửa thông tin tài khoản"}
+                                title={isOwner ? "Sửa thông tin tài khoản của bạn" : "Đoàn cấp trên sửa thông tin tài khoản cấp dưới"}
                               >
                                 <Edit3 className="h-3.5 w-3.5 text-stone-500" /> Sửa
                               </button>
 
-                              {/* Nút Khóa / Mở (Chỉ cấp trên) */}
+                              {/* Nút Đổi MK — Cấp trên đổi mật khẩu cho cấp dưới */}
                               {canManage && (
                                 <button
-                                  onClick={() => toggleAccountStatus(account)}
-                                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs shadow-xs transition-colors ${
-                                    account.status === "ACTIVE"
-                                      ? "border-rose-200 bg-white text-rose-600 hover:bg-rose-50"
-                                      : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
-                                  }`}
-                                  title={account.status === "ACTIVE" ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                                  onClick={() => {
+                                    setResetTargetAccount(account);
+                                    setResetPasswordInput("KhoiTao@2026");
+                                    setShowResetPassword(false);
+                                    setResetPasswordOpen(true);
+                                  }}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50/50 px-2.5 text-xs font-medium text-amber-800 shadow-xs transition-colors hover:bg-amber-100/70"
+                                  title="Đoàn cấp trên đặt lại mật khẩu cho tài khoản cấp dưới"
                                 >
-                                  {account.status === "ACTIVE" ? (
-                                    <Lock className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <Unlock className="h-3.5 w-3.5" />
-                                  )}
+                                  <KeyRound className="h-3.5 w-3.5 text-amber-600" /> Đổi MK
+                                </button>
+                              )}
+
+                              {/* Nút Xóa tài khoản — Cấp trên xóa tài khoản cấp dưới */}
+                              {canManage && !isOwner && account.id !== 1 && (
+                                <button
+                                  onClick={() => {
+                                    setDeletingAccount(account);
+                                    setDeleteOpen(true);
+                                  }}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/50 px-2.5 text-xs font-medium text-rose-700 shadow-xs transition-colors hover:bg-rose-100/70"
+                                  title="Đoàn cấp trên xóa tài khoản cấp dưới"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-rose-600" /> Xóa
                                 </button>
                               )}
                             </div>
@@ -1323,37 +1346,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
             </div>
           </Field>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Trạng thái tài khoản">
-              {session?.accountId === editingAccount?.id && session?.role !== "QUAN_TRI_TW" ? (
-                <div className="rounded-lg border border-stone-200 bg-stone-50 p-2.5 text-xs text-stone-600">
-                  <span className="font-semibold text-blue-700">Đang hoạt động</span> (Bạn không thể tự thay đổi trạng thái tài khoản của chính mình)
-                </div>
-              ) : (
-                <select
-                  value={editForm.status}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, status: e.target.value as Account["status"] }))
-                  }
-                  className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
-                >
-                  <option value="ACTIVE">Hoạt động (ACTIVE)</option>
-                  <option value="LOCKED">Khóa tài khoản (LOCKED)</option>
-                  <option value="PENDING">Chờ duyệt (PENDING)</option>
-                </select>
-              )}
+          {editingAccount?.role === "DOAN_VIEN" && (
+            <Field label="Lớp / Chi đoàn">
+              <Input
+                value={editForm.className}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, className: e.target.value }))}
+                placeholder="12A1"
+              />
             </Field>
-
-            {editingAccount?.role === "DOAN_VIEN" && (
-              <Field label="Lớp / Chi đoàn">
-                <Input
-                  value={editForm.className}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, className: e.target.value }))}
-                  placeholder="12A1"
-                />
-              </Field>
-            )}
-          </div>
+          )}
 
           <Field label="Đặt lại mật khẩu mới (để trống nếu giữ nguyên)">
             <div className="relative">
@@ -1524,6 +1525,87 @@ export default function PhanQuyenVaTaiKhoanPage() {
             </Button>
             <Button onClick={handleCreateAccount} disabled={savingCreate} className="bg-blue-700 hover:bg-blue-800 text-white">
               {savingCreate ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tạo tài khoản"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ==============================================================
+       * MODAL XÁC NHẬN XÓA TÀI KHOẢN (ĐOÀN CẤP TRÊN XÓA CẤP DƯỚI)
+       * ============================================================== */}
+      <Modal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Xác nhận xóa tài khoản"
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 space-y-1.5">
+            <p className="font-bold text-sm text-rose-900">Bạn có chắc chắn muốn xóa tài khoản này không?</p>
+            <p>
+              Tài khoản <strong>@{deletingAccount?.username}</strong> ({deletingAccount?.contactPerson}) sẽ bị xóa khỏi hệ thống và phiên đăng nhập sẽ bị thu hồi.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
+            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Hủy</Button>
+            <Button
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              disabled={savingDelete}
+              onClick={handleDeleteAccount}
+            >
+              {savingDelete ? <Loader2 className="h-4 w-4 animate-spin" /> : "Xác nhận xóa"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ==============================================================
+       * MODAL ĐẶT LẠI MẬT KHẨU (ĐOÀN CẤP TRÊN ĐỔI CHO CẤP DƯỚI)
+       * ============================================================== */}
+      <Modal
+        open={resetPasswordOpen}
+        onClose={() => setResetPasswordOpen(false)}
+        title={`Đặt lại mật khẩu: @${resetTargetAccount?.username}`}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-stone-600">
+            Đoàn cấp trên đặt lại mật khẩu cho tài khoản <strong>@{resetTargetAccount?.username}</strong> ({resetTargetAccount?.contactPerson}):
+          </p>
+          <Field label="Mật khẩu mới *">
+            <div className="relative">
+              <Input
+                type={showResetPassword ? "text" : "password"}
+                value={resetPasswordInput}
+                onChange={(e) => setResetPasswordInput(e.target.value)}
+                placeholder="Tối thiểu 6 ký tự"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowResetPassword(!showResetPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+              >
+                {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </Field>
+          <div className="flex items-center justify-between text-xs text-stone-500">
+            <span>Mật khẩu mặc định khởi tạo:</span>
+            <button
+              type="button"
+              onClick={() => setResetPasswordInput("KhoiTao@2026")}
+              className="text-blue-700 font-semibold hover:underline"
+            >
+              KhoiTao@2026
+            </button>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
+            <Button variant="secondary" onClick={() => setResetPasswordOpen(false)}>Hủy</Button>
+            <Button
+              className="bg-blue-700 hover:bg-blue-800 text-white"
+              disabled={savingResetPassword}
+              onClick={handleResetPassword}
+            >
+              {savingResetPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lưu mật khẩu mới"}
             </Button>
           </div>
         </div>

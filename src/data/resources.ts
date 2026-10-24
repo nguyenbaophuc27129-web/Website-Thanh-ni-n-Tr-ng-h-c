@@ -1,16 +1,7 @@
 import type { Resource, SystemSetting } from "@/types";
 
-export const resources: Resource[] = [
-  /* ===== Clip tuyên truyền Xây dựng tình bạn đẹp, nói không với bạo lực học đường =====
-     Nguồn: playlist chính thức "Học sinh TP. Hồ Chí Minh" — xem trực tuyến qua YouTube.
-     (Các tài liệu mẫu PDF/DOCX mock đã bỏ — kho chỉ giữ nội dung thật, đơn vị tự đăng tải lên.) */
-  { id: 11, resourceTypeId: 5, title: "Playlist đầy đủ: Xây dựng tình bạn đẹp, nói không với bạo lực học đường", description: "Toàn bộ clip tuyên truyền của Học sinh TP. Hồ Chí Minh — phát liên tục trong 1 trình duyệt.", fileName: "playlist-tinh-ban-de.mp4", fileSizeKb: 0, isPublic: true, downloadCount: 0, publishedByOrgUnitId: 1, status: "PUBLISHED", videoUrl: "https://www.youtube.com/embed/videoseries?list=PLS4M_3LJA2EIRMv0PW5YyPxjQirGhuwK5" },
-  { id: 12, resourceTypeId: 5, title: "Hoạt cảnh tuyên truyền Xây dựng tình bạn đẹp, nói không với bạo lực học đường số 01", description: "Hoạt cảnh tuyên truyền do Học sinh TP. Hồ Chí Minh sản xuất.", fileName: "clip-hoat-canh-so-01.mp4", fileSizeKb: 0, isPublic: true, downloadCount: 0, publishedByOrgUnitId: 1, status: "PUBLISHED", videoUrl: "https://www.youtube.com/watch?v=03GNBozuQKA" },
-  { id: 13, resourceTypeId: 5, title: "Videoclip tình huống về bạo lực học đường — Đoàn trường THPT Ernst Thälmann (Quận 01)", description: "Tình huống kịch tính do Đoàn trường dàn dựng, phát trong tiết sinh hoạt lớp.", fileName: "clip-ernst-thalmann.mp4", fileSizeKb: 0, isPublic: true, downloadCount: 0, publishedByOrgUnitId: 1, status: "PUBLISHED", videoUrl: "https://www.youtube.com/watch?v=bPw9OsqLHxM" },
-  { id: 14, resourceTypeId: 5, title: "Videoclip tình huống về bạo lực học đường — Đoàn trường THPT Bình Chiểu (TP. Thủ Đức)", description: "Tình huống về bạo lực học đường do Đoàn trường THPT Bình Chiểu thực hiện.", fileName: "clip-binh-chieu.mp4", fileSizeKb: 0, isPublic: true, downloadCount: 0, publishedByOrgUnitId: 1, status: "PUBLISHED", videoUrl: "https://www.youtube.com/watch?v=hf98LN-JNdI" },
-  { id: 15, resourceTypeId: 5, title: "Hoạt cảnh tuyên truyền Xây dựng tình bạn đẹp, nói không với bạo lực học đường số 01 (bản playlist)", description: "Bản đăng trong playlist chính thức của Học sinh TP. Hồ Chí Minh.", fileName: "clip-hoat-canh-playlist.mp4", fileSizeKb: 0, isPublic: true, downloadCount: 0, publishedByOrgUnitId: 1, status: "PUBLISHED", videoUrl: "https://www.youtube.com/watch?v=wOUKVVJb5Jg" },
-  { id: 16, resourceTypeId: 5, title: "Videoclip tình huống về bạo lực tinh thần học đường — Đoàn trường THPT Marie Curie (Quận 3)", description: "Tình huống về bạo lực tinh thần học đường do Đoàn trường THPT Marie Curie thực hiện.", fileName: "clip-marie-curie.mp4", fileSizeKb: 0, isPublic: true, downloadCount: 0, publishedByOrgUnitId: 1, status: "PUBLISHED", videoUrl: "https://www.youtube.com/watch?v=zv94WljV6YA" },
-];
+/* Danh mục tài nguyên bắt đầu trống — toàn bộ tài nguyên do các đơn vị đăng tải lên */
+export const resources: Resource[] = [];
 
 export const systemSettings: SystemSetting[] = [
   { settingKey: "site.name", value: "Cổng Thanh niên Trường học", valueType: "STRING", groupName: "Công khai", description: "Tên website hiển thị header, tiêu đề SEO" },
