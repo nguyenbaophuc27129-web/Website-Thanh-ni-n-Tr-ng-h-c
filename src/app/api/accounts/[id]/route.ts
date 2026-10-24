@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbEnabled, query } from "@/lib/db";
-import { SESSION_COOKIE, sessionFromToken, type RoleCode } from "@/lib/server/auth";
+import { SESSION_COOKIE, sessionFromToken, hashPassword, type RoleCode } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -49,6 +49,7 @@ export async function PATCH(
           contactPosition?: string;
           chucDanh?: string;
           className?: string;
+          password?: string;
         }
       | null;
     if (!accountId || !body) {
@@ -56,11 +57,15 @@ export async function PATCH(
     }
     const status = String(body.status ?? "");
     const hasStatus = ["PENDING", "ACTIVE", "LOCKED", "DISABLED"].includes(status);
+    const hasPassword = typeof body.password === "string" && body.password.trim().length > 0;
+    if (hasPassword && body.password!.trim().length < 6) {
+      return NextResponse.json({ ok: false, error: "MẬT KHẨU CẦN CÓ ÍT NHẤT 6 KÝ TỰ" }, { status: 400 });
+    }
     const hasInfo =
       [body.contactPerson, body.email, body.phone, body.contactPosition, body.chucDanh, body.className].some(
         (v) => typeof v === "string",
       );
-    if (!hasStatus && !hasInfo) {
+    if (!hasStatus && !hasInfo && !hasPassword) {
       return NextResponse.json({ ok: false, error: "DỮ LIỆU KHÔNG HỢP LỆ" }, { status: 400 });
     }
 
@@ -168,6 +173,15 @@ export async function PATCH(
           [accountId],
         );
       }
+    }
+
+    if (hasPassword) {
+      const passwordHash = await hashPassword(body.password!.trim());
+      await query(
+        `UPDATE accounts SET password_hash = $2, password_changed_at = now(), updated_at = now()
+         WHERE id = $1 AND deleted_at IS NULL`,
+        [accountId, passwordHash],
+      );
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -287,6 +287,7 @@ interface StoreValue {
   updateAccount: (id: number, patch: {
     contactPerson?: string; email?: string; phone?: string;
     contactPosition?: string; chucDanh?: string; className?: string; status?: Account["status"];
+    password?: string;
   }) => Promise<{ ok: boolean; error?: string }>;
   updateAccountPermissions: (accountId: number, perms: string[]) => Promise<{ ok: boolean; error?: string }>;
   refreshAccounts: () => Promise<void>;
@@ -1448,6 +1449,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       patch: {
         contactPerson?: string; email?: string; phone?: string;
         contactPosition?: string; chucDanh?: string; className?: string; status?: Account["status"];
+        password?: string;
       }
     ) => {
       setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));

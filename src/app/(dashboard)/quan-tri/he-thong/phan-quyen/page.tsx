@@ -19,6 +19,8 @@ import {
   Edit3,
   Plus,
   FileSpreadsheet,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth, type Role } from "@/lib/auth-context";
@@ -32,12 +34,13 @@ import { Field, Input } from "@/components/ui/input";
 import type { Account } from "@/types";
 
 /* =====================================================================
- * EXCEL IMPORT: 5 CỘT CHUẨN:
+ * EXCEL IMPORT: 6 CỘT CHUẨN:
  * 1. Tên đăng nhập
  * 2. Họ và tên
  * 3. Chức vụ trong đoàn
  * 4. Chức danh
  * 5. Email
+ * 6. Mật khẩu
  * ===================================================================== */
 interface ExcelImportRow {
   rowNo: number;
@@ -46,6 +49,7 @@ interface ExcelImportRow {
   contactPosition: string;
   chucDanh: string;
   email: string;
+  password?: string;
   isValid: boolean;
   errors: string[];
 }
@@ -106,6 +110,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   // Modal Sửa Tài khoản
   const [editOpen, setEditOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [editForm, setEditForm] = useState({
     contactPerson: "",
     email: "",
@@ -113,16 +118,18 @@ export default function PhanQuyenVaTaiKhoanPage() {
     contactPosition: "",
     chucDanh: "",
     className: "",
+    password: "",
     status: "ACTIVE" as Account["status"],
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Modal Tạo Tài khoản mới
   const [createOpen, setCreateOpen] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [createForm, setCreateForm] = useState({
     orgUnitId: "",
     username: "",
-    password: "",
+    password: "KhoiTao@2026",
     contactPerson: "",
     email: "",
     phone: "",
@@ -351,6 +358,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   /* ================= Xử lý sửa thông tin tài khoản ================= */
   const openEditModal = (account: Account) => {
     setEditingAccount(account);
+    setShowEditPassword(false);
     setEditForm({
       contactPerson: account.contactPerson || "",
       email: account.email || "",
@@ -358,6 +366,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
       contactPosition: account.contactPosition || "",
       chucDanh: account.chucDanh || "",
       className: account.className || "",
+      password: "",
       status: account.status,
     });
     setEditOpen(true);
@@ -373,6 +382,10 @@ export default function PhanQuyenVaTaiKhoanPage() {
       toast("Vui lòng nhập địa chỉ email.", "warning");
       return;
     }
+    if (editForm.password.trim() && editForm.password.trim().length < 6) {
+      toast("Mật khẩu mới cần ít nhất 6 ký tự.", "warning");
+      return;
+    }
     setSavingEdit(true);
     const res = await store.updateAccount(editingAccount.id, {
       contactPerson: editForm.contactPerson.trim(),
@@ -381,6 +394,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
       contactPosition: editForm.contactPosition.trim(),
       chucDanh: editForm.chucDanh.trim(),
       className: editForm.className.trim(),
+      password: editForm.password.trim() || undefined,
       // Người dùng thông thường sửa tài khoản chính mình không thể tự đổi status; riêng admin (QUAN_TRI_TW) được phép
       status:
         session?.accountId === editingAccount.id && session?.role !== "QUAN_TRI_TW"
@@ -522,6 +536,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
         "Chức vụ trong đoàn",
         "Chức danh",
         "Email",
+        "Mật khẩu",
       ];
       const sampleRows = [
         [
@@ -530,6 +545,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
           "Ủy viên Ban Thường vụ",
           "Bí thư Thường trực Trung ương Đoàn",
           "thuongtruc@doan.vn",
+          "KhoiTao@2026",
         ],
         [
           "tw.cv.web",
@@ -537,6 +553,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
           "Chuyên viên Ban TNTH",
           "Chuyên viên phụ trách Web",
           "cvweb@doan.vn",
+          "KhoiTao@2026",
         ],
         [
           "bd.province",
@@ -544,6 +561,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
           "Phó Bí thư Tỉnh đoàn",
           "Phó Bí thư Tỉnh đoàn Bình Dương",
           "bandoan@binhduong.doan.vn",
+          "KhoiTao@2026",
         ],
         [
           "bd.thpt.chuyen",
@@ -551,6 +569,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
           "Bí thư Đoàn trường",
           "Bí thư Đoàn trường THPT",
           "doan@thptchuyenbd.edu.vn",
+          "KhoiTao@2026",
         ],
       ];
 
@@ -561,12 +580,13 @@ export default function PhanQuyenVaTaiKhoanPage() {
         { wch: 28 },
         { wch: 38 },
         { wch: 30 },
+        { wch: 20 },
       ];
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "DanhSachTaiKhoan");
-      XLSX.writeFile(wb, "mau_import_tai_khoan_tnth_5_cot.xlsx");
-      toast("Đã tải xuống file mẫu Excel 5 cột thành công!", "success");
+      XLSX.writeFile(wb, "mau_import_tai_khoan_tnth_6_cot.xlsx");
+      toast("Đã tải xuống file mẫu Excel 6 cột (kèm mật khẩu) thành công!", "success");
     } catch (e) {
       console.error(e);
       toast("Không tạo được file mẫu Excel.", "warning");
@@ -705,7 +725,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
       const res = await store.createAccount({
         orgUnitId: unitId,
         username: r.username,
-        password: defaultPassword,
+        password: r.password?.trim() || defaultPassword,
         contactPerson: r.contactPerson,
         email: r.email,
         contactPosition: r.contactPosition,
@@ -748,9 +768,9 @@ export default function PhanQuyenVaTaiKhoanPage() {
             variant="secondary"
             size="sm"
             onClick={handleDownloadExcelTemplate}
-            title="Tải mẫu Excel 5 cột chuẩn: Tên đăng nhập, Họ và tên, Chức vụ trong đoàn, Chức danh, Email"
+            title="Tải mẫu Excel 6 cột chuẩn: Tên đăng nhập, Họ và tên, Chức vụ trong đoàn, Chức danh, Email, Mật khẩu"
           >
-            <Download className="h-4 w-4 text-stone-600" /> Mẫu Excel 5 cột
+            <Download className="h-4 w-4 text-stone-600" /> Mẫu Excel 6 cột
           </Button>
 
           <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
@@ -1335,6 +1355,25 @@ export default function PhanQuyenVaTaiKhoanPage() {
             )}
           </div>
 
+          <Field label="Đặt lại mật khẩu mới (để trống nếu giữ nguyên)">
+            <div className="relative">
+              <Input
+                type={showEditPassword ? "text" : "password"}
+                value={editForm.password}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, password: e.target.value }))}
+                placeholder="Nhập mật khẩu mới nếu muốn đổi (tối thiểu 6 ký tự)"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowEditPassword(!showEditPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+              >
+                {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </Field>
+
           <div className="flex items-center justify-between pt-4 border-t border-stone-100">
             {editingAccount && (
               <Link
@@ -1408,12 +1447,22 @@ export default function PhanQuyenVaTaiKhoanPage() {
             </Field>
 
             <Field label="Mật khẩu khởi tạo *">
-              <Input
-                type="password"
-                value={createForm.password}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, password: e.target.value }))}
-                placeholder="Tối thiểu 6 ký tự"
-              />
+              <div className="relative">
+                <Input
+                  type={showCreatePassword ? "text" : "password"}
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, password: e.target.value }))}
+                  placeholder="Tối thiểu 6 ký tự"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePassword(!showCreatePassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                >
+                  {showCreatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </Field>
           </div>
 
@@ -1481,30 +1530,31 @@ export default function PhanQuyenVaTaiKhoanPage() {
       </Modal>
 
       {/* ==============================================================
-       * MODAL IMPORT EXCEL (5 CỘT CHUẨN)
+       * MODAL IMPORT EXCEL (6 CỘT CHUẨN: KÈM MẬT KHẨU)
        * ============================================================== */}
       <Modal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        title="Import danh sách tài khoản từ Excel (5 cột chuẩn)"
+        title="Import danh sách tài khoản từ Excel (kèm cột Mật khẩu)"
       >
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
-          {/* Hướng dẫn 5 cột chuẩn */}
+          {/* Hướng dẫn 6 cột chuẩn */}
           <div className="rounded-xl border border-stone-200 bg-stone-50 p-3.5 text-xs text-stone-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold flex items-center gap-1.5 text-stone-900">
-                <FileSpreadsheet className="h-4 w-4 text-blue-700" /> Định dạng file Excel gồm đúng 5 cột:
+                <FileSpreadsheet className="h-4 w-4 text-blue-700" /> Định dạng file Excel gồm 6 cột:
               </span>
               <Button variant="secondary" size="sm" onClick={handleDownloadExcelTemplate} className="h-7 text-xs">
                 <Download className="h-3.5 w-3.5" /> Tải file mẫu .xlsx
               </Button>
             </div>
-            <div className="grid grid-cols-5 gap-1.5 text-center font-mono text-[11px] font-semibold">
+            <div className="grid grid-cols-6 gap-1.5 text-center font-mono text-[11px] font-semibold">
               <div className="rounded bg-white p-1 border border-stone-200">1. Tên đăng nhập</div>
               <div className="rounded bg-white p-1 border border-stone-200">2. Họ và tên</div>
               <div className="rounded bg-white p-1 border border-stone-200">3. Chức vụ trong đoàn</div>
               <div className="rounded bg-white p-1 border border-stone-200">4. Chức danh</div>
               <div className="rounded bg-white p-1 border border-stone-200">5. Email</div>
+              <div className="rounded bg-white p-1 border border-stone-200">6. Mật khẩu</div>
             </div>
           </div>
 
@@ -1604,6 +1654,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                       <th className="p-2">Chức vụ Đoàn</th>
                       <th className="p-2">Chức danh</th>
                       <th className="p-2">Email</th>
+                      <th className="p-2">Mật khẩu</th>
                       <th className="p-2 text-center">Trạng thái</th>
                     </tr>
                   </thead>
@@ -1624,6 +1675,13 @@ export default function PhanQuyenVaTaiKhoanPage() {
                           )}
                         </td>
                         <td className="p-2 text-stone-500">{r.email}</td>
+                        <td className="p-2 font-mono text-stone-600">
+                          {r.password ? (
+                            <span className="text-stone-800 font-semibold">{r.password}</span>
+                          ) : (
+                            <span className="text-stone-400 italic">{defaultPassword}</span>
+                          )}
+                        </td>
                         <td className="p-2 text-center">
                           {r.isValid ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700">
