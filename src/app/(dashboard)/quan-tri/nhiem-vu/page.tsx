@@ -20,14 +20,22 @@ export default function NhiemVuPage() {
   const store = useStore();
   const { toast } = useToast();
   const [tab, setTab] = useState<"criterias" | "mine">("criterias");
+  const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
 
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
   const activeSet = store.activeCriteriaSet();
+  const currentSet = useMemo(() => {
+    if (selectedSetId) {
+      const found = store.criteriaSets.find((c) => c.id === selectedSetId);
+      if (found) return found;
+    }
+    return activeSet ?? store.criteriaSets[0];
+  }, [selectedSetId, store.criteriaSets, activeSet]);
 
   const myAssignments = useMemo(
     () =>
       store.taskAssignments
-        .filter((a) => a.orgUnitId === session?.orgUnitId)
+        .filter((a) => Number(a.orgUnitId) === Number(session?.orgUnitId))
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
     [store.taskAssignments, session]
   );
@@ -35,7 +43,7 @@ export default function NhiemVuPage() {
   const subordinateAssignments = useMemo(
     () =>
       store.taskAssignments.filter(
-        (a) => scope.includes(a.orgUnitId) && a.orgUnitId !== session?.orgUnitId
+        (a) => scope.map(Number).includes(Number(a.orgUnitId)) && Number(a.orgUnitId) !== Number(session?.orgUnitId)
       ),
     [store.taskAssignments, scope, session]
   );
@@ -79,15 +87,34 @@ export default function NhiemVuPage() {
 
       {tab === "criterias" ? (
         <>
-          {activeSet ? (
+          {currentSet ? (
             <Card>
               <CardHeader
-                title={activeSet.name}
-                subtitle={`Mã ${activeSet.code} · Năm ${activeSet.year} · Tổng tối đa ${activeSet.totalPoints} điểm · ${activeSet.status === "ACTIVE" ? "Đang áp dụng" : activeSet.status}`}
-                action={<span className="rounded-full bg-doan-50 px-3 py-1 text-xs font-bold text-doan-700">{activeSet.totalPoints} điểm</span>}
+                title={currentSet.name}
+                subtitle={`Mã ${currentSet.code} · Năm ${currentSet.year} · Tổng tối đa ${currentSet.totalPoints} điểm · ${currentSet.status === "ACTIVE" ? "Đang áp dụng" : currentSet.status}`}
+                action={
+                  <div className="flex flex-wrap items-center gap-2">
+                    {store.criteriaSets.length > 1 && (
+                      <select
+                        value={currentSet.id}
+                        onChange={(e) => setSelectedSetId(Number(e.target.value))}
+                        className="rounded-lg border border-stone-200 bg-white py-1 px-2.5 text-xs font-medium text-stone-700 shadow-xs focus:border-blue-600 focus:outline-none"
+                      >
+                        {store.criteriaSets.map((cs) => (
+                          <option key={cs.id} value={cs.id}>
+                            {cs.name} ({cs.year})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <span className="rounded-full bg-doan-50 px-3 py-1 text-xs font-bold text-doan-700">
+                      {currentSet.totalPoints} điểm
+                    </span>
+                  </div>
+                }
               />
               <CardBody className="p-0">
-                <TaskTree criteriaSetId={activeSet.id} scope={scope} />
+                <TaskTree criteriaSetId={currentSet.id} scope={scope} />
               </CardBody>
             </Card>
           ) : null}

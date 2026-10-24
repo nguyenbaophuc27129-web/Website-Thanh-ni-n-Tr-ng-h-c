@@ -37,13 +37,13 @@ export function TaskTree({ criteriaSetId, scope }: { criteriaSetId: number; scop
   const [assignNote, setAssignNote] = useState("");
 
   const roots = useMemo(
-    () => tasks.filter((t) => t.criteriaSetId === criteriaSetId && t.parentTaskId === null).sort((a, b) => a.displayOrder - b.displayOrder),
+    () => tasks.filter((t) => Number(t.criteriaSetId) === Number(criteriaSetId) && t.parentTaskId === null).sort((a, b) => a.displayOrder - b.displayOrder),
     [tasks, criteriaSetId]
   );
 
   /** Đơn vị nhận phân công = con trực tiếp của đơn vị tôi (TW→tỉnh, tỉnh→phường, phường→trường) */
   const childUnits = useMemo(
-    () => (session ? orgUnits.filter((u) => u.parentId === session.orgUnitId && u.isActive) : []),
+    () => (session ? orgUnits.filter((u) => Number(u.parentId) === Number(session.orgUnitId) && u.isActive) : []),
     [orgUnits, session]
   );
   const canAssign = Boolean(session && session.role !== "BIEN_TAP_VIEN" && childUnits.length > 0);
@@ -60,7 +60,9 @@ export function TaskTree({ criteriaSetId, scope }: { criteriaSetId: number; scop
     });
 
   const assignmentInfo = (task: Task) => {
-    const mine = taskAssignments.filter((a) => a.taskId === task.id && scope.includes(a.orgUnitId));
+    const mine = taskAssignments.filter(
+      (a) => Number(a.taskId) === Number(task.id) && scope.map(Number).includes(Number(a.orgUnitId))
+    );
     if (mine.length === 0) return null;
     const avg = mine.reduce((s, a) => s + a.completionRate, 0) / mine.length;
     return { mine, avg };

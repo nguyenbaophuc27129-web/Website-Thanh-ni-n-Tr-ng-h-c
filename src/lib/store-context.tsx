@@ -744,7 +744,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const targetsOf = useCallback((id: number) => assignmentTargets.filter((t) => t.taskAssignmentId === id), [assignmentTargets]);
   const resultsOf = useCallback((id: number) => taskResults.filter((r) => r.taskAssignmentId === id), [taskResults]);
   const reviewsOf = useCallback((id: number) => assignmentReviews.filter((r) => r.taskAssignmentId === id), [assignmentReviews]);
-  const activeCriteriaSet = useCallback(() => criteriaSets.find((c) => c.status === "ACTIVE"), [criteriaSets]);
+  const activeCriteriaSet = useCallback(() => {
+    const active = criteriaSets.filter((c) => c.status === "ACTIVE");
+    if (active.length === 0) return criteriaSets[0];
+    const set2027 = active.find((c) => c.year === 2027 || c.code === "BTS-TINH-2027");
+    if (set2027) return set2027;
+    return active[active.length - 1] ?? active[0];
+  }, [criteriaSets]);
   const docRecipientsOf = useCallback((documentId: number) => documentRecipients.filter((r) => r.documentId === documentId), [documentRecipients]);
 
   const addNotification = useCallback((n: Omit<Notification, "id" | "isRead" | "createdAt">) => {

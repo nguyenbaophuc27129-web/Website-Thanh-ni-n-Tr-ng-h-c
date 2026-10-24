@@ -8,7 +8,7 @@ export const criteriaSet2027: CriteriaSet = {
   name: "Bộ Tiêu chí các Tỉnh, Thành đoàn năm 2027 (Dự thảo)",
   year: 2027, ownerOrgUnitId: 1, targetOrgLevel: 2,
   totalPoints: 413,
-  status: "DRAFT",
+  status: "ACTIVE",
 };
 
 export const tasks2027: Task[] = [

@@ -129,7 +129,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   const [createForm, setCreateForm] = useState({
     orgUnitId: "",
     username: "",
-    password: "KhoiTao@2026",
+    password: "",
     contactPerson: "",
     email: "",
     phone: "",
@@ -148,7 +148,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   // Modal Đặt lại Mật khẩu (Đoàn cấp trên đổi mật khẩu cho cấp dưới)
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
   const [resetTargetAccount, setResetTargetAccount] = useState<Account | null>(null);
-  const [resetPasswordInput, setResetPasswordInput] = useState("KhoiTao@2026");
+  const [resetPasswordInput, setResetPasswordInput] = useState("");
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [savingResetPassword, setSavingResetPassword] = useState(false);
 
@@ -160,7 +160,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   // Modal Import Excel 5 cột
   const [importOpen, setImportOpen] = useState(false);
   const [importTargetUnitId, setImportTargetUnitId] = useState<string>("");
-  const [defaultPassword, setDefaultPassword] = useState("KhoiTao@2026");
+  const [defaultPassword, setDefaultPassword] = useState("");
   const [importRows, setImportRows] = useState<ExcelImportRow[]>([]);
   const [parsingExcel, setParsingExcel] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -196,12 +196,10 @@ export default function PhanQuyenVaTaiKhoanPage() {
     if (session.accountId === target.id) return false; // Không tự khóa/phân quyền chính mình
     if (session.role === "QUAN_TRI_TW") return true;
     if (session.role === "QUAN_TRI_TINH") {
-      const targetUnit = store.orgById(target.orgUnitId);
-      return Boolean(targetUnit && targetUnit.orgLevel >= 3 && scope.includes(target.orgUnitId));
+      return target.orgUnitId === session.orgUnitId || scope.includes(target.orgUnitId);
     }
     if (session.role === "QUAN_TRI_CAP3") {
-      const targetUnit = store.orgById(target.orgUnitId);
-      return Boolean(targetUnit && targetUnit.orgLevel >= 4 && scope.includes(target.orgUnitId));
+      return target.orgUnitId === session.orgUnitId || scope.includes(target.orgUnitId);
     }
     return false;
   };
@@ -209,19 +207,26 @@ export default function PhanQuyenVaTaiKhoanPage() {
   const creatableUnits = useMemo(() => {
     if (!session) return [];
     if (session.role === "QUAN_TRI_TW") {
-      // TW Đoàn được quyền cấp tài khoản cho tất cả các đơn vị: thuộc TW, Tỉnh/Thành, và Đoàn trực thuộc
+      // TW Đoàn được quyền cấp tài khoản cho tất cả các đơn vị
       return store.orgUnits.filter((u) => u.isActive);
     }
-    const minLevel = session.role === "QUAN_TRI_TINH" ? 3 : 4;
-    return store.orgUnits.filter((u) => scope.includes(u.id) && u.orgLevel >= minLevel && u.isActive);
+    if (session.role === "QUAN_TRI_TINH") {
+      // Tỉnh Đoàn quản lý tài khoản của chính Tỉnh đoàn mình và tất cả các đơn vị trực thuộc
+      return store.orgUnits.filter((u) => (u.id === session.orgUnitId || scope.includes(u.id)) && u.isActive);
+    }
+    if (session.role === "QUAN_TRI_CAP3") {
+      return store.orgUnits.filter((u) => (u.id === session.orgUnitId || scope.includes(u.id)) && u.isActive);
+    }
+    return store.orgUnits.filter((u) => u.id === session.orgUnitId && u.isActive);
   }, [session, store.orgUnits, scope]);
 
   useEffect(() => {
     if (session && !importTargetUnitId) {
       setImportTargetUnitId(String(session.orgUnitId));
     }
-    if (session && !createForm.orgUnitId && creatableUnits.length > 0) {
-      setCreateForm((prev) => ({ ...prev, orgUnitId: String(creatableUnits[0].id) }));
+    if (session && !createForm.orgUnitId) {
+      const defaultId = creatableUnits.find((u) => u.id === session.orgUnitId)?.id ?? creatableUnits[0]?.id ?? session.orgUnitId;
+      setCreateForm((prev) => ({ ...prev, orgUnitId: String(defaultId) }));
     }
   }, [session, importTargetUnitId, createForm.orgUnitId, creatableUnits]);
 
@@ -811,7 +816,18 @@ export default function PhanQuyenVaTaiKhoanPage() {
             Quản lý Chức danh ({availableNametags.length})
           </Button>
 
-          <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-blue-700 hover:bg-blue-800 text-white">
+          <Button
+            size="sm"
+            onClick={() => {
+              setCreateForm((prev) => ({
+                ...prev,
+                orgUnitId: prev.orgUnitId || String(session?.orgUnitId || creatableUnits[0]?.id || ""),
+                password: "",
+              }));
+              setCreateOpen(true);
+            }}
+            className="bg-blue-700 hover:bg-blue-800 text-white"
+          >
             <UserPlus className="h-4 w-4" /> Thêm tài khoản
           </Button>
         </div>
@@ -1083,7 +1099,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                                 <button
                                   onClick={() => {
                                     setResetTargetAccount(account);
-                                    setResetPasswordInput("KhoiTao@2026");
+                                    setResetPasswordInput("");
                                     setShowResetPassword(false);
                                     setResetPasswordOpen(true);
                                   }}
@@ -1407,34 +1423,43 @@ export default function PhanQuyenVaTaiKhoanPage() {
               onChange={(e) => setCreateForm((prev) => ({ ...prev, orgUnitId: e.target.value }))}
               className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
             >
-              <optgroup label="Cấp 1 — Ban / Đơn vị thuộc Trung ương Đoàn">
-                {creatableUnits.filter((u) => u.orgLevel === 1).map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Cấp 2 — Tỉnh / Thành đoàn & Đoàn trực thuộc TW">
-                {creatableUnits.filter((u) => u.orgLevel === 2).map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
-                {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
-                {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </optgroup>
+              <option value="">-- Chọn đơn vị trực thuộc --</option>
+              {creatableUnits.filter((u) => u.orgLevel === 1).length > 0 && (
+                <optgroup label="Cấp 1 — Ban / Đơn vị thuộc Trung ương Đoàn">
+                  {creatableUnits.filter((u) => u.orgLevel === 1).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {creatableUnits.filter((u) => u.orgLevel === 2).length > 0 && (
+                <optgroup label="Cấp 2 — Tỉnh / Thành đoàn & Đoàn trực thuộc TW">
+                  {creatableUnits.filter((u) => u.orgLevel === 2).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {creatableUnits.filter((u) => u.orgLevel === 3).length > 0 && (
+                <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
+                  {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {creatableUnits.filter((u) => u.orgLevel === 4).length > 0 && (
+                <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
+                  {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </Field>
 
@@ -1588,16 +1613,6 @@ export default function PhanQuyenVaTaiKhoanPage() {
               </button>
             </div>
           </Field>
-          <div className="flex items-center justify-between text-xs text-stone-500">
-            <span>Mật khẩu mặc định khởi tạo:</span>
-            <button
-              type="button"
-              onClick={() => setResetPasswordInput("KhoiTao@2026")}
-              className="text-blue-700 font-semibold hover:underline"
-            >
-              KhoiTao@2026
-            </button>
-          </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
             <Button variant="secondary" onClick={() => setResetPasswordOpen(false)}>Hủy</Button>
             <Button
@@ -1648,34 +1663,43 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 onChange={(e) => setImportTargetUnitId(e.target.value)}
                 className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
               >
-                <optgroup label="Cấp 1 — Ban / Đơn vị thuộc Trung ương Đoàn">
-                  {creatableUnits.filter((u) => u.orgLevel === 1).map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Cấp 2 — Tỉnh / Thành đoàn & Đoàn trực thuộc TW">
-                  {creatableUnits.filter((u) => u.orgLevel === 2).map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
-                  {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
-                  {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </optgroup>
+                <option value="">-- Chọn đơn vị tiếp nhận --</option>
+                {creatableUnits.filter((u) => u.orgLevel === 1).length > 0 && (
+                  <optgroup label="Cấp 1 — Ban / Đơn vị thuộc Trung ương Đoàn">
+                    {creatableUnits.filter((u) => u.orgLevel === 1).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {creatableUnits.filter((u) => u.orgLevel === 2).length > 0 && (
+                  <optgroup label="Cấp 2 — Tỉnh / Thành đoàn & Đoàn trực thuộc TW">
+                    {creatableUnits.filter((u) => u.orgLevel === 2).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {creatableUnits.filter((u) => u.orgLevel === 3).length > 0 && (
+                  <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
+                    {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {creatableUnits.filter((u) => u.orgLevel === 4).length > 0 && (
+                  <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
+                    {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </Field>
 
@@ -1684,7 +1708,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 type="text"
                 value={defaultPassword}
                 onChange={(e) => setDefaultPassword(e.target.value)}
-                placeholder="KhoiTao@2026"
+                placeholder="Nhập mật khẩu khởi tạo (nếu file Excel trống)"
               />
             </Field>
           </div>
