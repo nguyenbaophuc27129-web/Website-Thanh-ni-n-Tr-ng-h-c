@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   ArrowLeft,
   Crown,
-  Sparkles,
   Check,
   RotateCcw,
   Save,
@@ -15,9 +14,7 @@ import {
   Square,
   AlertCircle,
   Building2,
-  User,
   Mail,
-  Phone,
   Briefcase,
   Tag,
   Loader2,
@@ -28,17 +25,11 @@ import { useToast } from "@/lib/toast-context";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  PERM_CATALOG,
-  PERM_SUGGESTIONS,
-  permNameOf,
-  effectivePermissions,
-  hasPerm,
-} from "@/lib/permissions";
+import { PERM_CATALOG, permNameOf } from "@/lib/permissions";
 import { permissionsList } from "@/data/org-units";
 import { ROLE_PERMISSIONS } from "@/types";
 
-/* Mô tả chi tiết cho từng quyền chức năng (theo Copy of Book1.xlsx) */
+/* Mô tả chi tiết cho từng quyền chức năng */
 const PERM_DESCRIPTIONS: Record<string, string> = {
   "activity.view": "Xem danh sách và chi tiết các hoạt động phong trào Đoàn",
   "activity.create": "Đăng ký, cập nhật hoạt động mới kèm minh chứng hình ảnh/link",
@@ -88,7 +79,6 @@ export default function PhanQuyenTaiKhoanPage({
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
-  const [activePreset, setActivePreset] = useState<string>("");
 
   const targetAccount = useMemo(
     () => store.accounts.find((a) => a.id === accountId),
@@ -120,7 +110,6 @@ export default function PhanQuyenTaiKhoanPage({
         if (targetAccount?.grantedPerms && targetAccount.grantedPerms.length > 0) {
           setSelectedPerms(targetAccount.grantedPerms);
         } else if (targetAccount) {
-          // Lấy quyền mặc định theo vai trò
           const defaultPerms = ROLE_PERMISSIONS[targetAccount.role] ?? [];
           setSelectedPerms(defaultPerms);
         }
@@ -140,9 +129,7 @@ export default function PhanQuyenTaiKhoanPage({
 
   // Toggle tick/untick từng quyền
   const togglePerm = (code: string) => {
-    setActivePreset("");
     if (isAllStar) {
-      // Đang là "*" -> chuyển sang danh sách cụ thể ngoại trừ mã vừa bỏ tick
       const allCodes = permissionsList.map((p) => p.code).filter((c) => c !== code);
       setSelectedPerms(allCodes);
       return;
@@ -156,7 +143,6 @@ export default function PhanQuyenTaiKhoanPage({
 
   // Toggle toàn bộ quyền trong 1 nhóm
   const toggleGroup = (codes: string[]) => {
-    setActivePreset("");
     if (isAllStar) {
       const allCodes = permissionsList.map((p) => p.code).filter((c) => !codes.includes(c));
       setSelectedPerms(allCodes);
@@ -171,39 +157,24 @@ export default function PhanQuyenTaiKhoanPage({
     }
   };
 
-  // Áp dụng quyền theo chức danh mẫu (Copy of Book1.xlsx)
-  const handleApplyPreset = (presetName: string) => {
-    if (!presetName) return;
-    setActivePreset(presetName);
-    const perms = PERM_SUGGESTIONS[presetName];
-    if (perms) {
-      setSelectedPerms(perms);
-      toast(`Đã áp dụng mẫu phân quyền cho "${presetName}".`, "success");
-    }
-  };
-
   // Cấp toàn quyền (*)
   const handleGrantSuperadmin = () => {
-    setActivePreset("");
     setSelectedPerms(["*"]);
     toast("Đã cấp Toàn quyền (*). Tài khoản có thể dùng tất cả phân hệ.", "success");
   };
 
   // Chọn tất cả 31 quyền
   const handleSelectAll = () => {
-    setActivePreset("");
     setSelectedPerms(permissionsList.map((p) => p.code));
   };
 
   // Bỏ chọn tất cả
   const handleClearAll = () => {
-    setActivePreset("");
     setSelectedPerms([]);
   };
 
   // Khôi phục quyền mặc định theo vai trò đơn vị
   const handleResetToRoleDefault = () => {
-    setActivePreset("");
     if (targetAccount) {
       const defaultPerms = ROLE_PERMISSIONS[targetAccount.role] ?? [];
       setSelectedPerms(defaultPerms);
@@ -267,7 +238,7 @@ export default function PhanQuyenTaiKhoanPage({
           <Button variant="secondary" onClick={() => router.push("/quan-tri/he-thong/phan-quyen")}>
             Hủy bỏ
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} className="bg-doan-600 hover:bg-doan-700 text-white">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Lưu phân quyền
           </Button>
@@ -275,12 +246,12 @@ export default function PhanQuyenTaiKhoanPage({
       </div>
 
       {/* ===== Card Thông tin tài khoản được phân quyền ===== */}
-      <Card className="overflow-hidden border-doan-200/80 bg-gradient-to-r from-doan-50/40 via-white to-sky-50/30">
+      <Card className="border-stone-200 bg-white">
         <CardBody className="p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-doan-600 to-cyan-600 font-serif-display text-lg font-bold text-white shadow-md shadow-doan-600/20">
-                {targetAccount.contactPerson.slice(0, 1).toUpperCase()}
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-doan-600 text-base font-bold text-white shadow-xs">
+                {targetAccount.contactPerson ? targetAccount.contactPerson.slice(0, 1).toUpperCase() : "U"}
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -291,8 +262,8 @@ export default function PhanQuyenTaiKhoanPage({
                     (@{targetAccount.username})
                   </span>
                   {targetAccount.chucDanh ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-doan-500/15 px-3 py-0.5 text-xs font-bold text-amber-900 ring-1 ring-amber-300">
-                      <Tag className="h-3 w-3 text-amber-600" />
+                    <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700 border border-stone-200">
+                      <Tag className="h-3 w-3 text-stone-500" />
                       {targetAccount.chucDanh}
                     </span>
                   ) : null}
@@ -332,45 +303,26 @@ export default function PhanQuyenTaiKhoanPage({
         </CardBody>
       </Card>
 
-      {/* ===== Toolbar Thao tác nhanh & Áp dụng mẫu gợi ý ===== */}
+      {/* ===== Toolbar Thao tác nhanh ===== */}
       <Card>
-        <CardBody className="p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-stone-700">Áp dụng mẫu chức danh:</span>
-              <select
-                value={activePreset}
-                onChange={(e) => handleApplyPreset(e.target.value)}
-                className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-800 outline-none focus:border-doan-500 focus:ring-1 focus:ring-doan-500"
-              >
-                <option value="">— Chọn mẫu chức danh (Copy of Book1.xlsx) —</option>
-                {Object.keys(PERM_SUGGESTIONS).map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              {activePreset ? (
-                <Badge tone="green">
-                  <span className="inline-flex items-center gap-1">
-                    <Check className="h-3 w-3" /> Đã nạp mẫu: {activePreset}
-                  </span>
-                </Badge>
-              ) : null}
-            </div>
+        <CardBody className="p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-stone-600">
+              Thao tác nhanh trên danh sách chức năng:
+            </span>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" onClick={handleGrantSuperadmin}>
-                <Crown className="h-3.5 w-3.5 text-amber-500" /> Cấp toàn quyền (*)
+              <Button size="sm" variant="outline" onClick={handleGrantSuperadmin} className="border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-100">
+                <Crown className="h-3.5 w-3.5 text-amber-600" /> Cấp toàn quyền (*)
               </Button>
               <Button size="sm" variant="secondary" onClick={handleSelectAll}>
-                <CheckSquare2 className="h-3.5 w-3.5" /> Chọn tất cả
+                <CheckSquare2 className="h-3.5 w-3.5 text-stone-600" /> Chọn tất cả (31 quyền)
               </Button>
               <Button size="sm" variant="secondary" onClick={handleClearAll}>
-                <Square className="h-3.5 w-3.5" /> Bỏ chọn hết
+                <Square className="h-3.5 w-3.5 text-stone-500" /> Bỏ chọn hết
               </Button>
               <Button size="sm" variant="ghost" onClick={handleResetToRoleDefault}>
-                <RotateCcw className="h-3.5 w-3.5 text-stone-500" /> Về mặc định vai trò
+                <RotateCcw className="h-3.5 w-3.5 text-stone-500" /> Mặc định vai trò
               </Button>
             </div>
           </div>
@@ -384,17 +336,17 @@ export default function PhanQuyenTaiKhoanPage({
           <p className="mt-2 text-xs">Đang tải danh mục quyền chức năng…</p>
         </div>
       ) : (
-        <div className="grid gap-5">
+        <div className="grid gap-4">
           {PERM_CATALOG.map((group) => {
             const groupCheckedCount = group.codes.filter(isChecked).length;
             const isAllGroupChecked = group.codes.every(isChecked);
 
             return (
-              <Card key={group.module} className="overflow-hidden shadow-sm">
+              <Card key={group.module} className="overflow-hidden border-stone-200">
                 <CardHeader
                   title={
                     <div className="flex items-center gap-2">
-                      <span className="text-base font-bold text-stone-900">{group.module}</span>
+                      <span className="text-sm font-bold text-stone-900">{group.module}</span>
                       <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-semibold text-stone-600">
                         {groupCheckedCount} / {group.codes.length}
                       </span>
@@ -406,13 +358,13 @@ export default function PhanQuyenTaiKhoanPage({
                       size="sm"
                       variant="ghost"
                       onClick={() => toggleGroup(group.codes)}
-                      className="text-xs"
+                      className="text-xs text-doan-700 hover:text-doan-800"
                     >
                       {isAllGroupChecked ? "Bỏ chọn nhóm" : "Chọn cả nhóm"}
                     </Button>
                   }
                 />
-                <CardBody className="border-t border-stone-100 bg-stone-50/30 p-4">
+                <CardBody className="border-t border-stone-100 bg-stone-50/40 p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     {group.codes.map((code) => {
                       const checked = isChecked(code);
@@ -422,28 +374,29 @@ export default function PhanQuyenTaiKhoanPage({
                       return (
                         <label
                           key={code}
-                          className={`group flex cursor-pointer select-none items-start gap-3 rounded-xl border p-3 transition-all ${
+                          onClick={() => togglePerm(code)}
+                          className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
                             checked
-                              ? "border-doan-300 bg-white shadow-sm ring-1 ring-doan-200"
-                              : "border-stone-200 bg-white/70 hover:border-stone-300 hover:bg-white"
+                              ? "border-sky-300 bg-sky-50/60 shadow-xs"
+                              : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50/60"
                           }`}
                         >
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() => togglePerm(code)}
-                            className="mt-0.5 h-4 w-4 shrink-0 rounded border-stone-300 text-doan-600 focus:ring-doan-500"
+                            onChange={() => {}} // Đã xử lý ở label onClick
+                            className="mt-0.5 h-4 w-4 rounded border-stone-300 text-sky-600 focus:ring-sky-500"
                           />
                           <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex items-center justify-between gap-1">
                               <span
                                 className={`text-xs font-bold ${
-                                  checked ? "text-stone-900" : "text-stone-700"
+                                  checked ? "text-sky-900" : "text-stone-800"
                                 }`}
                               >
                                 {name}
                               </span>
-                              <code className="rounded bg-stone-100 px-1 py-0.2 font-mono text-[9.5px] text-stone-400">
+                              <code className="rounded bg-stone-100 px-1 py-0.2 font-mono text-[10px] text-stone-500">
                                 {code}
                               </code>
                             </div>
@@ -464,27 +417,32 @@ export default function PhanQuyenTaiKhoanPage({
         </div>
       )}
 
-      {/* ===== Sticky Bottom Bar ===== */}
-      <div className="fixed bottom-0 inset-x-0 z-40 border-t border-stone-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+      {/* ===== Sticky Footer Lưu quyền ===== */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-stone-200 bg-white/95 backdrop-blur-md py-3 shadow-lg">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-doan-600" />
-            <div>
-              <p className="text-xs font-bold text-stone-900">
-                {isAllStar
-                  ? "Đang cấp: Toàn quyền hệ thống (*)"
-                  : `Đang cấp: ${activeCount} / ${permissionsList.length} quyền nhiệm vụ`}
-              </p>
-              <p className="text-[10.5px] text-stone-500">
-                Áp dụng riêng cho tài khoản @{targetAccount.username} ({targetAccount.contactPerson})
-              </p>
-            </div>
+            <span className="text-xs font-semibold text-stone-700">
+              {isAllStar
+                ? "Tài khoản có Toàn quyền (*)"
+                : `Đang chọn: ${activeCount} / ${permissionsList.length} quyền`}
+            </span>
           </div>
+
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => router.push("/quan-tri/he-thong/phan-quyen")}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => router.push("/quan-tri/he-thong/phan-quyen")}
+            >
               Quay lại danh sách
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-doan-600 hover:bg-doan-700 text-white"
+            >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Lưu phân quyền
             </Button>
