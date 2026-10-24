@@ -388,24 +388,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hs3tAchievements, setHs3tAchievements] = useState<Hs3tAchievement[]>(seedHs3tAchievements);
   const [hs3tUnitStandards, setHs3tUnitStandards] = useState<Hs3tUnitStandard[]>(seedHs3tUnitStandards);
 
-  // Khôi phục tài khoản đã tạo từ localStorage (để khớp với đăng nhập) — chặn trùng username lẫn id,
-  // kể cả trùng NỘI BỘ danh sách đã lưu (bản cũ từng sinh id nextId() đè lên id của /dang-ky)
+  // Xóa toàn bộ tài khoản ảo còn sót trong localStorage trình duyệt
   useEffect(() => {
-    const created = loadCreatedAccounts();
-    if (created.length > 0) {
-      setAccounts((prev) => {
-        const known = new Set(prev.map((a) => a.username.toLowerCase()));
-        const knownIds = new Set(prev.map((a) => a.id));
-        const restored: Account[] = [];
-        for (const c of created) {
-          if (known.has(c.username.toLowerCase()) || knownIds.has(c.id)) continue;
-          known.add(c.username.toLowerCase());
-          knownIds.add(c.id);
-          const { password: _pw, displayName: _dn, orgUnitName: _on, ...acc } = c;
-          restored.push(acc as Account);
-        }
-        return restored.length > 0 ? [...prev, ...restored] : prev;
-      });
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("tnth_demo_created_accounts");
+      } catch {}
     }
   }, []);
 
@@ -1444,22 +1432,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/accounts");
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok && Array.isArray(data.accounts)) {
-        setAccounts((prev) => {
-          const map = new Map<number, Account>((data.accounts as Account[]).map((a) => [a.id, a]));
-          const merged = prev.map((p) => {
-            const item = map.get(p.id);
-            return item ? { ...p, ...item } : p;
-          });
-          for (const a of data.accounts as Account[]) {
-            if (!prev.some((p) => p.id === a.id)) merged.push(a);
-          }
-          return merged;
-        });
+        setAccounts(data.accounts as Account[]);
       }
     } catch {
-      // offline
+      // offline fallback
     }
   }, []);
+
+  useEffect(() => {
+    void refreshAccounts();
+  }, [refreshAccounts]);
 
   const updateAccount = useCallback(
     async (

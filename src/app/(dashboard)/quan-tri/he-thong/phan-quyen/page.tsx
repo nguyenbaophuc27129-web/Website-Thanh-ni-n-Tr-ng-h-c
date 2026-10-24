@@ -79,7 +79,7 @@ interface DbNametag {
 
 export default function PhanQuyenVaTaiKhoanPage() {
   const store = useStore();
-  const { session } = useAuth();
+  const { session, updateProfile } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -165,6 +165,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
   useEffect(() => {
     loadNametags();
+    void store.refreshAccounts();
   }, []);
 
   // Phạm vi quản trị theo tài khoản đăng nhập
@@ -388,6 +389,14 @@ export default function PhanQuyenVaTaiKhoanPage() {
       toast(res.error ?? "Không thể cập nhật thông tin tài khoản.", "warning");
       return;
     }
+    if (session?.accountId === editingAccount.id) {
+      updateProfile({
+        contactPerson: editForm.contactPerson.trim(),
+        email: editForm.email.trim(),
+        contactPosition: editForm.contactPosition.trim(),
+      });
+    }
+    void store.refreshAccounts();
     toast(`Đã cập nhật thông tin tài khoản @${editingAccount.username} thành công!`, "success");
     setEditOpen(false);
   };
@@ -404,6 +413,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
       toast(res.error ?? "Không thể đổi trạng thái tài khoản.", "warning");
       return;
     }
+    void store.refreshAccounts();
     toast(
       `Đã ${nextStatus === "ACTIVE" ? "mở khóa" : "khóa"} tài khoản @${account.username}.`,
       "success"

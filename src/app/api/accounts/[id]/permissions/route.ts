@@ -8,8 +8,8 @@ export const runtime = "nodejs";
 
 /**
  * Quyền RIÊNG của 1 tài khoản (bảng account_permissions):
- * - GET: xem các quyền được gán (cấp trên hoặc chính tài khoản).
- * - PUT: CẤP TRÊN lưu danh sách quyền — tick mục nào xem mục đó.
+ * - GET: xem các quyền được gán.
+ * - PUT: Admin phân quyền trực tiếp cho các tài khoản — tick mục nào xem mục đó.
  *   Danh sách rỗng = xoá hết quyền riêng → trở lại quyền mặc định theo vai trò.
  */
 
@@ -25,18 +25,22 @@ async function callerPerms(request: NextRequest) {
   return { session, perms };
 }
 
-/** Cấp trên = TW toàn quyền, hoặc đơn vị của người gọi là tổ tiên (path prefix) của đơn vị mục tiêu */
-async function isSuperiorOf(
+/** Admin có thẩm quyền phân quyền trực tiếp cho mọi tài khoản */
+async function canGrantPermissions(
+  callerRole: string,
   callerAccountId: number,
   callerUnitId: number,
   callerPerms: string[],
   targetAccountId: number,
   targetUnitId: number,
 ): Promise<boolean> {
-  if (callerAccountId === targetAccountId) return false; // Không tự phân quyền cho chính mình
-  if (hasPerm(callerPerms, "*")) return true;
-  if (!hasPerm(callerPerms, "system.account.manage")) return false;
-  if (callerUnitId === targetUnitId) return true; // Cán bộ có quyền quản lý tài khoản trong đơn vị
+  // Không tự phân quyền cho chính mình
+  if (callerAccountId === targetAccountId) return false;
+  // Quản trị viên Trung ương hoặc tài khoản có quyền toàn phần / quản lý tài khoản được phân quyền cho bất kỳ ai
+  if (callerRole === "QUAN_TRI_TW" || hasPerm(callerPerms, "*") || hasPerm(callerPerms, "system.account.manage")) {
+    return true;
+  }
+  if (callerUnitId === targetUnitId) return true;
   const [cPath, tPath] = await Promise.all([
     query<{ path: string }>("SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL", [callerUnitId]),
     query<{ path: string }>("SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL", [targetUnitId]),
@@ -87,30 +91,31 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const target = targets[0];
   if (!target) return NextResponse.json({ ok: false, error: "KHÔNG TÌM THẤY TÀI KHOẢN" }, { status: 404 });
 
-  if (!(await isSuperiorOf(ctx.session.accountId, ctx.session.orgUnitId, ctx.perms, accountId, Number(target.org_unit_id)))) {
+  if (
+    !(await canGrantPermissions(
+      ctx.session.role,
+      ctx.session.accountId,
+      ctx.session.orgUnitId,
+      ctx.perms,
+      accountId,
+      Number(target.org_unit_id),
+    ))
+  ) {
     return NextResponse.json(
-      { ok: false, error: "CHỈ CẤP TRÊN TRỰC TIẾP MỚI PHÂN QUYỀN CHO CẤP DƯỚI" },
+      { ok: false, error: "BẠN KHÔNG CÓ THẨM QUYỀN PHÂN QUYỀN CHO TÀI KHOẢN NÀY" },
       { status: 403 },
     );
-  }
-
-  // Chặn sửa quyền của tài khoản TW nếu người gọi không phải TW toàn quyền
-  if (target.role_code === "QUAN_TRI_TW" && !hasPerm(ctx.perms, "*")) {
-    return NextResponse.json({ ok: false, error: "KHÔNG THỂ PHÂN QUYỀN TÀI KHOẠN CẤP TW" }, { status: 403 });
   }
 
   await withTransaction(async (client) => {
     await client.query("DELETE FROM account_permissions WHERE account_id = $1", [accountId]);
     for (const code of perms) {
       await client.query(
-        "INSERT INTO account_permissions (account_id, perm_code, granted_by_account_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        "INSERT INTO account_permissions (account_id, perm_code, granted_by_account_id) VALUES ($1, $2, $3)",
         [accountId, code, ctx.session.accountId],
       );
     }
   });
-
-  // Đổi quyền riêng → thu hồi phiên cũ để quyền mới ăn ngay khi đăng nhập lại
-  await query("UPDATE auth_sessions SET revoked_at = now() WHERE account_id = $1 AND revoked_at IS NULL", [accountId]);
 
   return NextResponse.json({ ok: true, perms });
 }

@@ -73,12 +73,14 @@ const AuthCtx = createContext<{
   login: (username: string, password: string) => Promise<boolean>;
   loginAs: (account: DemoAccount) => void;
   logout: () => void;
+  updateProfile: (patch: Partial<Session>) => void;
 }>({
   session: null,
   ready: false,
   login: async () => false,
   loginAs: () => {},
   logout: () => {},
+  updateProfile: () => {},
 });
 
 export function useAuth() {
@@ -152,6 +154,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [persist, toSession]
   );
 
+  const updateProfile = useCallback((patch: Partial<Session>) => {
+    setSession((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...patch };
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
   const logout = useCallback(() => {
     // Thu hồi phiên phía DB (bỏ qua lỗi — cookie/localStorage vẫn xoá)
     void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -159,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [persist]);
 
   return (
-    <AuthCtx.Provider value={{ session, ready, login, loginAs, logout }}>
+    <AuthCtx.Provider value={{ session, ready, login, loginAs, logout, updateProfile }}>
       {children}
     </AuthCtx.Provider>
   );
