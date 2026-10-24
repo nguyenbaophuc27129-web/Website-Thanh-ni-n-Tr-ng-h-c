@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FolderOpen, Plus, Globe, Archive, Download, FileUp, Pencil } from "lucide-react";
+import { FolderOpen, Plus, Globe, Archive, Download, FileUp, Pencil, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -24,8 +24,8 @@ const EMPTY_FORM: Form = {
   title: "", description: "", resourceTypeId: "", fileName: "", fileSizeKb: "", isPublic: true, status: "PUBLISHED",
 };
 
-/** Đọc tệp thành dataUrl để tải lại được thật (giới hạn 4MB) */
-const MAX_RESOURCE_BYTES = 4 * 1024 * 1024;
+/** Đọc tệp thành dataUrl để tải lại được thật (giới hạn 25MB) */
+const MAX_RESOURCE_BYTES = 25 * 1024 * 1024;
 
 export default function TaiNguyenAdminPage() {
   const { session } = useAuth();
@@ -66,7 +66,7 @@ export default function TaiNguyenAdminPage() {
   const pickFile = (file: File | undefined) => {
     if (!file) return;
     if (file.size > MAX_RESOURCE_BYTES) {
-      toast("Tệp vượt quá 4MB — hãy nén hoặc chọn tệp nhỏ hơn.", "warning");
+      toast("Tệp vượt quá 25MB — hãy chọn tệp nhỏ hơn.", "warning");
       return;
     }
     const reader = new FileReader();
@@ -181,15 +181,27 @@ export default function TaiNguyenAdminPage() {
                   {r.status === "PUBLISHED" ? (
                     <Button
                       size="sm"
-                      variant="danger"
+                      variant="secondary"
                       onClick={() => {
                         store.saveResource({ ...r, status: "ARCHIVED" }, r.id);
-                        toast("Đã lưu trữ tài nguyên.");
+                        toast("Đã chuyển tài nguyên vào lưu trữ.");
                       }}
                     >
                       <Archive className="h-3.5 w-3.5" /> Lưu trữ
                     </Button>
                   ) : null}
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => {
+                      if (window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn tài nguyên "${r.title}" không?`)) {
+                        store.deleteResource(r.id);
+                        toast(`Đã xóa tài nguyên "${r.fileName || r.title}".`, "success");
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Xóa
+                  </Button>
                 </div>
               </li>
             ))}
@@ -236,7 +248,7 @@ export default function TaiNguyenAdminPage() {
                 <option value="ARCHIVED">Lưu trữ</option>
               </Select>
             </Field>
-            <Field label="Tệp đính kèm" required hint="Chọn tệp để tự điền tên + dung lượng — người dùng sẽ tải được tệp thật (tối đa 4MB).">
+            <Field label="Tệp đính kèm" required hint="Chọn tệp để tự điền tên + dung lượng — người dùng sẽ tải được tệp thật (tối đa 25MB).">
               <div className="flex items-center gap-2">
                 <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-700 transition-colors hover:bg-stone-50">
                   <FileUp className="h-4 w-4" /> {form.fileDataUrl ? "Đổi tệp khác" : "Chọn tệp…"}

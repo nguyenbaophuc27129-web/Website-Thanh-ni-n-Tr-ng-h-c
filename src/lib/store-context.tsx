@@ -279,6 +279,7 @@ interface StoreValue {
 
   /* resources (R9) */
   saveResource: (input: Omit<Resource, "id" | "downloadCount">, id?: number) => void;
+  deleteResource: (id: number) => void;
   downloadResource: (id: number) => void;
 
   /* system */
@@ -291,6 +292,7 @@ interface StoreValue {
   }) => Promise<{ ok: boolean; error?: string }>;
   updateAccountPermissions: (accountId: number, perms: string[]) => Promise<{ ok: boolean; error?: string }>;
   refreshAccounts: () => Promise<void>;
+  deleteAccount: (accountId: number) => Promise<{ ok: boolean; error?: string }>;
   createAccount: (input: {
     orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
     contactPosition: string; chucDanh?: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
@@ -468,10 +470,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!r.ok) {
         requeue();
         console.warn("[TNTH][STORE] Sync bị từ chối (HTTP", r.status, ") — dữ liệu vẫn giữ tại máy.");
-        if (!syncFailToastedRef.current) {
-          syncFailToastedRef.current = true;
-          toast("Đồng bộ dữ liệu lên máy chủ chưa thành công — hệ thống sẽ tự thử lại.", "warning");
-        }
+        // Im lặng thử lại nền, không hiện toast quấy rầy người dùng
       } else {
         for (const n of Object.keys(deletes)) delete deletedIdsRef.current[n];
         syncFailToastedRef.current = false;
@@ -479,10 +478,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       requeue();
       console.warn("[TNTH][STORE] Không tới được máy chủ — giữ dữ liệu tại máy, thử lại ở lần ghi sau.");
-      if (!syncFailToastedRef.current) {
-        syncFailToastedRef.current = true;
-        toast("Mất kết nối với máy chủ — dữ liệu tạm giữ trên máy và sẽ tự đồng bộ lại.", "warning");
-      }
+      // Giữ dữ liệu tại máy, tự thử lại khi có kết nối
     }
   }, [snapshotEntity, toast]);
 
@@ -529,6 +525,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Những mảng vừa được nạp từ DB — lần render đầu sau nạp không gửi ngược lại
   const hydratedRefs = useRef<Map<string, unknown[]>>(new Map());
+
+  // Tự động đồng bộ realtime mỗi 4 giây (chỉ khi không có thay đổi dở dang phía client)
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (dirtyRef.current.size > 0) return;
+      try {
+        const r = await fetch("/api/store");
+        if (!r.ok) return;
+        const j = await r.json().catch(() => null);
+        if (!j?.ok || !j.data) return;
+        if (Array.isArray(j.data.resources)) {
+          setResources(j.data.resources as Resource[]);
+        }
+        if (Array.isArray(j.data.publishedPosts)) {
+          setPublishedPosts(j.data.publishedPosts as PublishedPost[]);
+        }
+        if (Array.isArray(j.data.documents)) {
+          setDocuments(j.data.documents as DocumentRecord[]);
+        }
+      } catch {}
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Nạp snapshot DB lúc khởi động: DB có dữ liệu thì DB thắng, bảng nào trống mà
   // máy có dữ liệu mẫu thì đẩy mẫu lên DB (chỉ khi đã đăng nhập — scope "full")
@@ -1415,7 +1434,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (id) return prev.map((r) => (r.id === id ? { ...r, ...input } : r));
       return [{ ...input, id: nextId(), downloadCount: 0 }, ...prev];
     });
-  }, []);
+    markDirty(["resources"]);
+    void flushSync(true);
+  }, [markDirty, flushSync]);
+
+  const deleteResource = useCallback((id: number) => {
+    setResources((prev) => prev.filter((r) => r.id !== id));
+    trackDelete("resources", [id]);
+    void flushSync(true);
+  }, [trackDelete, flushSync]);
 
   const downloadResource = useCallback((id: number) => {
     setResources((prev) => prev.map((r) => (r.id === id ? { ...r, downloadCount: r.downloadCount + 1 } : r)));
@@ -1436,6 +1463,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       // offline fallback
+    }
+  }, []);
+
+  const deleteAccount = useCallback(async (accountId: number) => {
+    try {
+      const r = await fetch(`/api/accounts/${accountId}`, { method: "DELETE" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) return { ok: false, error: j?.error ?? "Lỗi xóa tài khoản" };
+      setAccounts((prev) => prev.filter((a) => a.id !== accountId));
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Lỗi kết nối cơ sở dữ liệu." };
     }
   }, []);
 
@@ -2147,8 +2186,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addNotification, markNotificationRead, markAllNotificationsRead,
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
-      saveResource, downloadResource,
-      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, createAccount,
+      saveResource, deleteResource, downloadResource,
+      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, deleteAccount, createAccount,
       forumThreads, forumComments, createForumThread, createForumComment, toggleForumLike, moderateForumItem,
       contributions, memberContributions, createMemberContribution, moderateMemberContribution,
       submitResourceDraft, moderateResourceContribution,
@@ -2184,8 +2223,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addNotification, markNotificationRead, markAllNotificationsRead,
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
-      saveResource, downloadResource,
-      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, createAccount,
+      saveResource, deleteResource, downloadResource,
+      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, deleteAccount, createAccount,
     ]
   );
 
