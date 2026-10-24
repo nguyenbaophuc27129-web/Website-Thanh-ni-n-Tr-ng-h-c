@@ -46,11 +46,11 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     username: "tw.admin",
     displayName: "tw.admin",
     orgUnitId: 1,
-    orgUnitName: "Ban Bí thư Trung ương Đoàn",
+    orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
     role: "QUAN_TRI_TW",
     email: "tnth@doanthanhnienvn.vn",
-    contactPerson: "Quản trị viên Trung ương",
-    contactPosition: "Ban Bí thư Trung ương Đoàn",
+    contactPerson: "Nguyễn Văn Toàn",
+    contactPosition: "Phó Trưởng Ban Công tác Thanh Thiếu Nhi",
   },
 ];
 

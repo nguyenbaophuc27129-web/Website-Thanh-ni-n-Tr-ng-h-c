@@ -262,8 +262,7 @@ export default function PhanQuyenTaiKhoanPage({
                     (@{targetAccount.username})
                   </span>
                   {targetAccount.chucDanh ? (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700 border border-stone-200">
-                      <Tag className="h-3 w-3 text-stone-500" />
+                    <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-800 border border-blue-200">
                       {targetAccount.chucDanh}
                     </span>
                   ) : null}

@@ -16,19 +16,9 @@ import {
   CircleCheck,
   CircleX,
   ShieldCheck,
-  Check,
-  Crown,
-  Tag,
-  Sparkles,
   Edit3,
   Plus,
-  Trash2,
   FileSpreadsheet,
-  Award,
-  Building2,
-  Mail,
-  Phone,
-  Briefcase,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth, type Role } from "@/lib/auth-context";
@@ -42,59 +32,11 @@ import { Field, Input } from "@/components/ui/input";
 import type { Account } from "@/types";
 
 /* =====================================================================
- * HELPER: Nametag Badge Styling (Đồng bộ màu sắc nhã nhặn, chuẩn Đoàn)
- * ===================================================================== */
-function getNametagStyle(name?: string) {
-  if (!name) return null;
-  const n = name.toLowerCase();
-  if (n.includes("bí thư") || n.includes("thường trực") || n.includes("trưởng ban")) {
-    return {
-      wrap: "bg-amber-50 text-amber-900 border border-amber-200/80 ring-1 ring-amber-300/40",
-      icon: Crown,
-      iconColor: "text-amber-600",
-    };
-  }
-  if (n.includes("phó trưởng") || n.includes("kiểm tra")) {
-    return {
-      wrap: "bg-indigo-50 text-indigo-900 border border-indigo-200/80 ring-1 ring-indigo-300/40",
-      icon: Award,
-      iconColor: "text-indigo-600",
-    };
-  }
-  if (n.includes("chuyên viên") || n.includes("quản trị")) {
-    return {
-      wrap: "bg-sky-50 text-sky-900 border border-sky-200/80 ring-1 ring-sky-300/40",
-      icon: Sparkles,
-      iconColor: "text-sky-600",
-    };
-  }
-  if (n.includes("biên tập") || n.includes("xuất bản")) {
-    return {
-      wrap: "bg-emerald-50 text-emerald-900 border border-emerald-200/80 ring-1 ring-emerald-300/40",
-      icon: Edit3,
-      iconColor: "text-emerald-600",
-    };
-  }
-  if (n.includes("ctv") || n.includes("cộng tác")) {
-    return {
-      wrap: "bg-rose-50 text-rose-900 border border-rose-200/80 ring-1 ring-rose-300/40",
-      icon: Tag,
-      iconColor: "text-rose-600",
-    };
-  }
-  return {
-    wrap: "bg-stone-50 text-stone-700 border border-stone-200/80 ring-1 ring-stone-300/40",
-    icon: Tag,
-    iconColor: "text-stone-500",
-  };
-}
-
-/* =====================================================================
- * EXCEL IMPORT: 5 CỘT CHUẨN THEO YÊU CẦU:
+ * EXCEL IMPORT: 5 CỘT CHUẨN:
  * 1. Tên đăng nhập
  * 2. Họ và tên
  * 3. Chức vụ trong đoàn
- * 4. Chức danh (Nametag)
+ * 4. Chức danh
  * 5. Email
  * ===================================================================== */
 interface ExcelImportRow {
@@ -131,6 +73,7 @@ interface DbNametag {
   name: string;
   description: string;
   isActive: boolean;
+  displayOrder?: number;
   accountCount?: number;
 }
 
@@ -140,7 +83,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // Tabs: chỉ 2 tab gọn gàng (đã bỏ tab ma trận & gợi ý)
+  // 2 tab chuẩn: Danh sách tài khoản & Danh mục chức danh
   const [activeTab, setActiveTab] = useState<"accounts" | "nametags">("accounts");
 
   // Filters
@@ -154,7 +97,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   const [dbNametags, setDbNametags] = useState<DbNametag[]>([]);
   const [loadingNametags, setLoadingNametags] = useState(false);
 
-  // Modal Sửa Chức danh (Nametag)
+  // Modal Sửa Chức danh
   const [editNametagOpen, setEditNametagOpen] = useState(false);
   const [editingNametag, setEditingNametag] = useState<DbNametag | null>(null);
   const [nametagEditForm, setNametagEditForm] = useState({ name: "", description: "", isActive: true });
@@ -230,7 +173,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   // Kiểm tra quyền hạn cấp trên (Superior)
   const isSuperior = (target: Account): boolean => {
     if (!session) return false;
-    if (session.accountId === target.id) return false; // Không tự quản chính mình
+    if (session.accountId === target.id) return false; // Không tự khóa/phân quyền chính mình
     if (session.role === "QUAN_TRI_TW") return true;
     if (session.role === "QUAN_TRI_TINH") {
       const targetUnit = store.orgById(target.orgUnitId);
@@ -245,7 +188,11 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
   const creatableUnits = useMemo(() => {
     if (!session) return [];
-    const minLevel = session.role === "QUAN_TRI_TW" ? 1 : session.role === "QUAN_TRI_TINH" ? 3 : 4;
+    if (session.role === "QUAN_TRI_TW") {
+      // TW Đoàn được quyền cấp tài khoản cho tất cả các đơn vị: thuộc TW, Tỉnh/Thành, và Đoàn trực thuộc
+      return store.orgUnits.filter((u) => u.isActive);
+    }
+    const minLevel = session.role === "QUAN_TRI_TINH" ? 3 : 4;
     return store.orgUnits.filter((u) => scope.includes(u.id) && u.orgLevel >= minLevel && u.isActive);
   }, [session, store.orgUnits, scope]);
 
@@ -261,7 +208,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   // Danh sách tài khoản đã lọc
   const filteredAccounts = useMemo(() => {
     return store.accounts
-      .filter((a) => scope.includes(a.orgUnitId))
+      .filter((a) => (session?.role === "QUAN_TRI_TW" ? true : scope.includes(a.orgUnitId)))
       .filter((a) => {
         if (statusFilter !== "all" && a.status !== statusFilter) return false;
         if (levelFilter !== "all") {
@@ -292,15 +239,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
           (a.contactPosition && a.contactPosition.toLowerCase().includes(q))
         );
       });
-  }, [store.accounts, scope, statusFilter, levelFilter, nametagFilter, permFilter, search, store]);
+  }, [store.accounts, scope, session, statusFilter, levelFilter, nametagFilter, permFilter, search, store]);
 
-  // Danh sách chức danh duy nhất
+  // Danh sách chức danh duy nhất (sắp xếp ngay ngắn)
   const availableNametags = useMemo(() => {
-    const map = new Map<string, { id?: number; name: string; description?: string }>();
+    const map = new Map<string, { id?: number; name: string; description?: string; isActive?: boolean }>();
     dbNametags.forEach((n) => map.set(n.name, n));
     store.accounts.forEach((a) => {
       if (a.chucDanh && !map.has(a.chucDanh)) {
-        map.set(a.chucDanh, { name: a.chucDanh });
+        map.set(a.chucDanh, { name: a.chucDanh, description: "", isActive: true });
       }
     });
     return Array.from(map.values()).filter((v) => Boolean(v.name));
@@ -308,7 +255,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
   // Thống kê nhanh
   const stats = useMemo(() => {
-    const scoped = store.accounts.filter((a) => scope.includes(a.orgUnitId));
+    const scoped = store.accounts.filter((a) => (session?.role === "QUAN_TRI_TW" ? true : scope.includes(a.orgUnitId)));
     return {
       total: scoped.length,
       active: scoped.filter((a) => a.status === "ACTIVE").length,
@@ -316,7 +263,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
       customPerms: scoped.filter((a) => a.grantedPerms && a.grantedPerms.length > 0).length,
       withNametag: scoped.filter((a) => Boolean(a.chucDanh)).length,
     };
-  }, [store.accounts, scope]);
+  }, [store.accounts, scope, session]);
 
   /* ================= Xử lý sửa Chức danh (Nametag) ================= */
   const openEditNametagModal = (item: { id?: number; name: string; description?: string }) => {
@@ -346,7 +293,6 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
     try {
       if (editingNametag.id && editingNametag.id > 0) {
-        // Cập nhật chức danh trong DB
         const res = await fetch("/api/chuc-danh", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -364,7 +310,6 @@ export default function PhanQuyenVaTaiKhoanPage() {
           return;
         }
       } else {
-        // Chức danh chưa có id trong DB -> Tạo mới
         const res = await fetch("/api/chuc-danh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -435,7 +380,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
       contactPosition: editForm.contactPosition.trim(),
       chucDanh: editForm.chucDanh.trim(),
       className: editForm.className.trim(),
-      status: editForm.status,
+      // Người dùng sửa tài khoản của chính mình không thể tự đổi status
+      status: session?.accountId === editingAccount.id ? editingAccount.status : editForm.status,
     });
     setSavingEdit(false);
     if (!res.ok) {
@@ -525,7 +471,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
     });
   };
 
-  /* ================= Xử lý Thêm Nametag ================= */
+  /* ================= Xử lý Thêm Chức danh ================= */
   const handleCreateNametag = async () => {
     if (!newNametagForm.name.trim()) {
       toast("Vui lòng nhập tên Chức danh.", "warning");
@@ -578,6 +524,13 @@ export default function PhanQuyenVaTaiKhoanPage() {
           "Chuyên viên Ban TNTH",
           "Chuyên viên phụ trách Web",
           "cvweb@doan.vn",
+        ],
+        [
+          "bd.province",
+          "Trần Thị Mai",
+          "Phó Bí thư Tỉnh đoàn",
+          "Phó Bí thư Tỉnh đoàn Bình Dương",
+          "bandoan@binhduong.doan.vn",
         ],
         [
           "bd.thpt.chuyen",
@@ -770,9 +723,9 @@ export default function PhanQuyenVaTaiKhoanPage() {
           <h1 className="font-serif-display text-2xl font-bold text-stone-900">
             Quản lý Tài khoản &amp; Phân quyền nhiệm vụ
           </h1>
-          <p className="mt-1 text-sm text-stone-500">
-            Tích hợp quản lý người dùng, phân quyền chi tiết theo nhiệm vụ (tick chọn theo nhu cầu),
-            thẻ chức danh linh hoạt và Import Excel 5 cột.
+          <p className="mt-1 text-sm text-stone-600">
+            Quản trị viên Trung ương Đoàn phân quyền và cấp tài khoản cho các cấp dưới thuộc TW Đoàn,
+            các Tỉnh / Thành đoàn và các Đoàn trực thuộc.
           </p>
         </div>
 
@@ -788,14 +741,14 @@ export default function PhanQuyenVaTaiKhoanPage() {
           </Button>
 
           <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Import Excel
+            <FileSpreadsheet className="h-4 w-4 text-blue-700" /> Import Excel
           </Button>
 
           <Button variant="secondary" size="sm" onClick={() => setNametagModalOpen(true)}>
-            <Tag className="h-4 w-4 text-amber-600" /> Quản lý Chức danh
+            Quản lý Chức danh ({availableNametags.length})
           </Button>
 
-          <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-doan-600 hover:bg-doan-700 text-white">
+          <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-blue-700 hover:bg-blue-800 text-white">
             <UserPlus className="h-4 w-4" /> Thêm tài khoản
           </Button>
         </div>
@@ -806,39 +759,39 @@ export default function PhanQuyenVaTaiKhoanPage() {
         <Card className="border-stone-200">
           <CardBody className="p-3.5">
             <p className="text-xs font-medium text-stone-500">Tổng tài khoản</p>
-            <p className="mt-1 text-xl font-bold text-stone-800">{stats.total}</p>
+            <p className="mt-1 text-xl font-bold text-stone-900">{stats.total}</p>
           </CardBody>
         </Card>
 
         <Card className="border-stone-200">
           <CardBody className="p-3.5">
-            <p className="text-xs font-medium text-emerald-600">Đang hoạt động</p>
-            <p className="mt-1 text-xl font-bold text-emerald-700">{stats.active}</p>
+            <p className="text-xs font-medium text-blue-700">Đang hoạt động</p>
+            <p className="mt-1 text-xl font-bold text-blue-700">{stats.active}</p>
           </CardBody>
         </Card>
 
         <Card className="border-stone-200">
           <CardBody className="p-3.5">
-            <p className="text-xs font-medium text-sky-600">Đã cấp quyền riêng</p>
-            <p className="mt-1 text-xl font-bold text-sky-700">{stats.customPerms}</p>
+            <p className="text-xs font-medium text-blue-700">Đã cấp quyền riêng</p>
+            <p className="mt-1 text-xl font-bold text-blue-800">{stats.customPerms}</p>
           </CardBody>
         </Card>
 
         <Card className="border-stone-200">
           <CardBody className="p-3.5">
-            <p className="text-xs font-medium text-stone-600">Chức danh đang gán</p>
-            <p className="mt-1 text-xl font-bold text-stone-800">{stats.withNametag}</p>
+            <p className="text-xs font-medium text-stone-600">Chức danh hiện có</p>
+            <p className="mt-1 text-xl font-bold text-stone-900">{availableNametags.length}</p>
           </CardBody>
         </Card>
       </div>
 
-      {/* ===== Thanh chuyển Tab (Chỉ 2 tab chuẩn) ===== */}
+      {/* ===== Thanh chuyển Tab ===== */}
       <div className="flex border-b border-stone-200">
         <button
           onClick={() => setActiveTab("accounts")}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
             activeTab === "accounts"
-              ? "border-doan-600 text-doan-700"
+              ? "border-blue-700 text-blue-800"
               : "border-transparent text-stone-500 hover:text-stone-800"
           }`}
         >
@@ -849,11 +802,11 @@ export default function PhanQuyenVaTaiKhoanPage() {
           onClick={() => setActiveTab("nametags")}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
             activeTab === "nametags"
-              ? "border-doan-600 text-doan-700"
+              ? "border-blue-700 text-blue-800"
               : "border-transparent text-stone-500 hover:text-stone-800"
           }`}
         >
-          <Tag className="h-4 w-4 text-stone-600" /> Danh mục Thẻ Chức danh ({availableNametags.length})
+          Danh mục Chức danh ({availableNametags.length})
         </button>
       </div>
 
@@ -874,7 +827,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Tìm theo username, họ tên, email, chức danh..."
-                    className="w-full rounded-lg border border-stone-200 bg-white py-2 pl-9 pr-3 text-sm text-stone-800 placeholder-stone-400 focus:border-doan-500 focus:outline-none focus:ring-1 focus:ring-doan-500"
+                    className="w-full rounded-lg border border-stone-200 bg-white py-2 pl-9 pr-3 text-sm text-stone-800 placeholder-stone-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
                   />
                   {search && (
                     <button
@@ -891,23 +844,23 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   <select
                     value={levelFilter}
                     onChange={(e) => setLevelFilter(e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 bg-white py-2 px-2.5 text-sm text-stone-700 focus:border-doan-500 focus:outline-none"
+                    className="w-full rounded-lg border border-stone-200 bg-white py-2 px-2.5 text-sm text-stone-700 focus:border-blue-600 focus:outline-none"
                   >
                     <option value="all">Tất cả Cấp đơn vị</option>
-                    <option value="1">Cấp 1 - Trung ương Đoàn</option>
-                    <option value="2">Cấp 2 - Tỉnh / Thành đoàn</option>
-                    <option value="3">Cấp 3 - Quận / Huyện / Xã đoàn</option>
-                    <option value="4">Cấp 4 - Đoàn trường THPT</option>
+                    <option value="1">Thuộc Trung ương Đoàn (Cấp 1)</option>
+                    <option value="2">Tỉnh / Thành đoàn &amp; Trực thuộc (Cấp 2)</option>
+                    <option value="3">Cấp trên cơ sở (Cấp 3)</option>
+                    <option value="4">Đoàn trường THPT &amp; Cơ sở (Cấp 4)</option>
                     <option value="doanvien">Tài khoản Đoàn viên</option>
                   </select>
                 </div>
 
-                {/* Filter chức danh / nametag */}
+                {/* Filter chức danh */}
                 <div>
                   <select
                     value={nametagFilter}
                     onChange={(e) => setNametagFilter(e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 bg-white py-2 px-2.5 text-sm text-stone-700 focus:border-doan-500 focus:outline-none"
+                    className="w-full rounded-lg border border-stone-200 bg-white py-2 px-2.5 text-sm text-stone-700 focus:border-blue-600 focus:outline-none"
                   >
                     <option value="all">Tất cả Chức danh</option>
                     <option value="empty">Chưa có Chức danh</option>
@@ -924,7 +877,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 bg-white py-2 px-2.5 text-sm text-stone-700 focus:border-doan-500 focus:outline-none"
+                    className="w-full rounded-lg border border-stone-200 bg-white py-2 px-2.5 text-sm text-stone-700 focus:border-blue-600 focus:outline-none"
                   >
                     <option value="all">Tất cả Trạng thái</option>
                     <option value="ACTIVE">Đang hoạt động</option>
@@ -944,7 +897,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   <Th>Tài khoản &amp; Người đại diện</Th>
                   <Th>Đơn vị trực thuộc</Th>
                   <Th>Chức vụ trong Đoàn</Th>
-                  <Th>Chức danh (Nametag)</Th>
+                  <Th>Chức danh</Th>
                   <Th>Phân quyền nhiệm vụ</Th>
                   <Th className="text-center">Trạng thái</Th>
                   <Th className="text-right">Thao tác</Th>
@@ -957,7 +910,6 @@ export default function PhanQuyenVaTaiKhoanPage() {
                       const unit = store.orgById(account.orgUnitId);
                       const isOwner = session?.accountId === account.id;
                       const canManage = isSuperior(account);
-                      const nametagStyle = getNametagStyle(account.chucDanh || account.contactPosition);
                       const hasCustom = Boolean(account.grantedPerms && account.grantedPerms.length > 0);
                       const isAll = account.grantedPerms?.includes("*");
 
@@ -966,36 +918,36 @@ export default function PhanQuyenVaTaiKhoanPage() {
                           {/* Cột 1: Tài khoản */}
                           <Td>
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-doan-600 text-xs font-bold text-white shadow-xs">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-xs font-bold text-white shadow-xs">
                                 {account.contactPerson ? account.contactPerson.charAt(0).toUpperCase() : "U"}
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs font-bold text-stone-800">
+                                  <span className="font-mono text-xs font-bold text-stone-900">
                                     @{account.username}
                                   </span>
                                   {isOwner && (
-                                    <span className="rounded bg-amber-100 px-1.5 py-0.2 text-[10px] font-semibold text-amber-800">
-                                      Bạn
+                                    <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-semibold text-blue-800">
+                                      Tài khoản của bạn
                                     </span>
                                   )}
                                 </div>
                                 <p className="text-xs font-semibold text-stone-900">{account.contactPerson}</p>
-                                <p className="text-[11px] text-stone-400">{account.email}</p>
+                                <p className="text-[11px] text-stone-500">{account.email}</p>
                               </div>
                             </div>
                           </Td>
 
                           {/* Cột 2: Đơn vị & Cấp */}
                           <Td>
-                            <span className="block max-w-[200px] truncate text-xs font-medium text-stone-800" title={unit?.name}>
+                            <span className="block max-w-[200px] truncate text-xs font-medium text-stone-900" title={unit?.name}>
                               {unit?.name ?? `Đơn vị #${account.orgUnitId}`}
                             </span>
-                            <span className="mt-0.5 inline-block text-[10px] text-stone-400">
+                            <span className="mt-0.5 inline-block text-[10px] text-stone-500">
                               {unit?.orgLevel === 1
                                 ? "Cấp 1 · Trung ương"
                                 : unit?.orgLevel === 2
-                                ? "Cấp 2 · Tỉnh / Thành"
+                                ? "Cấp 2 · Tỉnh / Thành / Trực thuộc"
                                 : unit?.orgLevel === 3
                                 ? "Cấp 3 · Quận / Huyện"
                                 : "Cấp 4 · Cơ sở"}
@@ -1004,48 +956,40 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
                           {/* Cột 3: Chức vụ trong Đoàn */}
                           <Td>
-                            <span className="text-xs text-stone-700">
+                            <span className="text-xs text-stone-800 font-medium">
                               {account.contactPosition || "—"}
                             </span>
                           </Td>
 
-                          {/* Cột 4: Chức danh (Nametag) */}
+                          {/* Cột 4: Chức danh — MỘT MÀU XANH DƯƠNG DUY NHẤT, KHÔNG ICON */}
                           <Td>
                             {account.chucDanh ? (
                               <span
-                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ${
-                                  nametagStyle?.wrap ?? "bg-stone-100 text-stone-700"
-                                }`}
+                                className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800 border border-blue-200"
                                 title={account.chucDanh}
                               >
-                                {nametagStyle?.icon && (
-                                  <nametagStyle.icon className={`h-3 w-3 ${nametagStyle.iconColor}`} />
-                                )}
-                                <span className="max-w-[150px] truncate">{account.chucDanh}</span>
+                                <span className="max-w-[160px] truncate">{account.chucDanh}</span>
                               </span>
                             ) : (
-                              <span className="text-xs text-stone-300 italic">Chưa gán</span>
+                              <span className="text-xs text-stone-400 italic">Chưa gán</span>
                             )}
                           </Td>
 
                           {/* Cột 5: Phân quyền nhiệm vụ */}
                           <Td>
                             {isAll ? (
-                              <Badge tone="yellow">
-                                <span className="inline-flex items-center gap-1 font-semibold">
-                                  <Crown className="h-3 w-3 text-amber-600" /> Toàn quyền (*)
-                                </span>
+                              <Badge tone="blue">
+                                <span className="font-semibold text-blue-800">Toàn quyền hệ thống (*)</span>
                               </Badge>
                             ) : hasCustom ? (
                               <Badge tone="blue">
-                                <span className="inline-flex items-center gap-1 font-semibold">
-                                  <ShieldCheck className="h-3 w-3 text-sky-600" />
+                                <span className="font-semibold text-blue-800">
                                   {account.grantedPerms!.length} quyền được tick
                                 </span>
                               </Badge>
                             ) : (
                               <Badge tone="gray">
-                                <span className="text-[11px] text-stone-500">Mặc định vai trò</span>
+                                <span className="text-[11px] text-stone-600">Mặc định vai trò</span>
                               </Badge>
                             )}
                           </Td>
@@ -1053,8 +997,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
                           {/* Cột 6: Trạng thái */}
                           <Td className="text-center">
                             {account.status === "ACTIVE" ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                                <CircleCheck className="h-3.5 w-3.5" /> Hoạt động
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
+                                <CircleCheck className="h-3.5 w-3.5 text-blue-600" /> Hoạt động
                               </span>
                             ) : account.status === "LOCKED" ? (
                               <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600">
@@ -1067,36 +1011,36 @@ export default function PhanQuyenVaTaiKhoanPage() {
                             )}
                           </Td>
 
-                          {/* Cột 7: Thao tác (Cân đối chuẩn giao diện) */}
+                          {/* Cột 7: Thao tác (Cân đối thẳng hàng, người dùng được quyền sửa tài khoản của mình) */}
                           <Td className="text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {/* Nút Phân quyền */}
                               <Link
                                 href={`/quan-tri/he-thong/phan-quyen/${account.id}`}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-sky-700 active:scale-95"
-                                title="Bấm vào để mở trang phân quyền nhiệm vụ riêng cho tài khoản này"
+                                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-700 px-3 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-800 active:scale-95"
+                                title="Mở trang phân quyền nhiệm vụ cho tài khoản này"
                               >
                                 <ShieldCheck className="h-3.5 w-3.5" /> Phân quyền
                               </Link>
 
-                              {/* Nút Sửa thông tin */}
+                              {/* Nút Sửa thông tin — Người dùng được sửa tài khoản của mình hoặc cấp trên sửa cấp dưới */}
                               <button
                                 onClick={() => openEditModal(account)}
                                 disabled={!canManage && !isOwner}
                                 className="inline-flex h-8 items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 shadow-xs transition-colors hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                title="Sửa thông tin tài khoản"
+                                title={isOwner ? "Sửa thông tin tài khoản của bạn" : "Sửa thông tin tài khoản"}
                               >
                                 <Edit3 className="h-3.5 w-3.5 text-stone-500" /> Sửa
                               </button>
 
-                              {/* Nút Khóa / Mở */}
+                              {/* Nút Khóa / Mở (Chỉ cấp trên) */}
                               {canManage && (
                                 <button
                                   onClick={() => toggleAccountStatus(account)}
                                   className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs shadow-xs transition-colors ${
                                     account.status === "ACTIVE"
                                       ? "border-rose-200 bg-white text-rose-600 hover:bg-rose-50"
-                                      : "border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50"
+                                      : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
                                   }`}
                                   title={account.status === "ACTIVE" ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                                 >
@@ -1121,90 +1065,108 @@ export default function PhanQuyenVaTaiKhoanPage() {
       )}
 
       {/* ==============================================================
-       * TAB 2: DANH MỤC THẺ CHỨC DANH (NAMETAG) — CÓ NÚT SỬA ĐẦY ĐỦ
+       * TAB 2: DANH MỤC CHỨC DANH (19) — ĐỒNG BỘ CỘT THẲNG HÀNG, MÀU XANH DƯƠNG, BỎ ICON
        * ============================================================== */}
       {activeTab === "nametags" && (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold text-stone-900">Danh mục Thẻ Chức danh / Nametag động</h2>
+              <h2 className="text-base font-bold text-stone-900">
+                Các Chức danh hiện có ({availableNametags.length})
+              </h2>
               <p className="text-xs text-stone-500">
-                Thẻ chức danh gắn liền với tài khoản, có thể linh hoạt thêm mới và chỉnh sửa tên, mô tả bất cứ lúc nào.
+                Danh mục chức danh phục vụ phân công và phân quyền theo nhiệm vụ. Bảng đồng bộ thẳng hàng,
+                có thể chỉnh sửa tên và nội dung phân công.
               </p>
             </div>
-            <Button size="sm" onClick={() => setNametagModalOpen(true)} className="bg-doan-600 hover:bg-doan-700 text-white">
+            <Button size="sm" onClick={() => setNametagModalOpen(true)} className="bg-blue-700 hover:bg-blue-800 text-white">
               <Plus className="h-4 w-4" /> Thêm Chức danh mới
             </Button>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {availableNametags.map((tag) => {
-              const style = getNametagStyle(tag.name);
-              const accountsWithTag = store.accounts.filter(
-                (a) => a.chucDanh === tag.name || a.contactPosition === tag.name
-              );
+          {/* BẢNG ĐỒNG BỘ CỘT THẲNG HÀNG */}
+          <Card>
+            <CardBody className="p-0">
+              <TableWrap>
+                <THead>
+                  <Th className="w-12 text-center">STT</Th>
+                  <Th className="w-72">Tên chức danh</Th>
+                  <Th>Mô tả nhiệm vụ / phân công</Th>
+                  <Th className="w-40 text-center">Tài khoản đang giữ</Th>
+                  <Th className="w-28 text-center">Trạng thái</Th>
+                  <Th className="w-24 text-right">Thao tác</Th>
+                </THead>
+                <tbody>
+                  {availableNametags.length === 0 ? (
+                    <EmptyRow colSpan={6} message="Chưa có chức danh nào trong hệ thống." />
+                  ) : (
+                    availableNametags.map((tag, idx) => {
+                      const accountsWithTag = store.accounts.filter(
+                        (a) => a.chucDanh === tag.name || a.contactPosition === tag.name
+                      );
 
-              return (
-                <Card key={tag.name} className="overflow-hidden border-stone-200">
-                  <div className="p-4 bg-white border-b border-stone-100 flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold ${style?.wrap ?? "bg-stone-100 text-stone-700"}`}>
-                        {style?.icon && <style.icon className={`h-3.5 w-3.5 ${style.iconColor}`} />}
-                        {tag.name}
-                      </span>
-                    </div>
+                      return (
+                        <Tr key={tag.name}>
+                          {/* Cột 1: STT */}
+                          <Td className="text-center font-mono text-xs text-stone-400">
+                            {idx + 1}
+                          </Td>
 
-                    {/* NÚT SỬA CHỨC DANH */}
-                    <button
-                      onClick={() => openEditNametagModal(tag)}
-                      className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 bg-white px-2 text-[11px] font-medium text-stone-600 shadow-xs hover:border-stone-300 hover:bg-stone-50"
-                      title={`Sửa chức danh "${tag.name}"`}
-                    >
-                      <Edit3 className="h-3 w-3 text-stone-500" /> Sửa
-                    </button>
-                  </div>
+                          {/* Cột 2: Tên chức danh — MỘT MÀU XANH DƯƠNG DUY NHẤT, KHÔNG ICON */}
+                          <Td>
+                            <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800 border border-blue-200">
+                              {tag.name}
+                            </span>
+                          </Td>
 
-                  <CardBody className="p-4 space-y-2">
-                    {tag.description ? (
-                      <p className="text-xs text-stone-500 line-clamp-2 leading-relaxed">
-                        {tag.description}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-stone-400 italic">Chưa có mô tả nhiệm vụ.</p>
-                    )}
+                          {/* Cột 3: Mô tả nhiệm vụ */}
+                          <Td>
+                            {tag.description ? (
+                              <p className="text-xs text-stone-700 leading-relaxed">
+                                {tag.description}
+                              </p>
+                            ) : (
+                              <span className="text-xs text-stone-400 italic">Chưa có mô tả chi tiết.</span>
+                            )}
+                          </Td>
 
-                    <div className="flex items-center justify-between text-xs text-stone-600 pt-2 border-t border-stone-100">
-                      <span>Đang gán cho:</span>
-                      <span className="font-bold text-doan-700">{accountsWithTag.length} tài khoản</span>
-                    </div>
+                          {/* Cột 4: Số tài khoản đang giữ */}
+                          <Td className="text-center">
+                            <span className="inline-flex items-center rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
+                              {accountsWithTag.length} tài khoản
+                            </span>
+                          </Td>
 
-                    {accountsWithTag.length > 0 && (
-                      <div className="pt-1 flex flex-wrap gap-1">
-                        {accountsWithTag.slice(0, 3).map((a) => (
-                          <span
-                            key={a.id}
-                            className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600"
-                          >
-                            @{a.username}
-                          </span>
-                        ))}
-                        {accountsWithTag.length > 3 && (
-                          <span className="text-[10px] text-stone-400">
-                            +{accountsWithTag.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </CardBody>
-                </Card>
-              );
-            })}
-          </div>
+                          {/* Cột 5: Trạng thái */}
+                          <Td className="text-center">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
+                              <CircleCheck className="h-3 w-3 text-blue-600" /> Hoạt động
+                            </span>
+                          </Td>
+
+                          {/* Cột 6: Thao tác sửa */}
+                          <Td className="text-right">
+                            <button
+                              onClick={() => openEditNametagModal(tag)}
+                              className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 shadow-xs hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                              title={`Sửa chức danh "${tag.name}"`}
+                            >
+                              <Edit3 className="h-3 w-3 text-stone-500" /> Sửa
+                            </button>
+                          </Td>
+                        </Tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </TableWrap>
+            </CardBody>
+          </Card>
         </div>
       )}
 
       {/* ==============================================================
-       * MODAL SỬA CHỨC DANH (NAMETAG) — CHỖ SỬA CHỨC DANH
+       * MODAL SỬA CHỨC DANH
        * ============================================================== */}
       <Modal
         open={editNametagOpen}
@@ -1212,7 +1174,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
         title={`Chỉnh sửa Chức danh: ${editingNametag?.name}`}
       >
         <div className="space-y-4">
-          <Field label="Tên chức danh (Nametag) *">
+          <Field label="Tên chức danh *">
             <Input
               value={nametagEditForm.name}
               onChange={(e) => setNametagEditForm((prev) => ({ ...prev, name: e.target.value }))}
@@ -1225,7 +1187,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
               value={nametagEditForm.description}
               onChange={(e) => setNametagEditForm((prev) => ({ ...prev, description: e.target.value }))}
               placeholder="Mô tả chức năng nhiệm vụ đảm nhận..."
-              className="w-full rounded-lg border border-stone-200 bg-white p-2.5 text-xs text-stone-800 placeholder-stone-400 focus:border-doan-500 focus:outline-none"
+              className="w-full rounded-lg border border-stone-200 bg-white p-2.5 text-xs text-stone-800 placeholder-stone-400 focus:border-blue-600 focus:outline-none"
               rows={3}
             />
           </Field>
@@ -1235,7 +1197,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
               type="checkbox"
               checked={nametagEditForm.isActive}
               onChange={(e) => setNametagEditForm((prev) => ({ ...prev, isActive: e.target.checked }))}
-              className="h-4 w-4 rounded text-doan-600"
+              className="h-4 w-4 rounded text-blue-700"
             />
             <span>Kích hoạt sử dụng chức danh này</span>
           </label>
@@ -1244,7 +1206,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
             <Button variant="secondary" onClick={() => setEditNametagOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={handleSaveNametagEdit} disabled={savingNametagEdit} className="bg-doan-600 hover:bg-doan-700 text-white">
+            <Button onClick={handleSaveNametagEdit} disabled={savingNametagEdit} className="bg-blue-700 hover:bg-blue-800 text-white">
               {savingNametagEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lưu thay đổi"}
             </Button>
           </div>
@@ -1252,12 +1214,16 @@ export default function PhanQuyenVaTaiKhoanPage() {
       </Modal>
 
       {/* ==============================================================
-       * MODAL SỬA THÔNG TIN TÀI KHOẢN
+       * MODAL SỬA THÔNG TIN TÀI KHOẢN (NGƯỜI DÙNG ĐƯỢC QUYỀN SỬA CỦA MÌNH)
        * ============================================================== */}
       <Modal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        title={`Sửa thông tin tài khoản @${editingAccount?.username}`}
+        title={
+          session?.accountId === editingAccount?.id
+            ? `Chỉnh sửa thông tin tài khoản của bạn (@${editingAccount?.username})`
+            : `Sửa thông tin tài khoản @${editingAccount?.username}`
+        }
       >
         <div className="space-y-4">
           <Field label="Tên đăng nhập (không thể đổi)">
@@ -1269,7 +1235,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
               <Input
                 value={editForm.contactPerson}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, contactPerson: e.target.value }))}
-                placeholder="Nguyễn Văn A"
+                placeholder="Nguyễn Văn Toàn"
               />
             </Field>
 
@@ -1278,7 +1244,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 type="email"
                 value={editForm.email}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="example@doan.vn"
+                placeholder="tnth@doanthanhnienvn.vn"
               />
             </Field>
           </div>
@@ -1296,17 +1262,17 @@ export default function PhanQuyenVaTaiKhoanPage() {
               <Input
                 value={editForm.contactPosition}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, contactPosition: e.target.value }))}
-                placeholder="Bí thư, Phó Bí thư, UV BCH..."
+                placeholder="Phó Trưởng Ban Công tác Thanh Thiếu Nhi..."
               />
             </Field>
           </div>
 
-          <Field label="Chức danh (Thẻ Nametag hiển thị)">
+          <Field label="Chức danh đảm nhận">
             <div className="space-y-2">
               <select
                 value={editForm.chucDanh}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, chucDanh: e.target.value }))}
-                className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-doan-500 focus:outline-none"
+                className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
               >
                 <option value="">-- Không gán chức danh --</option>
                 {availableNametags.map((n) => (
@@ -1318,7 +1284,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
               <Input
                 value={editForm.chucDanh}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, chucDanh: e.target.value }))}
-                placeholder="Hoặc tự nhập tên Chức danh / Nametag mới..."
+                placeholder="Hoặc tự nhập tên Chức danh..."
                 className="text-xs"
               />
             </div>
@@ -1326,17 +1292,23 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Trạng thái tài khoản">
-              <select
-                value={editForm.status}
-                onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, status: e.target.value as Account["status"] }))
-                }
-                className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-doan-500 focus:outline-none"
-              >
-                <option value="ACTIVE">Hoạt động (ACTIVE)</option>
-                <option value="LOCKED">Khóa tài khoản (LOCKED)</option>
-                <option value="PENDING">Chờ duyệt (PENDING)</option>
-              </select>
+              {session?.accountId === editingAccount?.id ? (
+                <div className="rounded-lg border border-stone-200 bg-stone-50 p-2.5 text-xs text-stone-600">
+                  <span className="font-semibold text-blue-700">Đang hoạt động</span> (Bạn không thể tự khóa tài khoản của chính mình)
+                </div>
+              ) : (
+                <select
+                  value={editForm.status}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, status: e.target.value as Account["status"] }))
+                  }
+                  className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
+                >
+                  <option value="ACTIVE">Hoạt động (ACTIVE)</option>
+                  <option value="LOCKED">Khóa tài khoản (LOCKED)</option>
+                  <option value="PENDING">Chờ duyệt (PENDING)</option>
+                </select>
+              )}
             </Field>
 
             {editingAccount?.role === "DOAN_VIEN" && (
@@ -1354,7 +1326,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
             {editingAccount && (
               <Link
                 href={`/quan-tri/he-thong/phan-quyen/${editingAccount.id}`}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-doan-600 hover:text-doan-800"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900"
               >
                 <ShieldCheck className="h-4 w-4" /> Mở trang Phân quyền nhiệm vụ &rarr;
               </Link>
@@ -1363,7 +1335,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
               <Button variant="secondary" onClick={() => setEditOpen(false)}>
                 Hủy
               </Button>
-              <Button onClick={handleSaveEdit} disabled={savingEdit} className="bg-doan-600 hover:bg-doan-700 text-white">
+              <Button onClick={handleSaveEdit} disabled={savingEdit} className="bg-blue-700 hover:bg-blue-800 text-white">
                 {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lưu thay đổi"}
               </Button>
             </div>
@@ -1376,17 +1348,40 @@ export default function PhanQuyenVaTaiKhoanPage() {
        * ============================================================== */}
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm tài khoản mới">
         <div className="space-y-4">
-          <Field label="Đơn vị trực thuộc *">
+          <Field label="Đơn vị trực thuộc * (Thuộc TW Đoàn, Tỉnh/Thành hoặc Đoàn trực thuộc)">
             <select
               value={createForm.orgUnitId}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, orgUnitId: e.target.value }))}
-              className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-doan-500 focus:outline-none"
+              className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
             >
-              {creatableUnits.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} (Cấp {u.orgLevel})
-                </option>
-              ))}
+              <optgroup label="Cấp 1 — Ban / Đơn vị thuộc Trung ương Đoàn">
+                {creatableUnits.filter((u) => u.orgLevel === 1).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Cấp 2 — Tỉnh / Thành đoàn & Đoàn trực thuộc TW">
+                {creatableUnits.filter((u) => u.orgLevel === 2).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
+                {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
+                {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </Field>
 
@@ -1446,11 +1441,11 @@ export default function PhanQuyenVaTaiKhoanPage() {
             </Field>
           </div>
 
-          <Field label="Chức danh (Thẻ Nametag)">
+          <Field label="Chức danh đảm nhận">
             <select
               value={createForm.chucDanh}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, chucDanh: e.target.value }))}
-              className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-doan-500 focus:outline-none"
+              className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
             >
               <option value="">-- Không gán chức danh --</option>
               {availableNametags.map((n) => (
@@ -1465,7 +1460,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={handleCreateAccount} disabled={savingCreate} className="bg-doan-600 hover:bg-doan-700 text-white">
+            <Button onClick={handleCreateAccount} disabled={savingCreate} className="bg-blue-700 hover:bg-blue-800 text-white">
               {savingCreate ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tạo tài khoản"}
             </Button>
           </div>
@@ -1485,7 +1480,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
           <div className="rounded-xl border border-stone-200 bg-stone-50 p-3.5 text-xs text-stone-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold flex items-center gap-1.5 text-stone-900">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Định dạng file Excel gồm đúng 5 cột:
+                <FileSpreadsheet className="h-4 w-4 text-blue-700" /> Định dạng file Excel gồm đúng 5 cột:
               </span>
               <Button variant="secondary" size="sm" onClick={handleDownloadExcelTemplate} className="h-7 text-xs">
                 <Download className="h-3.5 w-3.5" /> Tải file mẫu .xlsx
@@ -1506,13 +1501,36 @@ export default function PhanQuyenVaTaiKhoanPage() {
               <select
                 value={importTargetUnitId}
                 onChange={(e) => setImportTargetUnitId(e.target.value)}
-                className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-doan-500 focus:outline-none"
+                className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
               >
-                {creatableUnits.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} (Cấp {u.orgLevel})
-                  </option>
-                ))}
+                <optgroup label="Cấp 1 — Ban / Đơn vị thuộc Trung ương Đoàn">
+                  {creatableUnits.filter((u) => u.orgLevel === 1).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Cấp 2 — Tỉnh / Thành đoàn & Đoàn trực thuộc TW">
+                  {creatableUnits.filter((u) => u.orgLevel === 2).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
+                  {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
+                  {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </Field>
 
@@ -1527,7 +1545,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
           </div>
 
           {/* Upload input */}
-          <div className="rounded-xl border-2 border-dashed border-stone-300 p-6 text-center hover:border-doan-400 transition-colors bg-stone-50/50">
+          <div className="rounded-xl border-2 border-dashed border-stone-300 p-6 text-center hover:border-blue-500 transition-colors bg-stone-50/50">
             <input
               ref={fileInputRef}
               type="file"
@@ -1547,7 +1565,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
           {parsingExcel && (
             <div className="flex items-center justify-center gap-2 py-4 text-xs text-stone-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Đang đọc và kiểm tra dữ liệu Excel...
+              <Loader2 className="h-4 w-4 animate-spin text-blue-700" /> Đang đọc và kiểm tra dữ liệu Excel...
             </div>
           )}
 
@@ -1558,7 +1576,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 <span className="font-semibold text-stone-700">
                   Xem trước dữ liệu ({importRows.length} dòng):
                 </span>
-                <span className="text-emerald-600 font-semibold">
+                <span className="text-blue-700 font-semibold">
                   Hợp lệ: {importRows.filter((r) => r.isValid).length} / {importRows.length}
                 </span>
               </div>
@@ -1585,7 +1603,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                         <td className="p-2 text-stone-600">{r.contactPosition || "—"}</td>
                         <td className="p-2">
                           {r.chucDanh ? (
-                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[11px] font-semibold text-stone-700 border border-stone-200">
+                            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-800 border border-blue-200">
                               {r.chucDanh}
                             </span>
                           ) : (
@@ -1595,7 +1613,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                         <td className="p-2 text-stone-500">{r.email}</td>
                         <td className="p-2 text-center">
                           {r.isValid ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700">
                               <CircleCheck className="h-3 w-3" /> Hợp lệ
                             </span>
                           ) : (
@@ -1623,7 +1641,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
             <Button
               onClick={handleExecuteImport}
               disabled={importing || importRows.filter((r) => r.isValid).length === 0}
-              className="bg-doan-600 hover:bg-doan-700 text-white"
+              className="bg-blue-700 hover:bg-blue-800 text-white"
             >
               {importing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1636,18 +1654,18 @@ export default function PhanQuyenVaTaiKhoanPage() {
       </Modal>
 
       {/* ==============================================================
-       * MODAL QUẢN LÝ THẺ CHỨC DANH (NAMETAG)
+       * MODAL QUẢN LÝ CHỨC DANH — BẢNG ĐỒNG BỘ CỘT THẲNG HÀNG, MỘT MÀU XANH DƯƠNG
        * ============================================================== */}
       <Modal
         open={nametagModalOpen}
         onClose={() => setNametagModalOpen(false)}
-        title="Quản lý Danh mục Thẻ Chức danh / Nametag"
+        title="Quản lý Danh mục Chức danh"
       >
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
           {/* Form thêm mới */}
           <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-3">
             <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
-              Thêm Thẻ Chức danh mới
+              Thêm Chức danh mới
             </h3>
             <div className="grid gap-2 sm:grid-cols-2">
               <Input
@@ -1658,58 +1676,70 @@ export default function PhanQuyenVaTaiKhoanPage() {
               <Input
                 value={newNametagForm.description}
                 onChange={(e) => setNewNametagForm((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Mô tả nhiệm vụ / phụ trách..."
+                placeholder="Mô tả nhiệm vụ / phân công..."
               />
             </div>
             <div className="flex justify-end">
-              <Button size="sm" onClick={handleCreateNametag} disabled={savingNametag} className="bg-doan-600 hover:bg-doan-700 text-white">
+              <Button size="sm" onClick={handleCreateNametag} disabled={savingNametag} className="bg-blue-700 hover:bg-blue-800 text-white">
                 {savingNametag ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Thêm Chức danh"}
               </Button>
             </div>
           </div>
 
-          {/* Danh sách nametags hiện tại — Có nút Sửa */}
+          {/* BẢNG CÁC CHỨC DANH HIỆN CÓ — ĐỒNG BỘ CỘT THẲNG HÀNG */}
           <div className="space-y-2">
             <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
               Các Chức danh hiện có ({availableNametags.length})
             </h3>
-            <div className="divide-y divide-stone-100 rounded-lg border border-stone-200 bg-white">
-              {availableNametags.map((tag) => {
-                const count = store.accounts.filter(
-                  (a) => a.chucDanh === tag.name || a.contactPosition === tag.name
-                ).length;
-                const style = getNametagStyle(tag.name);
+            <div className="overflow-x-auto rounded-lg border border-stone-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-stone-50 font-semibold text-stone-700 border-b border-stone-200">
+                  <tr>
+                    <th className="p-2.5 w-10 text-center">STT</th>
+                    <th className="p-2.5 w-56">Tên chức danh</th>
+                    <th className="p-2.5">Mô tả phân công</th>
+                    <th className="p-2.5 w-24 text-center">Tài khoản</th>
+                    <th className="p-2.5 w-16 text-right">Sửa</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {availableNametags.map((tag, idx) => {
+                    const count = store.accounts.filter(
+                      (a) => a.chucDanh === tag.name || a.contactPosition === tag.name
+                    ).length;
 
-                return (
-                  <div key={tag.name} className="flex items-center justify-between p-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${
-                          style?.wrap ?? "bg-stone-100 text-stone-700"
-                        }`}
-                      >
-                        {style?.icon && <style.icon className={`h-3.5 w-3.5 ${style.iconColor}`} />}
-                        {tag.name}
-                      </span>
-                      <span className="text-xs text-stone-400">
-                        ({count} tài khoản)
-                      </span>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setNametagModalOpen(false);
-                        openEditNametagModal(tag);
-                      }}
-                      className="h-7 text-xs text-stone-600 hover:text-stone-900"
-                    >
-                      <Edit3 className="h-3 w-3 mr-1" /> Sửa
-                    </Button>
-                  </div>
-                );
-              })}
+                    return (
+                      <tr key={tag.name} className="hover:bg-stone-50/60">
+                        <td className="p-2.5 text-center font-mono text-stone-400">
+                          {idx + 1}
+                        </td>
+                        <td className="p-2.5">
+                          <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800 border border-blue-200">
+                            {tag.name}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-stone-600 line-clamp-1">
+                          {tag.description || <span className="text-stone-400 italic">—</span>}
+                        </td>
+                        <td className="p-2.5 text-center font-semibold text-blue-800">
+                          {count}
+                        </td>
+                        <td className="p-2.5 text-right">
+                          <button
+                            onClick={() => {
+                              setNametagModalOpen(false);
+                              openEditNametagModal(tag);
+                            }}
+                            className="inline-flex h-6 items-center gap-1 rounded border border-stone-200 bg-white px-2 text-[11px] font-medium text-stone-700 shadow-xs hover:border-blue-300 hover:text-blue-700"
+                          >
+                            <Edit3 className="h-3 w-3 text-stone-500" /> Sửa
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
 

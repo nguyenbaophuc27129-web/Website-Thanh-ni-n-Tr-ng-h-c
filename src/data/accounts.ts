@@ -2,7 +2,7 @@ import type { Account } from "@/types";
 
 /**
  * Danh sách tài khoản hệ thống:
- * Chỉ duy nhất tài khoản Quản trị Trung ương (@tw.admin) theo yêu cầu.
+ * Quản trị viên Trung ương Đoàn (@tw.admin) — Nguyễn Văn Toàn.
  * Tất cả tài khoản khác được tạo thực tế qua Thêm tài khoản hoặc Import Excel.
  */
 export const accounts: Account[] = [
@@ -11,9 +11,9 @@ export const accounts: Account[] = [
     orgUnitId: 1,
     username: "tw.admin",
     email: "tnth@doanthanhnienvn.vn",
-    contactPerson: "Quản trị viên Trung ương",
-    contactPosition: "Ban Bí thư Trung ương Đoàn",
-    chucDanh: "Quản trị viên Trung ương Đoàn",
+    contactPerson: "Nguyễn Văn Toàn",
+    contactPosition: "Phó Trưởng Ban Công tác Thanh Thiếu Nhi",
+    chucDanh: "Phó Trưởng Ban Công tác Thanh Thiếu Nhi",
     role: "QUAN_TRI_TW",
     status: "ACTIVE",
     lastLoginAt: "2026-10-24T08:30:00Z",
