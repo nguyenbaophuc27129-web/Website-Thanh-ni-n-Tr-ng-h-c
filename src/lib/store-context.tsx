@@ -47,7 +47,6 @@ import { hs3tProfiles as seedHs3tProfiles, hs3tAchievements as seedHs3tAchieveme
 import { generateUniqueAlias } from "@/lib/forum-alias";
 import { useAuth, type Session } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
 
 /* ---------------- Input types ---------------- */
 
@@ -1557,49 +1556,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             status: input.status ?? "ACTIVE",
           };
           setAccounts((prev) => [...prev, account]);
-          appendCreatedAccount({
-            ...account,
-            password,
-            displayName: username,
-            orgUnitName: orgName(input.orgUnitId),
-          });
           return { ok: true };
         }
-        if (r.status < 500) {
-          return { ok: false, error: j?.errors?.[0]?.error ?? j?.error ?? "Không tạo được tài khoản trên hệ thống." };
-        }
-      } catch {
-        /* Mất kết nối DB — rơi xuống lưu local để demo không gãy */
+        return { ok: false, error: j?.errors?.[0]?.error ?? j?.error ?? "Không tạo được tài khoản trên hệ thống." };
+      } catch (err) {
+        return { ok: false, error: "Lỗi kết nối cơ sở dữ liệu." };
       }
-      /* Fallback local: id phải vượt max của CẢ state lẫn localStorage (nơi nextId không biết tới) */
-      const storedMax = loadCreatedAccounts().reduce((m, c) => Math.max(m, c.id), 0);
-      const memoryMax = accounts.reduce((m, a) => Math.max(m, a.id), 0);
-      const id = Math.max(900000, storedMax, memoryMax) + 1;
-      const account: Account = {
-        id,
-        orgUnitId: input.orgUnitId,
-        username,
-        email: input.email.trim(),
-        phone: input.phone?.trim() || undefined,
-        contactPerson: input.contactPerson.trim(),
-        contactPosition: input.contactPosition.trim() || "—",
-        chucDanh: input.chucDanh?.trim() || undefined,
-        grantedPerms: input.perms,
-        permCount: input.perms?.length ?? 0,
-        className: input.className?.trim() || undefined,
-        role: input.role,
-        status: input.status ?? "ACTIVE",
-      };
-      setAccounts((prev) => [...prev, account]);
-      appendCreatedAccount({
-        ...account,
-        password,
-        displayName: username,
-        orgUnitName: orgName(input.orgUnitId),
-      });
-      return { ok: true };
     },
-    [accounts, orgUnits, orgName]
+    [accounts, orgUnits]
   );
 
   /* ============ Forum ẩn danh ============ */

@@ -34,12 +34,17 @@ async function canGrantPermissions(
   targetAccountId: number,
   targetUnitId: number,
 ): Promise<boolean> {
-  // Không tự phân quyền cho chính mình
-  if (callerAccountId === targetAccountId) return false;
-  // Quản trị viên Trung ương hoặc tài khoản có quyền toàn phần / quản lý tài khoản được phân quyền cho bất kỳ ai
-  if (callerRole === "QUAN_TRI_TW" || hasPerm(callerPerms, "*") || hasPerm(callerPerms, "system.account.manage")) {
+  // Quản trị viên Trung ương hoặc tài khoản có quyền toàn phần / quản lý tài khoản được phân quyền cho bất kỳ ai, bao gồm chính mình
+  const isAdmin =
+    callerRole === "QUAN_TRI_TW" ||
+    hasPerm(callerPerms, "*") ||
+    hasPerm(callerPerms, "system.account.manage");
+  if (isAdmin) {
     return true;
   }
+
+  // Các tài khoản khác không được tự phân quyền cho chính mình
+  if (callerAccountId === targetAccountId) return false;
   if (callerUnitId === targetUnitId) return true;
   const [cPath, tPath] = await Promise.all([
     query<{ path: string }>("SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL", [callerUnitId]),

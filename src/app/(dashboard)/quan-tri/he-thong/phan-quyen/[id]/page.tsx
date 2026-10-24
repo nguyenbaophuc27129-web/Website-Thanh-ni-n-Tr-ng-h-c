@@ -73,7 +73,7 @@ export default function PhanQuyenTaiKhoanPage({
   const accountId = Number(id);
   const router = useRouter();
   const store = useStore();
-  const { session } = useAuth();
+  const { session, refreshSession } = useAuth();
   const { toast } = useToast();
 
   const [saving, setSaving] = useState(false);
@@ -191,6 +191,9 @@ export default function PhanQuyenTaiKhoanPage({
     if (!res.ok) {
       toast(res.error ?? "Không lưu được phân quyền.", "warning");
       return;
+    }
+    if (session?.accountId === targetAccount.id) {
+      void refreshSession();
     }
     toast(
       `Đã cập nhật phân quyền thành công cho tài khoản @${targetAccount.username}!`,

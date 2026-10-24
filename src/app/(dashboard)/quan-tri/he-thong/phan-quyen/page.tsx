@@ -381,8 +381,11 @@ export default function PhanQuyenVaTaiKhoanPage() {
       contactPosition: editForm.contactPosition.trim(),
       chucDanh: editForm.chucDanh.trim(),
       className: editForm.className.trim(),
-      // Người dùng sửa tài khoản của chính mình không thể tự đổi status
-      status: session?.accountId === editingAccount.id ? editingAccount.status : editForm.status,
+      // Người dùng thông thường sửa tài khoản chính mình không thể tự đổi status; riêng admin (QUAN_TRI_TW) được phép
+      status:
+        session?.accountId === editingAccount.id && session?.role !== "QUAN_TRI_TW"
+          ? editingAccount.status
+          : editForm.status,
     });
     setSavingEdit(false);
     if (!res.ok) {
@@ -1302,9 +1305,9 @@ export default function PhanQuyenVaTaiKhoanPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Trạng thái tài khoản">
-              {session?.accountId === editingAccount?.id ? (
+              {session?.accountId === editingAccount?.id && session?.role !== "QUAN_TRI_TW" ? (
                 <div className="rounded-lg border border-stone-200 bg-stone-50 p-2.5 text-xs text-stone-600">
-                  <span className="font-semibold text-blue-700">Đang hoạt động</span> (Bạn không thể tự khóa tài khoản của chính mình)
+                  <span className="font-semibold text-blue-700">Đang hoạt động</span> (Bạn không thể tự thay đổi trạng thái tài khoản của chính mình)
                 </div>
               ) : (
                 <select

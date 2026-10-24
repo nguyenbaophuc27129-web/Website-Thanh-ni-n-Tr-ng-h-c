@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import { ArrowLeft, LogIn, UserPlus, Users } from "lucide-react";
 import { DEMO_ACCOUNTS, useAuth, type Role } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
 import { orgUnits } from "@/data/org-units";
 import { DV_HOI_POSITION_GROUPS } from "@/data/positions";
 
@@ -94,17 +93,12 @@ export default function DangKyPage() {
       setError("Mật khẩu nhập lại không khớp.");
       return;
     }
-    const taken =
-      DEMO_ACCOUNTS.some((a) => a.username.toLowerCase() === username) ||
-      loadCreatedAccounts().some((a) => a.username.toLowerCase() === username);
+    const taken = DEMO_ACCOUNTS.some((a) => a.username.toLowerCase() === username);
     if (taken) {
       setError("Tên đăng nhập đã tồn tại — hãy chọn tên khác.");
       return;
     }
     setSubmitting(true);
-    const school = orgUnits.find((s) => s.id === schoolId);
-    // Ghi DB qua API công khai; lỗi mạng/5xx thì rơi xuống lưu local để demo không gãy
-    let registered = false;
     try {
       const r = await fetch("/api/auth/register", {
         method: "POST",
@@ -120,36 +114,19 @@ export default function DangKyPage() {
         }),
       });
       const j = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (r.ok && j?.ok) {
-        registered = true;
-      } else if (r.status < 500) {
+      if (!r.ok || !j?.ok) {
         setSubmitting(false);
-        setError(j?.error ?? "Không đăng ký được. Vui lòng thử lại.");
+        setError(j?.error ?? "Không đăng ký được tài khoản. Vui lòng thử lại.");
         return;
       }
     } catch {
-      /* offline → lưu local */
+      setSubmitting(false);
+      setError("Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại sau.");
+      return;
     }
-    if (!registered) {
-      const existingIds = loadCreatedAccounts().map((a) => a.id);
-      const id = Math.max(900000, ...existingIds, 0) + 1;
-      appendCreatedAccount({
-        id,
-        orgUnitId: schoolId,
-        username,
-        email,
-        contactPerson: fullName,
-        contactPosition: form.position,
-        className: form.className.trim() || undefined,
-        role: "DOAN_VIEN" as Role,
-        status: "ACTIVE",
-        password: form.password,
-        displayName: username,
-        orgUnitName: school?.name ?? `Đơn vị #${schoolId}`,
-      });
-    }
+
     await login(username, form.password);
-    toast("Đăng ký thành công! Chào mừng bạn đến với Diễn đàn Đoàn viên.");
+    toast("Đăng ký thành công! Chào mừng bạn đến với Diễn đàn Đoàn viên.", "success");
     router.push("/dien-dan");
   };
 

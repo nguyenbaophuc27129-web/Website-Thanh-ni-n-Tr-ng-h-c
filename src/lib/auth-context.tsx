@@ -65,6 +65,7 @@ export interface Session {
   contactPerson: string;
   contactPosition: string;
   className?: string;
+  grantedPerms?: string[];
 }
 
 const AuthCtx = createContext<{
@@ -74,6 +75,7 @@ const AuthCtx = createContext<{
   loginAs: (account: DemoAccount) => void;
   logout: () => void;
   updateProfile: (patch: Partial<Session>) => void;
+  refreshSession: () => Promise<void>;
 }>({
   session: null,
   ready: false,
@@ -81,49 +83,68 @@ const AuthCtx = createContext<{
   loginAs: () => {},
   logout: () => {},
   updateProfile: () => {},
+  refreshSession: async () => {},
 });
 
 export function useAuth() {
   return useContext(AuthCtx);
 }
 
-const STORAGE_KEY = "tnth_demo_user";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  const refreshSession = useCallback(async () => {
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setSession(JSON.parse(raw));
+      const res = await fetch("/api/auth/session");
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.ok && data?.session) {
+          setSession(data.session);
+          return;
+        }
+      }
     } catch {
-      // ignore corrupted storage
+      // offline
     }
-    setReady(true);
   }, []);
 
-  const persist = useCallback((s: Session | null) => {
-    setSession(s);
-    if (s) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    else window.localStorage.removeItem(STORAGE_KEY);
-  }, []);
+  useEffect(() => {
+    // Dọn sạch toàn bộ key localStorage cũ nếu còn sót trong trình duyệt
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("tnth_demo_user");
+        window.localStorage.removeItem("tnth_demo_created_accounts");
+      } catch {}
+    }
 
-  const toSession = useCallback(
-    (acc: DemoAccount): Session => ({
-      accountId: acc.id,
-      username: acc.username,
-      displayName: acc.displayName,
-      orgUnitId: acc.orgUnitId,
-      orgUnitName: acc.orgUnitName,
-      role: acc.role,
-      email: acc.email,
-      contactPerson: acc.contactPerson,
-      contactPosition: acc.contactPosition,
-      className: acc.className,
-    }),
-    []
-  );
+    // Đọc phiên đăng nhập thực tế từ PostgreSQL DB qua cookie session
+    let mounted = true;
+    fetch("/api/auth/session")
+      .then(async (res) => {
+        if (!mounted) return;
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.ok && data?.session) {
+            setSession(data.session);
+            setReady(true);
+            return;
+          }
+        }
+        setSession(null);
+        setReady(true);
+      })
+      .catch(() => {
+        if (mounted) {
+          setSession(null);
+          setReady(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -136,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         if (r.ok) {
           const data = (await r.json()) as { session: Session };
-          persist(data.session);
+          setSession(data.session);
           return true;
         }
         return false;
@@ -144,35 +165,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [persist]
+    []
   );
 
   const loginAs = useCallback(
     (acc: DemoAccount) => {
-      persist(toSession(acc));
+      setSession({
+        accountId: acc.id,
+        username: acc.username,
+        displayName: acc.displayName,
+        orgUnitId: acc.orgUnitId,
+        orgUnitName: acc.orgUnitName,
+        role: acc.role,
+        email: acc.email,
+        contactPerson: acc.contactPerson,
+        contactPosition: acc.contactPosition,
+        className: acc.className,
+      });
     },
-    [persist, toSession]
+    []
   );
 
   const updateProfile = useCallback((patch: Partial<Session>) => {
-    setSession((prev) => {
-      if (!prev) return null;
-      const next = { ...prev, ...patch };
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      }
-      return next;
-    });
+    setSession((prev) => (prev ? { ...prev, ...patch } : null));
   }, []);
 
   const logout = useCallback(() => {
-    // Thu hồi phiên phía DB (bỏ qua lỗi — cookie/localStorage vẫn xoá)
+    // Thu hồi phiên phía DB
     void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    persist(null);
-  }, [persist]);
+    setSession(null);
+  }, []);
 
   return (
-    <AuthCtx.Provider value={{ session, ready, login, loginAs, logout, updateProfile }}>
+    <AuthCtx.Provider value={{ session, ready, login, loginAs, logout, updateProfile, refreshSession }}>
       {children}
     </AuthCtx.Provider>
   );

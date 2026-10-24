@@ -64,8 +64,9 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: "DỮ LIỆU KHÔNG HỢP LỆ" }, { status: 400 });
     }
 
-    // Không cho phép tự thay đổi trạng thái khóa/mở tài khoản của chính mình
-    if (hasStatus && isSelf) {
+    // Người dùng thông thường không thể tự thay đổi trạng thái tài khoản của chính mình;
+    // Riêng quản trị viên Trung ương (QUAN_TRI_TW) được phép thay đổi trạng thái của chính mình
+    if (hasStatus && isSelf && session.role !== "QUAN_TRI_TW") {
       return NextResponse.json(
         { ok: false, error: "KHÔNG THỂ TỰ THAY ĐỔI TRẠNG THÁI TÀI KHOẢN CỦA CHÍNH MÌNH" },
         { status: 400 },
@@ -86,8 +87,8 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: "KHÔNG TÌM THẤY TÀI KHOẢN" }, { status: 404 });
     }
 
-    // Tài khoản gốc Trung ương (id=1, tw.admin) không thể bị khóa
-    if (hasStatus && target.id === 1 && (status === "LOCKED" || status === "DISABLED")) {
+    // Tài khoản gốc Trung ương (id=1, tw.admin) không thể bị khóa bởi tài khoản khác
+    if (hasStatus && target.id === 1 && (status === "LOCKED" || status === "DISABLED") && session.role !== "QUAN_TRI_TW") {
       return NextResponse.json(
         { ok: false, error: "KHÔNG THỂ KHÓA TÀI KHOẢN QUẢN TRỊ TRUNG ƯƠNG TỐI CAO" },
         { status: 403 },
