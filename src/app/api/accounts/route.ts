@@ -24,7 +24,73 @@ const ALLOWED_ADMIN_ROLES: RoleCode[] = [
   "QUAN_TRI_CAP3",
 ];
 
-/** POST /api/accounts — quản trị tạo tài khoản (trang Hệ thống › Tài khoản, kèm nhập file). */
+/** GET /api/accounts — danh sách tài khoản cho trang Phân quyền (kèm số quyền gán riêng). */
+export async function GET(request: NextRequest) {
+  if (!dbEnabled()) {
+    return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
+  }
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = token ? await sessionFromToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "YÊU CẦU ĐĂNG NHẬP" }, { status: 401 });
+  }
+  if (!ALLOWED_ADMIN_ROLES.includes(session.role as RoleCode)) {
+    return NextResponse.json({ ok: false, error: "KHÔNG CÓ QUYỀN XEM TÀI KHOẢN" }, { status: 403 });
+  }
+
+  const rows = await query<{
+    id: number; org_unit_id: number; username: string; email: string; phone: string | null;
+    contact_person: string | null; contact_position: string | null; chuc_danh: string | null;
+    class_name: string | null; role_code: string | null; status: string;
+    last_login_at: Date | null; org_name: string; org_level: number; perm_count: number | string;
+  }>(
+    `SELECT a.id, a.org_unit_id, a.username, a.email, a.phone, a.contact_person, a.contact_position,
+            a.chuc_danh, a.class_name, a.role_code, a.status, a.last_login_at,
+            o.name AS org_name, o.org_level,
+            (SELECT count(*) FROM account_permissions ap WHERE ap.account_id = a.id) AS perm_count
+     FROM accounts a JOIN org_units o ON o.id = a.org_unit_id
+     WHERE a.deleted_at IS NULL
+     ORDER BY o.org_level, o.path, a.id`,
+  );
+
+  // Phạm vi: TW xem tất cả; tỉnh/cấp 3 chỉ xem tài khoản trong cây đơn vị của mình
+  let scoped = rows;
+  if (session.role !== "QUAN_TRI_TW") {
+    const caller = await query<{ path: string }>(
+      "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
+      [session.orgUnitId],
+    );
+    const callerPath = caller[0]?.path;
+    const units = await query<{ id: number; path: string }>("SELECT id, path FROM org_units WHERE deleted_at IS NULL");
+    const okUnits = new Set(
+      units.filter((u) => callerPath && u.path.startsWith(callerPath)).map((u) => Number(u.id)),
+    );
+    scoped = rows.filter((r) => okUnits.has(Number(r.org_unit_id)));
+  }
+
+  return NextResponse.json({
+    ok: true,
+    accounts: scoped.map((r) => ({
+      id: Number(r.id),
+      orgUnitId: Number(r.org_unit_id),
+      orgUnitName: r.org_name,
+      orgLevel: Number(r.org_level),
+      username: r.username,
+      email: r.email,
+      phone: r.phone ?? "",
+      contactPerson: r.contact_person ?? r.username,
+      contactPosition: r.contact_position ?? "",
+      chucDanh: r.chuc_danh ?? "",
+      className: r.class_name ?? "",
+      role: r.role_code ?? "DON_VI",
+      status: r.status,
+      lastLoginAt: r.last_login_at ? r.last_login_at.toISOString() : "",
+      permCount: Number(r.perm_count ?? 0),
+    })),
+  });
+}
+
+/** POST /api/accounts — quản trị tạo tài khoản (trang Hệ thống › Phân quyền & Tài khoản, kèm nhập file). */
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!dbEnabled()) {
@@ -57,10 +123,12 @@ export async function POST(request: NextRequest) {
             phone?: string;
             contactPerson?: string;
             contactPosition?: string;
+            chucDanh?: string;
             className?: string;
             role?: string;
             status?: string;
             password?: string;
+            perms?: string[];
           }[];
         }
       | null;
@@ -138,8 +206,8 @@ export async function POST(request: NextRequest) {
 
         const rows = await query<{ id: number }>(
           `INSERT INTO accounts (org_unit_id, username, email, phone, password_hash, contact_person,
-             contact_position, class_name, status, role_code, must_change_password, password_changed_at)
-           OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, NULL)
+             contact_position, chuc_danh, class_name, status, role_code, must_change_password, password_changed_at)
+           OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NULL)
            RETURNING id`,
           [
             orgUnitId,
@@ -149,12 +217,22 @@ export async function POST(request: NextRequest) {
             passwordHash,
             input.contactPerson?.trim() || username,
             input.contactPosition?.trim() || null,
+            input.chucDanh?.trim() || null,
             input.className?.trim() || null,
             status,
             role,
           ],
         );
-        created.push(Number(rows[0].id));
+        const newId = Number(rows[0].id);
+        // Quyền ban đầu: tick mục nào xem mục đó (danh sách rỗng/bỏ trống = theo vai trò)
+        const perms = Array.isArray(input.perms) ? input.perms.map(String).filter((p) => p) : [];
+        for (const code of perms) {
+          await query(
+            "INSERT INTO account_permissions (account_id, perm_code, granted_by_account_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+            [newId, code, session.accountId],
+          );
+        }
+        created.push(newId);
       } catch (e) {
         errors.push({ username: username || "?", error: e instanceof Error ? e.message : "Lỗi" });
       }

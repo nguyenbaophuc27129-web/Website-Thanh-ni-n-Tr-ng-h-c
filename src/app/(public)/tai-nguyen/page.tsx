@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Presentation,
   Video,
+  Image as ImageIcon,
   Check,
   Loader2,
   CalendarDays,
@@ -71,8 +72,11 @@ const FORMAT_FILTERS: {
   { key: "xls", label: "EXCEL", match: (e) => e === "xls" || e === "xlsx", tint: "bg-emerald-50 text-emerald-600", icon: FileSpreadsheet },
   { key: "ppt", label: "PPT", match: (e) => e === "ppt" || e === "pptx", tint: "bg-orange-50 text-orange-600", icon: Presentation },
   { key: "mp4", label: "MP4", match: (e) => e === "mp4" || e === "mov" || e === "avi", tint: "bg-violet-50 text-violet-600", icon: Video },
+  { key: "img", label: "ẢNH", match: (e) => ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(e), tint: "bg-pink-50 text-pink-600", icon: ImageIcon },
   { key: "zip", label: "ZIP", match: (e) => e === "zip" || e === "rar" || e === "7z", tint: "bg-amber-50 text-amber-600", icon: FileArchive },
 ];
+
+const isImageExt = (ext: string) => ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
 
 const extOf = (fileName: string) => fileName.split(".").pop()?.toLowerCase() ?? "";
 
@@ -140,7 +144,7 @@ export default function TaiNguyenPage() {
   const [rTitle, setRTitle] = useState("");
   const [rType, setRType] = useState(String(resourceTypes[0]?.id ?? 1));
   const [rDesc, setRDesc] = useState("");
-  const [rFile, setRFile] = useState<{ name: string; sizeKb: number } | null>(null);
+  const [rFile, setRFile] = useState<{ name: string; sizeKb: number; dataUrl?: string } | null>(null);
 
   const openResourceContribute = () => {
     if (!session) {
@@ -152,7 +156,14 @@ export default function TaiNguyenPage() {
 
   const pickFile = (file: File | null) => {
     if (!file) return;
-    setRFile({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)) });
+    if (file.size > 4 * 1024 * 1024) {
+      toast("Tệp vượt quá 4MB — hãy chọn tệp nhỏ hơn.", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      setRFile({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), dataUrl: String(reader.result ?? "") });
+    reader.readAsDataURL(file);
   };
 
   const submitResourceContribute = () => {
@@ -167,6 +178,7 @@ export default function TaiNguyenPage() {
       description: rDesc || "Tài nguyên do đoàn viên đóng góp, chờ Ban Biên tập duyệt.",
       fileName: rFile.name,
       fileSizeKb: rFile.sizeKb,
+      fileDataUrl: rFile.dataUrl,
     });
     setContribOpen(false);
     setRTitle(""); setRDesc(""); setRFile(null);
@@ -205,17 +217,25 @@ export default function TaiNguyenPage() {
     );
   }, [publicPool, type, q]);
 
-  /** Micro-interaction tải file: spinner → check → toast */
-  const handleDownload = (id: number, title: string) => {
+  /** Tải tệp thật từ dataUrl; chưa có tệp thì báo rõ thay vì giả lập */
+  const handleDownload = (r: Resource) => {
     if (busyId !== null) return;
-    setBusyId(id);
-    downloadResource(id);
-    window.setTimeout(() => {
+    if (r.fileDataUrl) {
+      setBusyId(r.id);
+      const a = document.createElement("a");
+      a.href = r.fileDataUrl;
+      a.download = r.fileName || `tai-nguyen-${r.id}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      downloadResource(r.id);
       setBusyId(null);
-      setDoneId(id);
-      toast(`Đã tải "${title}" — tệp giả lập cho bản demo.`);
+      setDoneId(r.id);
+      toast(`Đã tải "${r.title}".`);
       window.setTimeout(() => setDoneId(null), 1600);
-    }, 900);
+      return;
+    }
+    toast(`"${r.title}" chưa có tệp đính kèm — nội dung sẽ được bổ sung sau.`, "warning");
   };
 
   return (
@@ -360,7 +380,11 @@ export default function TaiNguyenPage() {
               const typeName = resourceTypes.find((t) => t.id === r.resourceTypeId)?.short ?? resourceTypes.find((t) => t.id === r.resourceTypeId)?.name;
               const busy = busyId === r.id;
               const done = doneId === r.id;
-              const thumb = r.videoUrl ? ytThumb(r.videoUrl) : null;
+              const thumb = r.videoUrl
+                ? ytThumb(r.videoUrl)
+                : r.fileDataUrl && isImageExt(extOf(r.fileName))
+                  ? r.fileDataUrl
+                  : null;
               return (
                 <motion.div
                   key={r.id}
@@ -418,15 +442,21 @@ export default function TaiNguyenPage() {
                     </p>
                   </div>
 
-                  {/* Meta phải */}
-                  <div className="hidden shrink-0 flex-col items-end gap-0.5 text-[11px] font-light text-slate-400 lg:flex">
-                    <span className="inline-flex items-center gap-1">
-                      <Download className="h-3 w-3" strokeWidth={1.5} /> {formatNumber(r.downloadCount)} {r.videoUrl ? "lượt xem" : "lượt tải"}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-3 w-3" strokeWidth={1.5} /> {formatDate(r.publishedAt)}
-                    </span>
-                  </div>
+                  {/* Meta phải — chỉ hiện khi có số liệu/ngày thật (clip nhúng YouTube để trống) */}
+                  {(r.downloadCount > 0 || r.publishedAt) && (
+                    <div className="hidden shrink-0 flex-col items-end gap-0.5 text-[11px] font-light text-slate-400 lg:flex">
+                      {r.downloadCount > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <Download className="h-3 w-3" strokeWidth={1.5} /> {formatNumber(r.downloadCount)} {r.videoUrl ? "lượt xem" : "lượt tải"}
+                        </span>
+                      )}
+                      {r.publishedAt && (
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3" strokeWidth={1.5} /> {formatDate(r.publishedAt)}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Hành động — clip mở trình phát, tài liệu tải xuống; ẩn mờ, hiện rõ khi hover dòng */}
                   <div className="flex shrink-0 items-center opacity-100 transition-all duration-300 sm:translate-x-1 sm:opacity-0 sm:group-hover:translate-x-0 sm:group-hover:opacity-100">
@@ -442,7 +472,7 @@ export default function TaiNguyenPage() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleDownload(r.id, r.title)}
+                        onClick={() => handleDownload(r)}
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11px] font-semibold text-white transition-colors",
                           done ? "bg-emerald-500" : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110"
@@ -561,7 +591,7 @@ export default function TaiNguyenPage() {
           <Field label="Mô tả">
             <Textarea value={rDesc} onChange={(e) => setRDesc(e.target.value)} className="min-h-20" placeholder="Mô tả ngắn về tài nguyên và đối tượng sử dụng" />
           </Field>
-          <Field label="Tệp đính kèm" required hint="Chỉ ghi nhận tên + dung lượng cho bản demo">
+          <Field label="Tệp đính kèm" required hint="Ghi tên tệp + dung lượng — Ban biên tập sẽ nạp tệp gốc khi duyệt đóng góp của bạn">
             {rFile ? (
               <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">
                 <Check className="h-4 w-4" />

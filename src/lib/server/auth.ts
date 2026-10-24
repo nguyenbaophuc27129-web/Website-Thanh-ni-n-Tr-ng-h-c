@@ -47,6 +47,8 @@ export interface SessionDto {
   contactPerson: string;
   contactPosition: string;
   className?: string;
+  /** Quyền cấp trên gán riêng (account_permissions) — có thì thay quyền mặc định theo vai trò */
+  grantedPerms?: string[];
 }
 
 interface AccountRow {
@@ -84,6 +86,16 @@ export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const key = await scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 });
   return `scrypt:16384:8:1:${salt.toString("hex")}:${key.toString("hex")}`;
+}
+
+/** Quyền cấp trên gán riêng cho tài khoản (tick mục nào xem mục đó) */
+export async function loadGrantedPerms(accountId: number): Promise<string[] | undefined> {
+  const rows = await query<{ perm_code: string }>(
+    "SELECT perm_code FROM account_permissions WHERE account_id = $1 ORDER BY perm_code",
+    [accountId],
+  );
+  const perms = rows.map((r) => r.perm_code);
+  return perms.length > 0 ? perms : undefined;
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
@@ -155,7 +167,9 @@ export async function loginAccount(
      WHERE id = $1`,
     [account.id],
   );
-  return { ok: true, accountId: account.id, session: dtoOf(account) };
+  const session = dtoOf(account);
+  session.grantedPerms = await loadGrantedPerms(account.id);
+  return { ok: true, accountId: account.id, session };
 }
 
 function tokenHash(token: string): string {
@@ -202,7 +216,10 @@ export async function sessionFromToken(token: string): Promise<SessionDto | null
     [tokenHash(token)],
   );
   const row = rows[0];
-  return row ? dtoOf(row) : null;
+  if (!row) return null;
+  const session = dtoOf(row);
+  session.grantedPerms = await loadGrantedPerms(session.accountId);
+  return session;
 }
 
 export async function revokeSession(token: string): Promise<void> {

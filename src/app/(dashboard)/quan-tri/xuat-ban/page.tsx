@@ -32,46 +32,13 @@ import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
 import type { PublishedPost } from "@/types";
 import { formatNumber, formatDateTime, slugify } from "@/lib/utils";
 
-/** Kết quả trích xuất từ đường link (thật hoặc mô phỏng dự phòng) */
+/** Kết quả trích xuất từ đường link */
 interface ImportedArticle {
   title: string;
   excerpt: string;
   content: string;
   imageUrl?: string;
   sourceUrl: string;
-  mock: boolean;
-}
-
-/** Fallback khi trang chặn bot / hỏng: dựng bài mô phỏng từ slug của đường link */
-function mockFromUrl(url: string): ImportedArticle {
-  let host = "";
-  let words = "Bài viết nhập từ đường link";
-  try {
-    const u = new URL(url);
-    host = u.hostname.replace(/^www\./, "");
-    const seg = u.pathname.split("/").filter(Boolean).pop() ?? "";
-    const decoded = decodeURIComponent(seg).replace(/[-_]+/g, " ").replace(/\.(html?|php|aspx)$/i, "").trim();
-    if (decoded.length >= 8) {
-      words = decoded
-        .split(" ")
-        .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
-        .join(" ");
-    }
-  } catch {
-    // URL đã được kiểm tra hợp lệ trước khi gọi
-  }
-  const title = `Bài viết từ ${host}: ${words}`.slice(0, 120);
-  return {
-    title,
-    excerpt: `Nội dung tóm tắt mô phỏng cho bài viết "${words}" lấy từ ${host} — hệ thống chưa đọc được trang gốc.`,
-    content: [
-      `Đây là bản nháp MÔ PHỎNG được tạo tự động từ đường link bạn nhập (nguồn: ${url}).`,
-      `Trang gốc không cho phép trích xuất tự động (bị chặn bot, yêu cầu JavaScript hoặc trả về lỗi) nên hệ thống dựng khung bài viết để bạn biên tập tiếp.`,
-      `Bạn hãy dán nội dung thật của bài báo vào ô bên dưới, sửa tiêu đề và tóm tắt rồi đăng công khai khi sẵn sàng.`,
-    ].join("\n\n"),
-    sourceUrl: url,
-    mock: true,
-  };
 }
 
 /** Thanh công cụ soạn thảo phong phú: In đậm, In nghiêng, H2, H3, Chèn ảnh, Chèn link, Trích dẫn, Đếm từ & ký tự */
@@ -389,11 +356,9 @@ export default function XuatBanPage() {
         content: data.content?.trim() ?? "",
         imageUrl: data.imageUrl,
         sourceUrl: url,
-        mock: false,
       });
-    } catch {
-      setImported(mockFromUrl(url));
-      toast("Không trích xuất được trang thật — hệ thống tạo bản nháp mô phỏng từ đường link.", "info");
+    } catch (e) {
+      toast(`Không trích xuất được nội dung từ đường link (${e instanceof Error ? e.message : "lỗi không rõ"}) — bạn hãy dán nội dung thủ công.`, "warning");
     } finally {
       setImporting(false);
     }
@@ -802,15 +767,9 @@ export default function XuatBanPage() {
 
           {imported ? (
             <div className="space-y-3 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
-              {imported.mock ? (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-700 ring-1 ring-amber-100">
-                  Bản nháp mô phỏng — trang gốc bị hạn chế truy cập trực tiếp, bạn hãy kiểm tra và hoàn thiện nội dung.
-                </p>
-              ) : (
-                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
-                  Đã đọc xong từ nguồn {new URL(imported.sourceUrl).hostname} — kiểm tra và sửa lại trước khi tạo bản nháp.
-                </p>
-              )}
+              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
+                Đã đọc xong từ nguồn {new URL(imported.sourceUrl).hostname} — kiểm tra và sửa lại trước khi tạo bản nháp.
+              </p>
               <Field label="Tiêu đề">
                 <Input
                   value={imported.title}

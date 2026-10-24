@@ -1,103 +1,150 @@
-import type { OrgUnit, SchoolType } from "@/types";
+import type { OrgBlock, OrgUnit, SchoolType } from "@/types";
 
+/** Loại trường — id khớp bảng school_types trong DB */
 export const schoolTypes: SchoolType[] = [
-  { id: 1, code: "THPT", name: "Trung học phổ thông" },
-  { id: 2, code: "THCS", name: "Trung học cơ sở" },
-  { id: 3, code: "TIEU_HOC", name: "Tiểu học" },
-  { id: 4, code: "MAM_NON", name: "Mầm non" },
-  { id: 5, code: "Dai_Hoc_CĐ", name: "Đại học, Cao đẳng" },
-  { id: 6, code: "GDNN_GDTX", name: "Trung tâm GDNN - GDTX" },
+  { id: 3, code: "THPT", name: "Trung học phổ thông" },
+  { id: 4, code: "THCS", name: "Trung học cơ sở" },
+  { id: 5, code: "TIEU_HOC", name: "Tiểu học" },
+  { id: 6, code: "MAM_NON", name: "Mầm non" },
+  { id: 7, code: "Dai_Hoc_CĐ", name: "Đại học, Cao đẳng" },
+  { id: 13, code: "GDNN_GDTX", name: "Trung tâm GDNN - GDTX" },
 ];
+
+/** 4 khối tổ chức Đoàn */
+export const ORG_BLOCKS: { value: OrgBlock; label: string; hint: string }[] = [
+  {
+    value: "DAN_CU",
+    label: "Khối Địa bàn dân cư",
+    hint: "Quận/Huyện/Thị/Thành đoàn thuộc tỉnh; Đoàn xã, phường, thị trấn; Chi đoàn thôn, xóm, khu phố",
+  },
+  {
+    value: "TRUONG_HOC",
+    label: "Khối Trường học",
+    hint: "Đoàn Học viện, ĐH, CĐ; Đoàn THPT, TT GDNN-GDTX; Liên chi đoàn khoa, chi đoàn lớp",
+  },
+  {
+    value: "CO_QUAN",
+    label: "Khối Cơ quan và Doanh nghiệp",
+    hint: "Đoàn Khối cơ quan tỉnh, Đoàn Khối doanh nghiệp, Đoàn Tập đoàn/Tổng công ty; Đoàn cơ sở tại Sở, Ban, Ngành, ngân hàng",
+  },
+  {
+    value: "VU_TRANG",
+    label: "Khối Lực lượng vũ trang",
+    hint: "Ban TN Quân đội/Công an; Đoàn Quân khu, Quân đoàn, Sư đoàn; Đoàn cơ sở Công an tỉnh, huyện",
+  },
+];
+
+export const ORG_BLOCK_LABEL: Record<string, string> = Object.fromEntries(
+  ORG_BLOCKS.map((b) => [b.value, b.label])
+);
+
+/** Nhãn 5 cấp tổ chức */
+export const ORG_LEVEL_LABEL: Record<number, string> = {
+  1: "Trung ương Đoàn",
+  2: "Tỉnh / Thành đoàn, Đoàn trực thuộc TW",
+  3: "Cấp trên cơ sở (Quận, Huyện, Thị, Thành đoàn, Khối…)",
+  4: "Đoàn cơ sở (xã, phường, trường, cơ quan…)",
+  5: "Dưới cơ sở (Liên chi, Chi đoàn)",
+};
+
+/** Nhãn ngắn dùng trong bảng */
+export const ORG_LEVEL_SHORT: Record<number, string> = {
+  1: "Trung ương",
+  2: "Tỉnh / Thành",
+  3: "Cấp trên cơ sở",
+  4: "Cơ sở",
+  5: "Dưới cơ sở",
+};
 
 /**
- * Cây đơn vị Đoàn 4 cấp — path dạng /1/12/25/31/ mô phỏng materialized path.
- * Cấp 1 = TW · 2 = Tỉnh/Thành · 3 = Phường/Xã · 4 = Cơ sở trường.
+ * Cây đơn vị tổ chức Đoàn — đồng bộ với bảng org_units trong DB.
+ * Cấp 1 = TW Đoàn · Cấp 2 = 34 tỉnh/thành (sau sáp nhập 2025) + 5 đoàn trực thuộc TW.
+ * Các cấp dưới (3/4/5) do tỉnh/thành đoàn tự tạo trên hệ thống.
  */
 export const orgUnits: OrgUnit[] = [
-  // Cấp 1 — Trung ương
-  { id: 1, parentId: null, code: "TW-TNTH", name: "Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh", shortName: "Ban CTTTN TW", orgLevel: 1, adminUnitName: "Hà Nội", address: "Số 62 Bà Triệu, Hà Nội", isActive: true },
-  { id: 2, parentId: null, code: "TW-BIENTAP", name: "Ban Biên tập Cổng Thanh niên Trường học", shortName: "Ban Biên tập", orgLevel: 1, adminUnitName: "Hà Nội", address: "Số 62 Bà Triệu, Hà Nội", isActive: true },
-
-  // Cấp 2 — Tỉnh/Thành Đoàn
-  { id: 12, parentId: 1, code: "BD", name: "Tỉnh Đoàn Bình Dương", shortName: "Tỉnh Đoàn Bình Dương", orgLevel: 2, adminUnitName: "Tỉnh Bình Dương", address: "TP Thủ Dầu Một, Bình Dương", isActive: true },
-  { id: 13, parentId: 1, code: "HCM", name: "Thành Đoàn TP. Hồ Chí Minh", shortName: "Thành Đoàn TP.HCM", orgLevel: 2, adminUnitName: "TP Hồ Chí Minh", address: "Q.1, TP Hồ Chí Minh", isActive: true },
-  { id: 14, parentId: 1, code: "BG", name: "Tỉnh Đoàn Bắc Giang", shortName: "Tỉnh Đoàn Bắc Giang", orgLevel: 2, adminUnitName: "Tỉnh Bắc Giang", address: "TP Bắc Giang", isActive: true },
-  { id: 15, parentId: 1, code: "NA", name: "Tỉnh Đoàn Nghệ An", shortName: "Tỉnh Đoàn Nghệ An", orgLevel: 2, adminUnitName: "Tỉnh Nghệ An", address: "TP Vinh, Nghệ An", isActive: true },
-  { id: 16, parentId: 1, code: "DN", name: "Thành Đoàn Đà Nẵng", shortName: "Thành Đoàn Đà Nẵng", orgLevel: 2, adminUnitName: "TP Đà Nẵng", address: "TP Đà Nẵng", isActive: true },
-  { id: 17, parentId: 1, code: "HN", name: "Thành Đoàn Hà Nội", shortName: "Thành Đoàn Hà Nội", orgLevel: 2, adminUnitName: "TP Hà Nội", address: "Cung Thanh niên Hà Nội", isActive: true },
-
-  // Cấp 4 trực thuộc Tỉnh Đoàn (trường chuyên/PTDTNT do tỉnh quản lý trực tiếp)
-  { id: 60, parentId: 12, code: "BD-THPT-CHUYEN", name: "Đoàn Trường THPT Chuyên Bình Dương", shortName: "THPT Chuyên Bình Dương", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung học phổ thông", address: "TP Thủ Dầu Một, Bình Dương", isActive: true },
-
-  // Cấp 3 — Phường/Xã (con của Tỉnh Đoàn Bình Dương)
-  { id: 25, parentId: 12, code: "BD-HT", name: "Đoàn Phường Hiệp Thành", shortName: "Đoàn P. Hiệp Thành", orgLevel: 3, adminUnitName: "TP Thủ Dầu Một, Bình Dương", isActive: true },
-  { id: 26, parentId: 12, code: "BD-PH", name: "Đoàn Phường Phú Hòa", shortName: "Đoàn P. Phú Hòa", orgLevel: 3, adminUnitName: "TP Thủ Dầu Một, Bình Dương", isActive: true },
-  { id: 27, parentId: 12, code: "BD-TBH", name: "Đoàn Phường Tương Bình Hiệp", shortName: "Đoàn P. Tương Bình Hiệp", orgLevel: 3, adminUnitName: "TP Thủ Dầu Một, Bình Dương", isActive: true },
-  { id: 28, parentId: 12, code: "BD-HA", name: "Đoàn Phường Hiệp An", shortName: "Đoàn P. Hiệp An", orgLevel: 3, adminUnitName: "TP Thủ Dầu Một, Bình Dương", isActive: true },
-  // Cấp 3 (con của Thành Đoàn TP.HCM)
-  { id: 29, parentId: 13, code: "HCM-BN", name: "Đoàn Phường Bến Nghé", shortName: "Đoàn P. Bến Nghé", orgLevel: 3, adminUnitName: "TP Hồ Chí Minh", isActive: true },
-  { id: 30, parentId: 13, code: "HCM-COL", name: "Đoàn Phường Cầu Ông Lãnh", shortName: "Đoàn P. Cầu Ông Lãnh", orgLevel: 3, adminUnitName: "TP Hồ Chí Minh", isActive: true },
-  // Cấp 3 (con của Tỉnh Đoàn Bắc Giang)
-  { id: 40, parentId: 14, code: "BG-LL", name: "Đoàn Phường Lê Lợi", shortName: "Đoàn P. Lê Lợi", orgLevel: 3, adminUnitName: "TP Bắc Giang", isActive: true },
-  { id: 41, parentId: 14, code: "BG-TP", name: "Đoàn Phường Trần Phú", shortName: "Đoàn P. Trần Phú", orgLevel: 3, adminUnitName: "TP Bắc Giang", isActive: true },
-  // Cấp 3 (con của Tỉnh Đoàn Nghệ An)
-  { id: 45, parentId: 15, code: "NA-VINH", name: "Đoàn Phường Vinh", shortName: "Đoàn P. Vinh", orgLevel: 3, adminUnitName: "TP Vinh, Nghệ An", isActive: true },
-  // Cấp 3 (con của Thành Đoàn Đà Nẵng)
-  { id: 50, parentId: 16, code: "DN-AH", name: "Đoàn Phường An Hải", shortName: "Đoàn P. An Hải", orgLevel: 3, adminUnitName: "TP Đà Nẵng", isActive: true },
-  { id: 51, parentId: 16, code: "DN-TT", name: "Đoàn Phường Thạch Thang", shortName: "Đoàn P. Thạch Thang", orgLevel: 3, adminUnitName: "TP Đà Nẵng", isActive: true },
-
-  // Cấp 4 — Đơn vị cơ sở (con của Đoàn Phường Hiệp Thành)
-  { id: 31, parentId: 25, code: "BD-HT-THPT-CPH", name: "Đoàn Trường THPT Chánh Phú Hưng", shortName: "THPT Chánh Phú Hưng", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung học phổ thông", address: "P. Hiệp Thành, TP Thủ Dầu Một", isActive: true },
-  { id: 32, parentId: 25, code: "BD-HT-THCS", name: "Đoàn Trường THCS Hiệp Thành", shortName: "THCS Hiệp Thành", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung học cơ sở", isActive: true },
-  { id: 33, parentId: 25, code: "BD-HT-TH-KD", name: "Đoàn Trường Tiểu học Kim Đồng", shortName: "TH Kim Đồng", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Tiểu học", isActive: true },
-  // Cấp 4 (con của Đoàn Phường Phú Hòa)
-  { id: 34, parentId: 26, code: "BD-PH-THPT-NTN", name: "Đoàn Trường THPT Ngô Thời Nhậm", shortName: "THPT Ngô Thời Nhậm", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 35, parentId: 26, code: "BD-PH-MN-AS", name: "Đoàn Trường Mầm non Ánh Sao", shortName: "MN Ánh Sao", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Mầm non", isActive: true },
-  { id: 36, parentId: 25, code: "BD-HT-GDNN", name: "Đoàn Trung tâm GDNN - GDTX TP. Thủ Dầu Một", shortName: "GDNN-GDTX Thủ Dầu Một", orgLevel: 4, adminUnitName: "TP Thủ Dầu Một, Bình Dương", schoolTypeName: "Trung tâm GDNN-GDTX", isActive: true },
-  // Cấp 4 (con của Đoàn Phường Lê Lợi, Bắc Giang)
-  { id: 42, parentId: 40, code: "BG-LL-THPT-BG", name: "Đoàn Trường THPT Bắc Giang", shortName: "THPT Bắc Giang", orgLevel: 4, adminUnitName: "TP Bắc Giang", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 43, parentId: 40, code: "BG-LL-THCS-LL", name: "Đoàn Trường THCS Lê Lợi", shortName: "THCS Lê Lợi", orgLevel: 4, adminUnitName: "TP Bắc Giang", schoolTypeName: "Trung học cơ sở", isActive: true },
-  // Cấp 4 (con của Đoàn Phường Vinh)
-  { id: 46, parentId: 45, code: "NA-VINH-SP", name: "Đoàn Trường ĐH Sư phạm Nghệ An", shortName: "ĐHSP Nghệ An", orgLevel: 4, adminUnitName: "TP Vinh, Nghệ An", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
-  { id: 47, parentId: 15, code: "NA-THPT-PBC", name: "Đoàn Trường THPT Chuyên Phan Bội Châu", shortName: "THPT Phan Bội Châu", orgLevel: 4, adminUnitName: "TP Vinh, Nghệ An", schoolTypeName: "Trung học phổ thông", isActive: true },
-
-  // Cấp 4 (con của Đoàn Phường An Hải & Thành Đoàn Đà Nẵng)
-  { id: 52, parentId: 50, code: "DN-AH-KT", name: "Đoàn Trường ĐH Kinh tế Đà Nẵng", shortName: "ĐH Kinh tế ĐN", orgLevel: 4, adminUnitName: "TP Đà Nẵng", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
-  { id: 53, parentId: 16, code: "DN-THPT-LQD", name: "Đoàn Trường THPT Chuyên Lê Quý Đôn", shortName: "THPT Lê Quý Đôn ĐN", orgLevel: 4, adminUnitName: "TP Đà Nẵng", schoolTypeName: "Trung học phổ thông", isActive: true },
-
-  // Cấp 4 (Thành Đoàn TP. Hồ Chí Minh)
-  { id: 61, parentId: 13, code: "HCM-THPT-LHP", name: "Đoàn Trường THPT Chuyên Lê Hồng Phong", shortName: "THPT Lê Hồng Phong", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 62, parentId: 29, code: "HCM-BN-THPT-NTMK", name: "Đoàn Trường THPT Nguyễn Thị Minh Khai", shortName: "THPT Minh Khai", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 63, parentId: 13, code: "HCM-DH-KHTN", name: "Đoàn Trường ĐH Khoa học Tự nhiên - ĐHQG TP.HCM", shortName: "ĐH KHTN TP.HCM", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
-  { id: 64, parentId: 13, code: "HCM-DH-SP", name: "Đoàn Trường ĐH Sư phạm TP. Hồ Chí Minh", shortName: "ĐHSP TP.HCM", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
-
-  // Cấp 3 & 4 (Thành Đoàn Hà Nội)
-  { id: 70, parentId: 17, code: "HN-HK", name: "Đoàn Quận Hoàn Kiếm", shortName: "Đoàn Q. Hoàn Kiếm", orgLevel: 3, adminUnitName: "TP Hà Nội", isActive: true },
-  { id: 71, parentId: 17, code: "HN-THPT-CVA", name: "Đoàn Trường THPT Chu Văn An", shortName: "THPT Chu Văn An", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 72, parentId: 17, code: "HN-THPT-AMS", name: "Đoàn Trường THPT Chuyên Hà Nội - Amsterdam", shortName: "THPT Chuyên Hà Nội-Amsterdam", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 73, parentId: 17, code: "HN-DH-BKHN", name: "Đoàn Đại học Bách khoa Hà Nội", shortName: "ĐH Bách khoa HN", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
-  { id: 74, parentId: 17, code: "HN-DH-QGHN", name: "Đoàn Trường ĐH Khoa học Xã hội và Nhân văn - ĐHQGHN", shortName: "ĐH KHXH&NV HN", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Đại học, Cao đẳng", isActive: true },
-  { id: 75, parentId: 70, code: "HN-HK-THPT-TP", name: "Đoàn Trường THPT Trần Phú - Hoàn Kiếm", shortName: "THPT Trần Phú - HK", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 76, parentId: 17, code: "HN-GDNN-BD", name: "Đoàn Trung tâm GDNN - GDTX Ba Đình", shortName: "GDNN-GDTX Ba Đình", orgLevel: 4, adminUnitName: "TP Hà Nội", schoolTypeName: "Trung tâm GDNN-GDTX", isActive: true },
-  { id: 65, parentId: 13, code: "HCM-THPT-GD", name: "Đoàn Trường THPT Gia Định", shortName: "THPT Gia Định", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 66, parentId: 29, code: "HCM-BN-GDNN-Q1", name: "Đoàn Trung tâm GDNN - GDTX Quận 1", shortName: "GDNN-GDTX Quận 1", orgLevel: 4, adminUnitName: "TP Hồ Chí Minh", schoolTypeName: "Trung tâm GDNN-GDTX", isActive: true },
-  { id: 54, parentId: 51, code: "DN-TT-THPT-PCT", name: "Đoàn Trường THPT Phan Châu Trinh", shortName: "THPT Phan Châu Trinh", orgLevel: 4, adminUnitName: "TP Đà Nẵng", schoolTypeName: "Trung học phổ thông", isActive: true },
-  { id: 48, parentId: 45, code: "NA-VINH-THPT-HTK", name: "Đoàn Trường THPT Huỳnh Thúc Kháng", shortName: "THPT Huỳnh Thúc Kháng", orgLevel: 4, adminUnitName: "TP Vinh, Nghệ An", schoolTypeName: "Trung học phổ thông", isActive: true },
+  {
+    id: 1, parentId: null, code: "TW-DOAN", name: "Trung ương Đoàn TNCS Hồ Chí Minh", shortName: "TW Đoàn",
+    orgLevel: 1, adminUnitName: "Thành phố Hà Nội", address: "Số 62 Bà Triệu, Hà Nội", isActive: true,
+  },
+  // 34 tỉnh/thành phố (sắp theo danh mục đơn vị hành chính 2025)
+  { id: 100, parentId: 1, code: "TD-TQ",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Tuyên Quang",             shortName: "Tỉnh đoàn Tuyên Quang",     orgLevel: 2, adminUnitName: "Tỉnh Tuyên Quang",        isActive: true },
+  { id: 101, parentId: 1, code: "TD-LC",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Lào Cai",                shortName: "Tỉnh đoàn Lào Cai",         orgLevel: 2, adminUnitName: "Tỉnh Lào Cai",            isActive: true },
+  { id: 102, parentId: 1, code: "TD-TNN", name: "Đoàn TNCS Hồ Chí Minh Tỉnh Thái Nguyên",            shortName: "Tỉnh đoàn Thái Nguyên",     orgLevel: 2, adminUnitName: "Tỉnh Thái Nguyên",        isActive: true },
+  { id: 103, parentId: 1, code: "TD-PT",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Phú Thọ",                shortName: "Tỉnh đoàn Phú Thọ",         orgLevel: 2, adminUnitName: "Tỉnh Phú Thọ",            isActive: true },
+  { id: 104, parentId: 1, code: "TD-BN",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Bắc Ninh",               shortName: "Tỉnh đoàn Bắc Ninh",        orgLevel: 2, adminUnitName: "Tỉnh Bắc Ninh",           isActive: true },
+  { id: 105, parentId: 1, code: "TD-HY",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Hưng Yên",               shortName: "Tỉnh đoàn Hưng Yên",        orgLevel: 2, adminUnitName: "Tỉnh Hưng Yên",           isActive: true },
+  { id: 106, parentId: 1, code: "TD-HP",  name: "Đoàn TNCS Hồ Chí Minh Thành phố Hải Phòng",         shortName: "Thành đoàn Hải Phòng",      orgLevel: 2, adminUnitName: "Thành phố Hải Phòng",     isActive: true },
+  { id: 107, parentId: 1, code: "TD-NB",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Ninh Bình",              shortName: "Tỉnh đoàn Ninh Bình",       orgLevel: 2, adminUnitName: "Tỉnh Ninh Bình",          isActive: true },
+  { id: 108, parentId: 1, code: "TD-QTR", name: "Đoàn TNCS Hồ Chí Minh Tỉnh Quảng Trị",              shortName: "Tỉnh đoàn Quảng Trị",       orgLevel: 2, adminUnitName: "Tỉnh Quảng Trị",          isActive: true },
+  { id: 109, parentId: 1, code: "TD-DN",  name: "Đoàn TNCS Hồ Chí Minh Thành phố Đà Nẵng",           shortName: "Thành đoàn Đà Nẵng",        orgLevel: 2, adminUnitName: "Thành phố Đà Nẵng",       isActive: true },
+  { id: 110, parentId: 1, code: "TD-QNG", name: "Đoàn TNCS Hồ Chí Minh Tỉnh Quảng Ngãi",             shortName: "Tỉnh đoàn Quảng Ngãi",      orgLevel: 2, adminUnitName: "Tỉnh Quảng Ngãi",         isActive: true },
+  { id: 111, parentId: 1, code: "TD-GL",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Gia Lai",                shortName: "Tỉnh đoàn Gia Lai",         orgLevel: 2, adminUnitName: "Tỉnh Gia Lai",            isActive: true },
+  { id: 112, parentId: 1, code: "TD-KH",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Khánh Hoà",              shortName: "Tỉnh đoàn Khánh Hoà",       orgLevel: 2, adminUnitName: "Tỉnh Khánh Hoà",          isActive: true },
+  { id: 113, parentId: 1, code: "TD-LD",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Lâm Đồng",               shortName: "Tỉnh đoàn Lâm Đồng",        orgLevel: 2, adminUnitName: "Tỉnh Lâm Đồng",           isActive: true },
+  { id: 114, parentId: 1, code: "TD-DL",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Đắk Lắk",                shortName: "Tỉnh đoàn Đắk Lắk",         orgLevel: 2, adminUnitName: "Tỉnh Đắk Lắk",            isActive: true },
+  { id: 115, parentId: 1, code: "TD-HCM", name: "Đoàn TNCS Hồ Chí Minh Thành phố Hồ Chí Minh",       shortName: "Thành đoàn TP Hồ Chí Minh", orgLevel: 2, adminUnitName: "Thành phố Hồ Chí Minh",   isActive: true },
+  { id: 116, parentId: 1, code: "TD-DNA", name: "Đoàn TNCS Hồ Chí Minh Tỉnh Đồng Nai",               shortName: "Tỉnh đoàn Đồng Nai",        orgLevel: 2, adminUnitName: "Tỉnh Đồng Nai",           isActive: true },
+  { id: 117, parentId: 1, code: "TD-TNH", name: "Đoàn TNCS Hồ Chí Minh Tỉnh Tây Ninh",               shortName: "Tỉnh đoàn Tây Ninh",        orgLevel: 2, adminUnitName: "Tỉnh Tây Ninh",           isActive: true },
+  { id: 118, parentId: 1, code: "TD-CT",  name: "Đoàn TNCS Hồ Chí Minh Thành phố Cần Thơ",           shortName: "Thành đoàn Cần Thơ",        orgLevel: 2, adminUnitName: "Thành phố Cần Thơ",       isActive: true },
+  { id: 119, parentId: 1, code: "TD-VL",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Vĩnh Long",              shortName: "Tỉnh đoàn Vĩnh Long",       orgLevel: 2, adminUnitName: "Tỉnh Vĩnh Long",          isActive: true },
+  { id: 120, parentId: 1, code: "TD-DTP", name: "Đoàn TNCS Hồ Chí Minh Tỉnh Đồng Tháp",              shortName: "Tỉnh đoàn Đồng Tháp",       orgLevel: 2, adminUnitName: "Tỉnh Đồng Tháp",          isActive: true },
+  { id: 121, parentId: 1, code: "TD-CM",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Cà Mau",                 shortName: "Tỉnh đoàn Cà Mau",          orgLevel: 2, adminUnitName: "Tỉnh Cà Mau",             isActive: true },
+  { id: 122, parentId: 1, code: "TD-AG",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh An Giang",               shortName: "Tỉnh đoàn An Giang",        orgLevel: 2, adminUnitName: "Tỉnh An Giang",           isActive: true },
+  { id: 123, parentId: 1, code: "TD-HN",  name: "Đoàn TNCS Hồ Chí Minh Thành phố Hà Nội",            shortName: "Thành đoàn Hà Nội",         orgLevel: 2, adminUnitName: "Thành phố Hà Nội",        isActive: true },
+  { id: 124, parentId: 1, code: "TD-HUE", name: "Đoàn TNCS Hồ Chí Minh Thành phố Huế",               shortName: "Thành đoàn Huế",            orgLevel: 2, adminUnitName: "Thành phố Huế",           isActive: true },
+  { id: 125, parentId: 1, code: "TD-LZ",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Lai Châu",               shortName: "Tỉnh đoàn Lai Châu",        orgLevel: 2, adminUnitName: "Tỉnh Lai Châu",           isActive: true },
+  { id: 126, parentId: 1, code: "TD-DB",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Điện Biên",              shortName: "Tỉnh đoàn Điện Biên",       orgLevel: 2, adminUnitName: "Tỉnh Điện Biên",          isActive: true },
+  { id: 127, parentId: 1, code: "TD-SL",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Sơn La",                 shortName: "Tỉnh đoàn Sơn La",          orgLevel: 2, adminUnitName: "Tỉnh Sơn La",             isActive: true },
+  { id: 128, parentId: 1, code: "TD-LS",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Lạng Sơn",               shortName: "Tỉnh đoàn Lạng Sơn",        orgLevel: 2, adminUnitName: "Tỉnh Lạng Sơn",           isActive: true },
+  { id: 129, parentId: 1, code: "TD-QNH", name: "Đoàn TNCS Hồ Chí Minh Tỉnh Quảng Ninh",             shortName: "Tỉnh đoàn Quảng Ninh",      orgLevel: 2, adminUnitName: "Tỉnh Quảng Ninh",         isActive: true },
+  { id: 130, parentId: 1, code: "TD-TH",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Thanh Hoá",              shortName: "Tỉnh đoàn Thanh Hoá",       orgLevel: 2, adminUnitName: "Tỉnh Thanh Hoá",          isActive: true },
+  { id: 131, parentId: 1, code: "TD-NA",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Nghệ An",                shortName: "Tỉnh đoàn Nghệ An",         orgLevel: 2, adminUnitName: "Tỉnh Nghệ An",            isActive: true },
+  { id: 132, parentId: 1, code: "TD-HT",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Hà Tĩnh",                shortName: "Tỉnh đoàn Hà Tĩnh",         orgLevel: 2, adminUnitName: "Tỉnh Hà Tĩnh",            isActive: true },
+  { id: 133, parentId: 1, code: "TD-CB",  name: "Đoàn TNCS Hồ Chí Minh Tỉnh Cao Bằng",               shortName: "Tỉnh đoàn Cao Bằng",        orgLevel: 2, adminUnitName: "Tỉnh Cao Bằng",           isActive: true },
+  // 5 đoàn trực thuộc Trung ương
+  { id: 140, parentId: 1, code: "TW-QDOI",     name: "Ban Thanh niên Quân đội",                       shortName: "Ban TN Quân đội",     orgLevel: 2, adminUnitName: "Thành phố Hà Nội", isActive: true, block: "VU_TRANG" },
+  { id: 141, parentId: 1, code: "TW-CONGAN",   name: "Ban Thanh niên Công an Nhân dân",               shortName: "Ban TN Công an ND",   orgLevel: 2, adminUnitName: "Thành phố Hà Nội", isActive: true, block: "VU_TRANG" },
+  { id: 142, parentId: 1, code: "TW-CHINHPHU", name: "Đoàn Thanh niên Chính phủ",                     shortName: "Đoàn TN Chính phủ",   orgLevel: 2, adminUnitName: "Thành phố Hà Nội", isActive: true, block: "CO_QUAN" },
+  { id: 143, parentId: 1, code: "TW-CQDANG",   name: "Đoàn thanh niên các Cơ quan Đảng Trung ương",   shortName: "Đoàn TN CQ Đảng TW",  orgLevel: 2, adminUnitName: "Thành phố Hà Nội", isActive: true, block: "CO_QUAN" },
+  { id: 144, parentId: 1, code: "TW-MTTQ",     name: "Đoàn thanh niên Mặt trận Tổ quốc Việt Nam",     shortName: "Đoàn TN MTTQ VN",     orgLevel: 2, adminUnitName: "Thành phố Hà Nội", isActive: true, block: "CO_QUAN" },
 ];
 
-/** Đơn vị hành chính cho form phản ánh (admin_units) — chuẩn hóa Thành Đoàn, Tỉnh Đoàn */
+/** Đơn vị hành chính cho form phản ánh (admin_units) — 34 tỉnh/thành trực thuộc TW */
 export const adminUnits = [
-  { id: 1, code: "BD", name: "Tỉnh Đoàn Bình Dương", unitType: "PROVINCE" as const, parentId: null },
-  { id: 2, code: "HCM", name: "Thành Đoàn TP. Hồ Chí Minh", unitType: "PROVINCE" as const, parentId: null },
-  { id: 3, code: "BG", name: "Tỉnh Đoàn Bắc Giang", unitType: "PROVINCE" as const, parentId: null },
-  { id: 4, code: "NA", name: "Tỉnh Đoàn Nghệ An", unitType: "PROVINCE" as const, parentId: null },
-  { id: 5, code: "DN", name: "Thành Đoàn Đà Nẵng", unitType: "PROVINCE" as const, parentId: null },
-  { id: 6, code: "HN", name: "Thành Đoàn Hà Nội", unitType: "PROVINCE" as const, parentId: null },
-  // Phường/xã thuộc Bình Dương
-  { id: 101, code: "BD-HT", name: "Đoàn Phường Hiệp Thành, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
-  { id: 102, code: "BD-PH", name: "Đoàn Phường Phú Hòa, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
-  { id: 103, code: "BD-TBH", name: "Đoàn Phường Tương Bình Hiệp, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
-  { id: 104, code: "BD-HA", name: "Đoàn Phường Hiệp An, TP Thủ Dầu Một", unitType: "WARD" as const, parentId: 1 },
+  { id: 1, code: "AD-TQ", name: "Tỉnh Tuyên Quang", unitType: "PROVINCE" as const, parentId: null },
+  { id: 2, code: "AD-LC", name: "Tỉnh Lào Cai", unitType: "PROVINCE" as const, parentId: null },
+  { id: 3, code: "AD-TNN", name: "Tỉnh Thái Nguyên", unitType: "PROVINCE" as const, parentId: null },
+  { id: 4, code: "AD-PT", name: "Tỉnh Phú Thọ", unitType: "PROVINCE" as const, parentId: null },
+  { id: 5, code: "AD-BN", name: "Tỉnh Bắc Ninh", unitType: "PROVINCE" as const, parentId: null },
+  { id: 6, code: "AD-HY", name: "Tỉnh Hưng Yên", unitType: "PROVINCE" as const, parentId: null },
+  { id: 7, code: "AD-HP", name: "Thành phố Hải Phòng", unitType: "PROVINCE" as const, parentId: null },
+  { id: 8, code: "AD-NB", name: "Tỉnh Ninh Bình", unitType: "PROVINCE" as const, parentId: null },
+  { id: 9, code: "AD-QTR", name: "Tỉnh Quảng Trị", unitType: "PROVINCE" as const, parentId: null },
+  { id: 10, code: "AD-DN", name: "Thành phố Đà Nẵng", unitType: "PROVINCE" as const, parentId: null },
+  { id: 11, code: "AD-QNG", name: "Tỉnh Quảng Ngãi", unitType: "PROVINCE" as const, parentId: null },
+  { id: 12, code: "AD-GL", name: "Tỉnh Gia Lai", unitType: "PROVINCE" as const, parentId: null },
+  { id: 13, code: "AD-KH", name: "Tỉnh Khánh Hoà", unitType: "PROVINCE" as const, parentId: null },
+  { id: 14, code: "AD-LD", name: "Tỉnh Lâm Đồng", unitType: "PROVINCE" as const, parentId: null },
+  { id: 15, code: "AD-DL", name: "Tỉnh Đắk Lắk", unitType: "PROVINCE" as const, parentId: null },
+  { id: 16, code: "AD-HCM", name: "Thành phố Hồ Chí Minh", unitType: "PROVINCE" as const, parentId: null },
+  { id: 17, code: "AD-DNA", name: "Tỉnh Đồng Nai", unitType: "PROVINCE" as const, parentId: null },
+  { id: 18, code: "AD-TNH", name: "Tỉnh Tây Ninh", unitType: "PROVINCE" as const, parentId: null },
+  { id: 19, code: "AD-CT", name: "Thành phố Cần Thơ", unitType: "PROVINCE" as const, parentId: null },
+  { id: 20, code: "AD-VL", name: "Tỉnh Vĩnh Long", unitType: "PROVINCE" as const, parentId: null },
+  { id: 21, code: "AD-DTP", name: "Tỉnh Đồng Tháp", unitType: "PROVINCE" as const, parentId: null },
+  { id: 22, code: "AD-CM", name: "Tỉnh Cà Mau", unitType: "PROVINCE" as const, parentId: null },
+  { id: 23, code: "AD-AG", name: "Tỉnh An Giang", unitType: "PROVINCE" as const, parentId: null },
+  { id: 24, code: "AD-HN", name: "Thành phố Hà Nội", unitType: "PROVINCE" as const, parentId: null },
+  { id: 25, code: "AD-HUE", name: "Thành phố Huế", unitType: "PROVINCE" as const, parentId: null },
+  { id: 26, code: "AD-LZ", name: "Tỉnh Lai Châu", unitType: "PROVINCE" as const, parentId: null },
+  { id: 27, code: "AD-DB", name: "Tỉnh Điện Biên", unitType: "PROVINCE" as const, parentId: null },
+  { id: 28, code: "AD-SL", name: "Tỉnh Sơn La", unitType: "PROVINCE" as const, parentId: null },
+  { id: 29, code: "AD-LS", name: "Tỉnh Lạng Sơn", unitType: "PROVINCE" as const, parentId: null },
+  { id: 30, code: "AD-QNH", name: "Tỉnh Quảng Ninh", unitType: "PROVINCE" as const, parentId: null },
+  { id: 31, code: "AD-TH", name: "Tỉnh Thanh Hoá", unitType: "PROVINCE" as const, parentId: null },
+  { id: 32, code: "AD-NA", name: "Tỉnh Nghệ An", unitType: "PROVINCE" as const, parentId: null },
+  { id: 33, code: "AD-HT", name: "Tỉnh Hà Tĩnh", unitType: "PROVINCE" as const, parentId: null },
+  { id: 34, code: "AD-CB", name: "Tỉnh Cao Bằng", unitType: "PROVINCE" as const, parentId: null },
 ];
 
 /** Tìm đơn vị và toàn bộ con cháu (mô phỏng truy vấn path LIKE) */
@@ -125,7 +172,7 @@ export const permissionsList = [
   { id: 4, code: "task.assign", name: "Giao nhiệm vụ", module: "Nhiệm vụ" },
   { id: 5, code: "task.update", name: "Cập nhật kết quả", module: "Nhiệm vụ" },
   { id: 6, code: "task.review", name: "Xác nhận kết quả", module: "Nhiệm vụ" },
-  { id: 7, code: "score.manage", name: "Chấm điểm", module: "Đánh giá" },
+  { id: 7, code: "score.manage", name: "Chấm điểm thi đua", module: "Đánh giá" },
   { id: 8, code: "score.view", name: "Xem điểm", module: "Đánh giá" },
   { id: 9, code: "report.create", name: "Lập báo cáo", module: "Báo cáo" },
   { id: 10, code: "report.manage", name: "Quản lý báo cáo", module: "Báo cáo" },
@@ -133,7 +180,7 @@ export const permissionsList = [
   { id: 12, code: "document.issue", name: "Ban hành văn bản", module: "Văn bản" },
   { id: 13, code: "document.view", name: "Xem văn bản", module: "Văn bản" },
   { id: 14, code: "feedback.manage", name: "Xử lý phản ánh", module: "Phản ánh" },
-  { id: 15, code: "feedback.view", name: "Xem phản ánh", module: "Phản ánh" },
+  { id: 15, code: "feedback.view", name: "Xem phản ánh, kiến nghị của Học sinh THPT", module: "Phản ánh" },
   { id: 16, code: "post.manage", name: "Quản lý bài viết", module: "Xuất bản" },
   { id: 17, code: "post.publish", name: "Đăng bài công khai", module: "Xuất bản" },
   { id: 18, code: "resource.manage", name: "Quản lý tài nguyên", module: "Tài nguyên" },
@@ -141,4 +188,14 @@ export const permissionsList = [
   { id: 20, code: "system.orgtree.view", name: "Xem cây tổ chức", module: "Hệ thống" },
   { id: 21, code: "system.account.manage", name: "Quản lý tài khoản", module: "Hệ thống" },
   { id: 22, code: "system.settings", name: "Cấu hình hệ thống", module: "Hệ thống" },
+  /* Bổ sung theo Copy of Book1.xlsx — phân quyền theo tài khoản */
+  { id: 23, code: "feedback.reply", name: "Trả lời phản ánh, kiến nghị của Học sinh THPT", module: "Phản ánh" },
+  { id: 24, code: "hs3t.view", name: "Xem hồ sơ Học sinh 3 tốt", module: "Học sinh 3 tốt" },
+  { id: 25, code: "hs3t.review", name: "Thẩm định, duyệt, đánh giá hồ sơ Học sinh 3 tốt", module: "Học sinh 3 tốt" },
+  { id: 26, code: "quiz.manage", name: "Quản lý kỳ thi trực tuyến", module: "Thi trực tuyến" },
+  { id: 27, code: "quiz.result", name: "Xem kết quả thi trực tuyến", module: "Thi trực tuyến" },
+  { id: 28, code: "forum.manage", name: "Kiểm duyệt Diễn đàn", module: "Cộng đồng" },
+  { id: 29, code: "forum.interact", name: "Đăng bài, bình luận, tương tác Diễn đàn", module: "Cộng đồng" },
+  { id: 30, code: "project.manage", name: 'Quản lý chuyên mục dự án tình nguyện vì cộng đồng', module: "Cộng đồng" },
+  { id: 31, code: "contribution.review", name: "Duyệt đóng góp của Đoàn viên", module: "Cộng đồng" },
 ];

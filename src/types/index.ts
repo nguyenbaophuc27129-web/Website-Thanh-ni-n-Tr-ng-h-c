@@ -7,17 +7,21 @@ import type { Role } from "@/lib/auth-context";
 
 /* ============ 3.1. Tổ chức & Tài khoản ============ */
 
+/** Phân khối tổ chức Đoàn (4 khối) — null với đơn vị quản lý toàn khối (TW, tỉnh/thành đoàn) */
+export type OrgBlock = "DAN_CU" | "TRUONG_HOC" | "CO_QUAN" | "VU_TRANG";
+
 export interface OrgUnit {
   id: number;
   parentId: number | null;
   code: string;
   name: string;
   shortName: string;
-  orgLevel: 1 | 2 | 3 | 4; // 1=TW · 2=Tỉnh,Thành · 3=Phường,Xã · 4=Cơ sở
+  orgLevel: 1 | 2 | 3 | 4 | 5; // 1=TW · 2=Tỉnh,Thành/Trực thuộc TW · 3=Cấp trên cơ sở · 4=Cơ sở · 5=Dưới cơ sở
   adminUnitName: string;
   schoolTypeName?: string;
   address?: string;
   isActive: boolean;
+  block?: OrgBlock;
 }
 
 export interface SchoolType {
@@ -70,6 +74,9 @@ export interface Account {
   phone?: string;
   contactPerson: string;
   contactPosition: string;
+  chucDanh?: string;
+  grantedPerms?: string[];
+  permCount?: number;
   className?: string;
   role: Role;
   status: "PENDING" | "ACTIVE" | "LOCKED" | "DISABLED";
@@ -315,6 +322,8 @@ export interface DocumentRecord {
   recipientScope: "ALL_DESCENDANTS" | "DIRECT_CHILDREN" | "SELECTED";
   status: "DRAFT" | "ISSUED" | "REVOKED";
   createdAt: string;
+  fileName?: string;
+  fileDataUrl?: string;
 }
 
 export interface DocumentRecipient {
@@ -442,11 +451,14 @@ export interface Resource {
   isPublic: boolean;
   downloadCount: number;
   publishedByOrgUnitId: number;
-  publishedAt: string;
+  /** Ngày công bố — clip nhúng YouTube không có ngày ban hành ảo thì để trống */
+  publishedAt?: string;
   /** Tài nguyên do Đoàn viên đóng góp — id tài khoản chờ Ban TNTH duyệt */
   submittedByAccountId?: number;
   /** Link YouTube (watch hoặc embed videoseries) — tài nguyên xem trực tuyến thay vì tải file */
   videoUrl?: string;
+  /** Nội dung tệp base64 dataUrl — cho phép tải xuống thật từ kho tài nguyên (≤ ~4MB) */
+  fileDataUrl?: string;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
 }
 

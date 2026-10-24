@@ -81,16 +81,6 @@ export function formatPercent(n?: number | null): string {
   return `${n.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
-/** Sinh mã phản ánh PA-2026-XXXXX */
-export function genFeedbackCode(existing: string[]): string {
-  let n = 1;
-  for (const code of existing) {
-    const m = code.match(/PA-\d{4}-(\d+)/);
-    if (m) n = Math.max(n, parseInt(m[1], 10) + 1);
-  }
-  return `PA-2026-${String(n).padStart(5, "0")}`;
-}
-
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }

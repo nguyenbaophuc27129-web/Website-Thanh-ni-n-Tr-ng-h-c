@@ -132,6 +132,27 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       scoredAt: f("scored_at", "ts"),
     },
   },
+  rankingSnapshots: {
+    table: "ranking_snapshots",
+    fields: {
+      id: f("id", "int"), name: f("name", "str"), criteriaSetId: f("criteria_set_id", "int"),
+      scopeOrgUnitId: f("scope_org_unit_id", "int"), rankedOrgLevel: f("ranked_org_level", "int"),
+      rankingType: f("ranking_type", "str"), periodType: f("period_type", "str"),
+      periodStart: f("period_start", "date"), periodEnd: f("period_end", "date"),
+      totalUnits: f("total_units", "int"), generatedAt: f("created_at", "ts"),
+      generatedByAccountId: f("generated_by_account_id", "int"), status: f("status", "str"),
+    },
+    derive: () => ({ updated_at: new Date().toISOString() }),
+  },
+  rankingEntries: {
+    table: "ranking_entries",
+    fields: {
+      id: f("id", "int"), snapshotId: f("snapshot_id", "int"), orgUnitId: f("org_unit_id", "int"),
+      rankPosition: f("rank_position", "int"), totalScore: f("total_score", "num"),
+      completionRate: f("completion_rate", "num"), completedTasks: f("completed_tasks", "int"),
+      totalTasks: f("total_tasks", "int"), activityCount: f("activity_count", "int"),
+    },
+  },
   activities: {
     table: "activities",
     fields: {
@@ -202,6 +223,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       issuingOrgUnitId: f("issuing_org_unit_id", "int"), issuedDate: f("issued_date", "date"),
       effectiveDate: f("effective_date", "date"), recipientScope: f("recipient_scope", "str"),
       status: f("status", "str"), createdAt: f("created_at", "ts"),
+      fileName: f("file_name", "str"), fileDataUrl: f("file_data_url", "str"),
     },
     derive: () => ({ created_by_account_id: 1 }),
   },
@@ -290,7 +312,8 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       publishedByOrgUnitId: f("published_by_org_unit_id", "int"),
       publishedAt: f("published_at", "ts"),
       submittedByAccountId: f("submitted_by_account_id", "int"),
-      videoUrl: f("video_url", "str"), status: f("status", "str"),
+      videoUrl: f("video_url", "str"), fileDataUrl: f("file_data_url", "str"),
+      status: f("status", "str"),
     },
     derive: () => ({ file_id: null }),
   },
@@ -451,7 +474,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
 /** Thứ tự phụ thuộc FK — insert xuôi, xoá ngược thứ tự này */
 export const ENTITY_ORDER: string[] = [
   "criteriaSets", "tasks", "taskMetrics", "taskAssignments", "assignmentTargets",
-  "taskResults", "assignmentReviews", "scores",
+  "taskResults", "assignmentReviews", "scores", "rankingSnapshots", "rankingEntries",
   "activities", "activityCategories", "activityLinks", "publishedPosts",
   "reports", "documents", "documentRecipients", "notifications",
   "feedbacks", "feedbackMessages", "emailLogs",
@@ -477,7 +500,7 @@ export const MEMBER_READ_ENTITIES = new Set([
 export const MEMBER_ALLOWED_WRITE_ENTITIES = new Set([
   "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
   "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
-  "forumThreads", "forumComments",
+  "forumThreads", "forumComments", "volunteerProjects", "resources",
 ]);
 
 /** Entity khách vãng lai được đọc — còn lại chỉ khi có phiên đăng nhập */
@@ -639,3 +662,22 @@ export async function writeEntity(
   return objs.length;
 }
 
+
+/**
+ * Xoá dòng theo id do client gửi kèm (tombstone) — server luôn gọi theo
+ * THỨ TỰ NGƯỢC ENTITY_ORDER để xoá bảng con trước bảng cha (an toàn FK).
+ * Bảng con có ON DELETE CASCADE sẽ tự dọn khi xoá bảng cha.
+ */
+export async function deleteEntityIds(
+  client: { query: (text: string, params?: unknown[]) => Promise<unknown> },
+  entity: string,
+  ids: number[],
+): Promise<number> {
+  const spec = ENTITY_SPECS[entity];
+  const clean = Array.from(new Set(ids.map(Number).filter(Number.isFinite)));
+  if (!spec || clean.length === 0) return 0;
+  const r = (await client.query(`DELETE FROM ${spec.table} WHERE id = ANY($1::bigint[])`, [clean])) as {
+    rowCount?: number;
+  };
+  return r.rowCount ?? 0;
+}

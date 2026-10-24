@@ -185,7 +185,7 @@ export function SiteHeader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="glass-nav mx-auto mt-2 max-w-7xl rounded-2xl p-3 shadow-[0_14px_44px_rgb(15,23,42,0.12)] lg:hidden"
+            className="glass-nav thin-scrollbar mx-auto mt-2 max-h-[calc(100dvh-5.5rem)] max-w-7xl overflow-y-auto rounded-2xl p-3 shadow-[0_14px_44px_rgb(15,23,42,0.12)] lg:hidden"
           >
             {NAV.map((item) => {
               const active = isActive(item.href);

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   ArrowLeft, Target, Plus, History, ClipboardCheck, Trash2, Percent, TriangleAlert,
@@ -22,6 +22,7 @@ import { formatDateTime, formatPercent, formatDate } from "@/lib/utils";
 export default function PhanCongChiTietPage() {
   const params = useParams<{ id: string }>();
   const { session } = useAuth();
+  const router = useRouter();
   const store = useStore();
   const { toast } = useToast();
 
@@ -150,7 +151,7 @@ export default function PhanCongChiTietPage() {
             onClick={() => setConfirmDelete(true)}
             className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline"
           >
-            <Trash2 className="h-3.5 w-3.5" /> Thu hồi phân bổ (mock)
+            <Trash2 className="h-3.5 w-3.5" /> Thu hồi phân bổ
           </button>
         ) : null}
       </div>
@@ -536,14 +537,20 @@ export default function PhanCongChiTietPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Hủy</Button>
-            <Button variant="danger" onClick={() => { setConfirmDelete(false); toast("Chức năng thu hồi chỉ mô phỏng trong bản demo.", "info"); }}>
+            <Button variant="danger" onClick={() => {
+              setConfirmDelete(false);
+              if (!session || !assignment) return;
+              store.revokeAssignment(session, assignment.id);
+              toast("Đã thu hồi phân bổ — xóa khỏi hệ thống.", "success");
+              router.push("/quan-tri/nhiem-vu");
+            }}>
               Xác nhận thu hồi
             </Button>
           </>
         }
       >
         <p className="text-sm text-stone-600">
-          Trong hệ thống thật, chỉ lượt giao chưa có dữ liệu con mới được thu hồi. Bản demo chỉ hiển thị cảnh báo.
+          Thu hồi sẽ XÓA lượt phân bổ này cùng toàn bộ chỉ tiêu, kết quả báo cáo và kiểm định liên quan khỏi hệ thống. Thao tác không thể hoàn tác.
         </p>
       </Modal>
     </div>

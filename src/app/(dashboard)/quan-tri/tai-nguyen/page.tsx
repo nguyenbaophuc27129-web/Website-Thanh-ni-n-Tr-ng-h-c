@@ -17,12 +17,15 @@ import type { Resource } from "@/types";
 
 type Form = {
   title: string; description: string; resourceTypeId: string; fileName: string;
-  fileSizeKb: string; isPublic: boolean; status: Resource["status"];
+  fileSizeKb: string; isPublic: boolean; status: Resource["status"]; fileDataUrl?: string;
 };
 
 const EMPTY_FORM: Form = {
   title: "", description: "", resourceTypeId: "", fileName: "", fileSizeKb: "", isPublic: true, status: "PUBLISHED",
 };
+
+/** Đọc tệp thành dataUrl để tải lại được thật (giới hạn 4MB) */
+const MAX_RESOURCE_BYTES = 4 * 1024 * 1024;
 
 export default function TaiNguyenAdminPage() {
   const { session } = useAuth();
@@ -36,7 +39,7 @@ export default function TaiNguyenAdminPage() {
     () =>
       store.resources
         .filter((r) => (tab === "all" ? true : r.status === tab))
-        .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
+        .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
     [store.resources, tab]
   );
 
@@ -54,8 +57,29 @@ export default function TaiNguyenAdminPage() {
     setForm({
       title: r.title, description: r.description, resourceTypeId: r.resourceTypeId.toString(),
       fileName: r.fileName, fileSizeKb: r.fileSizeKb.toString(), isPublic: r.isPublic, status: r.status,
+      fileDataUrl: r.fileDataUrl,
     });
     setEditingId(r.id);
+  };
+
+  /** Chọn tệp thật → tự điền tên + dung lượng + nội dung dataUrl */
+  const pickFile = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > MAX_RESOURCE_BYTES) {
+      toast("Tệp vượt quá 4MB — hãy nén hoặc chọn tệp nhỏ hơn.", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((f) => ({
+        ...f,
+        fileName: file.name,
+        fileSizeKb: Math.max(1, Math.round(file.size / 1024)).toString(),
+        fileDataUrl: String(reader.result ?? ""),
+      }));
+      toast(`Đã nạp tệp "${file.name}" — người dùng sẽ tải được tệp thật.`);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = () => {
@@ -70,6 +94,7 @@ export default function TaiNguyenAdminPage() {
       description: form.description.trim(),
       fileName: form.fileName.trim(),
       fileSizeKb: Number(form.fileSizeKb) || 0,
+      fileDataUrl: form.fileDataUrl,
       isPublic: form.isPublic,
       publishedByOrgUnitId: session.orgUnitId,
       publishedAt: todayISO(),
@@ -116,7 +141,8 @@ export default function TaiNguyenAdminPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-stone-800">{r.title}</p>
                   <p className="truncate text-[11px] text-stone-400">
-                    {typeName(r.resourceTypeId)} · {r.fileName} · {r.fileSizeKb} KB · {formatDateTime(r.publishedAt)}
+                    {typeName(r.resourceTypeId)} · {r.fileName}
+                    {r.fileSizeKb > 0 ? ` · ${r.fileSizeKb} KB` : ""} · {r.publishedAt ? formatDateTime(r.publishedAt) : "—"}
                   </p>
                 </div>
                 <Badge tone={r.status === "PUBLISHED" ? "green" : r.status === "DRAFT" ? "yellow" : "gray"}>
@@ -136,8 +162,18 @@ export default function TaiNguyenAdminPage() {
                     size="sm"
                     variant="secondary"
                     onClick={() => {
-                      store.downloadResource(r.id);
-                      toast(`Đang tải "${r.fileName}" (giả lập).`);
+                      if (r.fileDataUrl) {
+                        const a = document.createElement("a");
+                        a.href = r.fileDataUrl;
+                        a.download = r.fileName || `tai-nguyen-${r.id}`;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        store.downloadResource(r.id);
+                        toast(`Đã tải "${r.fileName}".`);
+                      } else {
+                        toast(`"${r.fileName}" chưa có nội dung tệp — hãy Sửa và nạp tệp thật.`, "warning");
+                      }
                     }}
                   >
                     <Download className="h-3.5 w-3.5" /> Tải
@@ -200,8 +236,19 @@ export default function TaiNguyenAdminPage() {
                 <option value="ARCHIVED">Lưu trữ</option>
               </Select>
             </Field>
-            <Field label="Tên tệp" required hint="Prototype: chỉ ghi tên tệp, không upload thật.">
-              <Input value={form.fileName} onChange={(e) => setForm((f) => ({ ...f, fileName: e.target.value }))} placeholder="mau-nhat-ky.docx" />
+            <Field label="Tệp đính kèm" required hint="Chọn tệp để tự điền tên + dung lượng — người dùng sẽ tải được tệp thật (tối đa 4MB).">
+              <div className="flex items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-700 transition-colors hover:bg-stone-50">
+                  <FileUp className="h-4 w-4" /> {form.fileDataUrl ? "Đổi tệp khác" : "Chọn tệp…"}
+                  <input type="file" className="hidden" onChange={(e) => pickFile(e.target.files?.[0])} />
+                </label>
+                <Input value={form.fileName} onChange={(e) => setForm((f) => ({ ...f, fileName: e.target.value }))} placeholder="mau-nhat-ky.docx" />
+              </div>
+              {form.fileDataUrl ? (
+                <p className="mt-1 text-[11px] text-emerald-600">✓ Đã nạp nội dung tệp ({form.fileSizeKb || Math.round(form.fileDataUrl.length * 0.75 / 1024)} KB)</p>
+              ) : (
+                <p className="mt-1 text-[11px] text-amber-600">Chưa nạp tệp — tài nguyên sẽ hiển thị nhưng chưa tải được.</p>
+              )}
             </Field>
             <Field label="Dung lượng (KB)">
               <Input type="number" min={0} value={form.fileSizeKb} onChange={(e) => setForm((f) => ({ ...f, fileSizeKb: e.target.value }))} />

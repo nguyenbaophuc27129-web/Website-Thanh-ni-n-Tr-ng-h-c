@@ -8,7 +8,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import type {
   Activity, Account, AdaptiveStep, AssignmentReview, AssignmentTarget, Attendance,
@@ -43,8 +45,8 @@ import { quizQuestions as seedQuizQuestions } from "@/data/quiz-bank";
 import { quizExams as seedQuizExams } from "@/data/quiz-exams";
 import { hs3tProfiles as seedHs3tProfiles, hs3tAchievements as seedHs3tAchievements, hs3tUnitStandards as seedHs3tUnitStandards } from "@/data/hs3t";
 import { generateUniqueAlias } from "@/lib/forum-alias";
-import type { Session } from "@/lib/auth-context";
-import { appendCreatedAccount, loadCreatedAccounts } from "@/lib/created-accounts";
+import { useAuth, type Session } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 
 /* ---------------- Input types ---------------- */
 
@@ -156,9 +158,26 @@ const ENTITY_SYNC_GROUP: Record<string, string[]> = {
   contributions: ["contributions"],
 };
 
+/* Phạm vi entity được GỬI SYNC theo phiên đăng nhập — phải khớp gate phía
+ * server (src/lib/server/store-tables.ts). Phần entity ngoài phạm vi KHÔNG gửi
+ * kèm mà giữ lại dirty, tránh server từ chối cả lô (401/403) làm kẹt dữ liệu
+ * hợp lệ khác trong cùng POST. */
+const GUEST_WRITE_ENTITIES = new Set([
+  "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
+]);
+const MEMBER_WRITE_ENTITIES = new Set([
+  ...GUEST_WRITE_ENTITIES,
+  "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
+  "forumThreads", "forumComments", "volunteerProjects", "resources",
+]);
+/** null = cán bộ (scope full) — gửi mọi entity */
+const scopeAllowedEntities = (session: Session | null): Set<string> | null =>
+  !session ? GUEST_WRITE_ENTITIES : session.role === "DOAN_VIEN" ? MEMBER_WRITE_ENTITIES : null;
+
 interface StoreValue {
   /* data */
   orgUnits: typeof seedOrgUnits;
+  setOrgUnits: Dispatch<SetStateAction<typeof seedOrgUnits>>;
   accounts: Account[];
   contentCategories: typeof contentCategories;
   documentCategories: typeof documentCategories;
@@ -223,6 +242,7 @@ interface StoreValue {
   reviewAssignment: (session: Session, assignmentId: number, action: AssignmentReview["action"], note?: string) => void;
   /** Đánh dấu nhanh tiến độ (hoàn thành / đang làm / chưa bắt đầu) ngay từ danh sách nhiệm vụ */
   setAssignmentProgress: (session: Session, assignmentId: number, status: TaskAssignment["progressStatus"]) => void;
+  revokeAssignment: (session: Session, assignmentId: number) => void;
   saveScore: (session: Session, input: ScoreInput) => void;
 
   /* reports (R4) */
@@ -264,9 +284,17 @@ interface StoreValue {
   /* system */
   updateSetting: (key: string, value: string) => void;
   updateAccountStatus: (accountId: number, status: Account["status"]) => void;
+  updateAccount: (id: number, patch: {
+    contactPerson?: string; email?: string; phone?: string;
+    contactPosition?: string; chucDanh?: string; className?: string; status?: Account["status"];
+    password?: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  updateAccountPermissions: (accountId: number, perms: string[]) => Promise<{ ok: boolean; error?: string }>;
+  refreshAccounts: () => Promise<void>;
   createAccount: (input: {
     orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
-    contactPosition: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
+    contactPosition: string; chucDanh?: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
+    perms?: string[];
   }) => Promise<{ ok: boolean; error?: string }>;
 
   /* forum ẩn danh */
@@ -282,7 +310,7 @@ interface StoreValue {
   memberContributions: MemberContribution[];
   createMemberContribution: (session: Session, input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }, mod: ModerationResult) => number;
   moderateMemberContribution: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => number | undefined;
-  submitResourceDraft: (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number }) => number;
+  submitResourceDraft: (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }) => number;
   moderateResourceContribution: (session: Session, id: number, action: "APPROVE" | "REJECT") => void;
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
@@ -316,7 +344,12 @@ export function useStore() {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [orgUnits] = useState(seedOrgUnits);
+  const { session } = useAuth();
+  const { toast } = useToast();
+  // Phiên mới nhất để flushSync đọc lúc bắn (tránh closure cũ)
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const [orgUnits, setOrgUnits] = useState(seedOrgUnits);
   const [accounts, setAccounts] = useState(seedAccounts);
   const [activities, setActivities] = useState(seedActivities);
   const [publishedPosts, setPublishedPosts] = useState(seedPosts);
@@ -338,7 +371,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [feedbackMessages, setFeedbackMessages] = useState(seedMessages);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [attendances, setAttendances] = useState(seedAttendances);
-  const [attendanceOpenIds, setAttendanceOpenIds] = useState<number[]>([]);
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>(seedLiveEvents);
   const [liveEnabled, setLiveEnabled] = useState(false);
   const [resources, setResources] = useState(seedResources);
@@ -356,24 +388,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hs3tAchievements, setHs3tAchievements] = useState<Hs3tAchievement[]>(seedHs3tAchievements);
   const [hs3tUnitStandards, setHs3tUnitStandards] = useState<Hs3tUnitStandard[]>(seedHs3tUnitStandards);
 
-  // Khôi phục tài khoản đã tạo từ localStorage (để khớp với đăng nhập) — chặn trùng username lẫn id,
-  // kể cả trùng NỘI BỘ danh sách đã lưu (bản cũ từng sinh id nextId() đè lên id của /dang-ky)
+  // Xóa toàn bộ tài khoản ảo còn sót trong localStorage trình duyệt
   useEffect(() => {
-    const created = loadCreatedAccounts();
-    if (created.length > 0) {
-      setAccounts((prev) => {
-        const known = new Set(prev.map((a) => a.username.toLowerCase()));
-        const knownIds = new Set(prev.map((a) => a.id));
-        const restored: Account[] = [];
-        for (const c of created) {
-          if (known.has(c.username.toLowerCase()) || knownIds.has(c.id)) continue;
-          known.add(c.username.toLowerCase());
-          knownIds.add(c.id);
-          const { password: _pw, displayName: _dn, orgUnitName: _on, ...acc } = c;
-          restored.push(acc as Account);
-        }
-        return restored.length > 0 ? [...prev, ...restored] : prev;
-      });
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("tnth_demo_created_accounts");
+      } catch {}
     }
   }, []);
 
@@ -383,7 +403,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const syncedStateRef = useRef<Record<string, unknown[]>>({});
   syncedStateRef.current = {
     criteriaSets, tasks, taskMetrics, taskAssignments, assignmentTargets, taskResults,
-    assignmentReviews, scores, activities, publishedPosts, attendances, reports,
+    assignmentReviews, scores, rankingSnapshots, rankingEntries,
+    activities, publishedPosts, attendances, reports,
     documents, documentRecipients, notifications, feedbacks, feedbackMessages, emailLogs,
     liveEvents, resources, settings, forumThreads, forumComments,
     hs3tProfiles, hs3tAchievements, hs3tUnitStandards,
@@ -406,31 +427,64 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const dirtyRef = useRef<Set<string>>(new Set());
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Danh sách id đã xoá phía client chờ gửi DELETE lên server (tombstone)
+  const deletedIdsRef = useRef<Record<string, number[]>>({});
+  // Chỉ cảnh báo toast MỖI CHUỖI lỗi một lần, thành công thì.reset
+  const syncFailToastedRef = useRef(false);
 
-  const flushSync = useCallback(async () => {
+  const flushSync = useCallback(async (immediate = false) => {
     const names = new Set<string>();
     for (const e of dirtyRef.current) for (const g of ENTITY_SYNC_GROUP[e] ?? [e]) names.add(g);
     dirtyRef.current.clear();
     if (names.size === 0) return;
+    // Lọc entity theo phạm vi phiên — phần ngoài phạm vi giữ lại dirty để gửi
+    // khi phiên đủ quyền (tránh server 401/403 từ chối CẢ lô)
+    const allowed = scopeAllowedEntities(sessionRef.current);
     const entities: Record<string, unknown[]> = {};
+    const deletes: Record<string, number[]> = {};
     for (const n of names) {
+      if (allowed && !allowed.has(n)) {
+        dirtyRef.current.add(n);
+        continue;
+      }
       const rows = snapshotEntity(n);
       if (rows) entities[n] = rows;
+      const del = deletedIdsRef.current[n];
+      if (del && del.length > 0) deletes[n] = del;
     }
+    if (Object.keys(entities).length === 0 && Object.keys(deletes).length === 0) return;
+    const requeue = () => {
+      for (const n of Object.keys(entities)) dirtyRef.current.add(n);
+      for (const n of Object.keys(deletes)) dirtyRef.current.add(n);
+    };
     try {
       const r = await fetch("/api/store", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entities }),
+        body: JSON.stringify({ entities, deletes }),
+        // flush khi rời trang phải kịp gửi trước khi tab đóng
+        ...(immediate ? { keepalive: true } : {}),
       });
       if (!r.ok) {
+        requeue();
         console.warn("[TNTH][STORE] Sync bị từ chối (HTTP", r.status, ") — dữ liệu vẫn giữ tại máy.");
+        if (!syncFailToastedRef.current) {
+          syncFailToastedRef.current = true;
+          toast("Đồng bộ dữ liệu lên máy chủ chưa thành công — hệ thống sẽ tự thử lại.", "warning");
+        }
+      } else {
+        for (const n of Object.keys(deletes)) delete deletedIdsRef.current[n];
+        syncFailToastedRef.current = false;
       }
     } catch {
+      requeue();
       console.warn("[TNTH][STORE] Không tới được máy chủ — giữ dữ liệu tại máy, thử lại ở lần ghi sau.");
-      for (const n of Object.keys(entities)) dirtyRef.current.add(n);
+      if (!syncFailToastedRef.current) {
+        syncFailToastedRef.current = true;
+        toast("Mất kết nối với máy chủ — dữ liệu tạm giữ trên máy và sẽ tự đồng bộ lại.", "warning");
+      }
     }
-  }, [snapshotEntity]);
+  }, [snapshotEntity, toast]);
 
   const markDirty = useCallback(
     (entities: string[]) => {
@@ -440,6 +494,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     [flushSync],
   );
+
+  /** Ghi nhận xoá phía client để server DELETE đúng dòng khi sync (tombstone) */
+  const trackDelete = useCallback(
+    (entity: string, ids: number[]) => {
+      const clean = ids.filter((id) => Number.isFinite(id));
+      if (clean.length === 0) return;
+      deletedIdsRef.current[entity] = [...(deletedIdsRef.current[entity] ?? []), ...clean];
+      markDirty([entity]);
+    },
+    [markDirty],
+  );
+
+  // Rời trang / tab ẩn → flush NGAY (không chờ debounce), keepalive để fetch
+  // sống đủ lâu — tránh mất dữ liệu khi thoát nhanh sau khi thao tác
+  useEffect(() => {
+    const flushNow = () => {
+      if (syncTimerRef.current) {
+        clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+      void flushSync(true);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushNow();
+    };
+    window.addEventListener("pagehide", flushNow);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flushNow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [flushSync]);
 
   // Những mảng vừa được nạp từ DB — lần render đầu sau nạp không gửi ngược lại
   const hydratedRefs = useRef<Map<string, unknown[]>>(new Map());
@@ -486,6 +572,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (has("taskResults")) { const rows = raw("taskResults"); bumpMax(rows); hydrate("taskResults", rows); setTaskResults(rows as TaskResult[]); }
         if (has("assignmentReviews")) { const rows = raw("assignmentReviews"); bumpMax(rows); hydrate("assignmentReviews", rows); setAssignmentReviews(rows as AssignmentReview[]); }
         if (has("scores")) { const rows = raw("scores"); bumpMax(rows); hydrate("scores", rows); setScores(rows as Score[]); }
+        if (has("rankingSnapshots")) { const rows = raw("rankingSnapshots"); bumpMax(rows); hydrate("rankingSnapshots", rows); setRankingSnapshots(rows as RankingSnapshot[]); }
+        if (has("rankingEntries")) { const rows = raw("rankingEntries"); bumpMax(rows); hydrate("rankingEntries", rows); setRankingEntries(rows as RankingEntry[]); }
         if (has("publishedPosts")) { const rows = raw("publishedPosts"); bumpMax(rows); hydrate("publishedPosts", rows); setPublishedPosts(rows as PublishedPost[]); }
         if (has("reports")) {
           // report_exports chưa đồng bộ — mặc định danh sách xuất trống
@@ -670,7 +758,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const deleteActivity = useCallback((id: number) => {
     setActivities((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+    trackDelete("activities", [id]);
+  }, [trackDelete]);
 
   const submitActivity = useCallback(
     (session: Session, id: number) => {
@@ -970,6 +1059,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [taskAssignments, accountByOrgUnit, addNotification, tasks, orgName]
   );
 
+  /** Thu hồi phân bổ: xoá assignment + chỉ tiêu + kết quả + kiểm định (đồng bộ DELETE lên DB) */
+  const revokeAssignment = useCallback(
+    (session: Session, assignmentId: number) => {
+      const asg = taskAssignments.find((a) => a.id === assignmentId);
+      if (!asg) return;
+      const targetIds = assignmentTargets.filter((t) => t.taskAssignmentId === assignmentId).map((t) => t.id);
+      const resultIds = taskResults.filter((r) => r.taskAssignmentId === assignmentId).map((r) => r.id);
+      const reviewIds = assignmentReviews.filter((rv) => rv.taskAssignmentId === assignmentId).map((rv) => rv.id);
+      setTaskAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+      setAssignmentTargets((prev) => prev.filter((t) => t.taskAssignmentId !== assignmentId));
+      setTaskResults((prev) => prev.filter((r) => r.taskAssignmentId !== assignmentId));
+      setAssignmentReviews((prev) => prev.filter((rv) => rv.taskAssignmentId !== assignmentId));
+      trackDelete("taskAssignments", [assignmentId]);
+      if (targetIds.length > 0) trackDelete("assignmentTargets", targetIds);
+      if (resultIds.length > 0) trackDelete("taskResults", resultIds);
+      if (reviewIds.length > 0) trackDelete("assignmentReviews", reviewIds);
+      const acc = accountByOrgUnit(asg.orgUnitId);
+      if (acc) {
+        addNotification({
+          recipientAccountId: acc.id,
+          notificationType: "SYSTEM",
+          title: "Phân bổ đã được thu hồi",
+          message: `Nhiệm vụ "${tasks.find((t) => t.id === asg.taskId)?.title ?? asg.taskId}" giao cho ${orgName(asg.orgUnitId)} đã bị thu hồi.`,
+          refType: "ASSIGNMENT", refId: assignmentId, linkUrl: "/quan-tri/nhiem-vu",
+        });
+      }
+    },
+    [taskAssignments, assignmentTargets, taskResults, assignmentReviews, trackDelete, accountByOrgUnit, addNotification, tasks, orgName],
+  );
+
   const saveScore = useCallback(
     (session: Session, input: ScoreInput) => {
       const task = tasks.find((t) => t.id === input.taskId);
@@ -1133,11 +1252,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const submitFeedback = useCallback(
     (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[]; feedbackTopicId: number; title: string; content: string }) => {
-      const maxNum = feedbacks.reduce((m, f) => {
-        const match = f.trackingCode.match(/PA-\d{4}-(\d+)/);
-        return match ? Math.max(m, parseInt(match[1], 10)) : m;
-      }, 100);
-      const code = `PA-2026-${String(maxNum + 1).padStart(5, "0")}`;
+      // Mã tra cứu SINH NGẪU NHIÊN (bỏ ký tự dễ nhầm I/O/0/1) — không đoán được
+      // theo cấu trúc tuần tự để chặn dò/crawl dữ liệu qua trang tra cứu
+      const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const taken = new Set(feedbacks.map((f) => f.trackingCode));
+      let code = "";
+      for (let attempt = 0; attempt < 50 && !code; attempt++) {
+        const bytes = new Uint8Array(8);
+        crypto.getRandomValues(bytes);
+        let candidate = "PA-";
+        for (const b of bytes) candidate += CODE_ALPHABET[b % CODE_ALPHABET.length];
+        if (!taken.has(candidate)) code = candidate;
+      }
+      if (!code) code = `PA-${Date.now().toString(36).toUpperCase()}`;
       const id = nextId();
       setFeedbacks((prev) => [
         { ...input, id, trackingCode: code, status: "NEW", submittedAt: nowISO() },
@@ -1236,9 +1363,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /* ============ Attendance ============ */
 
-  const toggleAttendance = useCallback((session: Session, activityId: number, open: boolean) => {
-    setAttendanceOpenIds((prev) => (open ? [...new Set([...prev, activityId])] : prev.filter((id) => id !== activityId)));
-  }, []);
+  // Cửa sổ điểm danh đang mở — lưu trong settings entity (đồng bộ DB, khách
+  // đọc được qua public read) thay vì state local vốn mất khi admin tải lại trang
+  const attendanceOpenIds = useMemo<number[]>(() => {
+    const raw = settings.find((s) => s.settingKey === "attendance_open_ids")?.value ?? "";
+    return raw
+      .split(",")
+      .map((x) => Number(x.trim()))
+      .filter((n) => Number.isInteger(n) && n > 0);
+  }, [settings]);
+
+  const toggleAttendance = useCallback(
+    (session: Session, activityId: number, open: boolean) => {
+      const cur = new Set(attendanceOpenIds);
+      if (open) cur.add(activityId);
+      else cur.delete(activityId);
+      const value = [...cur].join(",");
+      setSettings((prev) => {
+        const exists = prev.some((s) => s.settingKey === "attendance_open_ids");
+        if (exists) return prev.map((s) => (s.settingKey === "attendance_open_ids" ? { ...s, value } : s));
+        return [
+          ...prev,
+          { settingKey: "attendance_open_ids", value, valueType: "STRING" as const, groupName: "Hoạt động", description: "Danh sách hoạt động đang mở điểm danh (id phân tách bằng dấu phẩy)" },
+        ];
+      });
+    },
+    [attendanceOpenIds],
+  );
 
   const addAttendance = useCallback(
     (input: { activityId: number; memberName: string; memberClass?: string }) => {
@@ -1276,6 +1427,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => prev.map((s) => (s.settingKey === key ? { ...s, value } : s)));
   }, []);
 
+  const refreshAccounts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/accounts");
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok && Array.isArray(data.accounts)) {
+        setAccounts(data.accounts as Account[]);
+      }
+    } catch {
+      // offline fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshAccounts();
+  }, [refreshAccounts]);
+
+  const updateAccount = useCallback(
+    async (
+      id: number,
+      patch: {
+        contactPerson?: string; email?: string; phone?: string;
+        contactPosition?: string; chucDanh?: string; className?: string; status?: Account["status"];
+        password?: string;
+      }
+    ) => {
+      setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+      try {
+        const r = await fetch(`/api/accounts/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+        const j = await r.json().catch(() => null);
+        if (!r.ok) return { ok: false, error: j?.error ?? "Lỗi cập nhật tài khoản" };
+        return { ok: true };
+      } catch {
+        return { ok: true };
+      }
+    },
+    []
+  );
+
+  const updateAccountPermissions = useCallback(
+    async (accountId: number, perms: string[]) => {
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === accountId ? { ...a, grantedPerms: perms, permCount: perms.length } : a))
+      );
+      try {
+        const r = await fetch(`/api/accounts/${accountId}/permissions`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ perms }),
+        });
+        const j = await r.json().catch(() => null);
+        if (!r.ok) return { ok: false, error: j?.error ?? "Lỗi cập nhật quyền" };
+        return { ok: true };
+      } catch {
+        return { ok: true };
+      }
+    },
+    []
+  );
+
   const updateAccountStatus = useCallback((accountId: number, status: Account["status"]) => {
     setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, status } : a)));
     // Đổi trạng thái ở DB — khoá/vô hiệu sẽ thu hồi phiên đăng nhập đang chạy
@@ -1294,7 +1508,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const createAccount = useCallback(
     async (input: {
       orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
-      contactPosition: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
+      contactPosition: string; chucDanh?: string; className?: string; role: Account["role"]; status?: Account["status"]; password?: string;
+      perms?: string[];
     }) => {
       const username = input.username.trim();
       if (accounts.some((a) => a.username.toLowerCase() === username.toLowerCase())) {
@@ -1317,6 +1532,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             accounts: [{
               orgUnitId: input.orgUnitId, username, email: input.email.trim(), phone: input.phone?.trim() || undefined,
               contactPerson: input.contactPerson.trim(), contactPosition: input.contactPosition.trim(),
+              chucDanh: input.chucDanh?.trim() || undefined, perms: input.perms,
               className: input.className?.trim() || undefined, role: input.role, status: input.status ?? "ACTIVE",
               password,
             }],
@@ -1334,51 +1550,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             phone: input.phone?.trim() || undefined,
             contactPerson: input.contactPerson.trim(),
             contactPosition: input.contactPosition.trim() || "—",
+            chucDanh: input.chucDanh?.trim() || undefined,
+            grantedPerms: input.perms,
+            permCount: input.perms?.length ?? 0,
             className: input.className?.trim() || undefined,
             role: input.role,
             status: input.status ?? "ACTIVE",
           };
           setAccounts((prev) => [...prev, account]);
-          appendCreatedAccount({
-            ...account,
-            password,
-            displayName: username,
-            orgUnitName: orgName(input.orgUnitId),
-          });
           return { ok: true };
         }
-        if (r.status < 500) {
-          return { ok: false, error: j?.errors?.[0]?.error ?? j?.error ?? "Không tạo được tài khoản trên hệ thống." };
-        }
-      } catch {
-        /* Mất kết nối DB — rơi xuống lưu local để demo không gãy */
+        return { ok: false, error: j?.errors?.[0]?.error ?? j?.error ?? "Không tạo được tài khoản trên hệ thống." };
+      } catch (err) {
+        return { ok: false, error: "Lỗi kết nối cơ sở dữ liệu." };
       }
-      /* Fallback local: id phải vượt max của CẢ state lẫn localStorage (nơi nextId không biết tới) */
-      const storedMax = loadCreatedAccounts().reduce((m, c) => Math.max(m, c.id), 0);
-      const memoryMax = accounts.reduce((m, a) => Math.max(m, a.id), 0);
-      const id = Math.max(900000, storedMax, memoryMax) + 1;
-      const account: Account = {
-        id,
-        orgUnitId: input.orgUnitId,
-        username,
-        email: input.email.trim(),
-        phone: input.phone?.trim() || undefined,
-        contactPerson: input.contactPerson.trim(),
-        contactPosition: input.contactPosition.trim() || "—",
-        className: input.className?.trim() || undefined,
-        role: input.role,
-        status: input.status ?? "ACTIVE",
-      };
-      setAccounts((prev) => [...prev, account]);
-      appendCreatedAccount({
-        ...account,
-        password,
-        displayName: username,
-        orgUnitName: orgName(input.orgUnitId),
-      });
-      return { ok: true };
     },
-    [accounts, orgUnits, orgName]
+    [accounts, orgUnits]
   );
 
   /* ============ Forum ẩn danh ============ */
@@ -1613,7 +1800,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /** Đoàn viên gửi tài nguyên — luôn DRAFT + isPublic false, chờ Ban TNTH duyệt */
   const submitResourceDraft = useCallback(
-    (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number }) => {
+    (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }) => {
       const id = nextId();
       const resource: Resource = {
         id,
@@ -1622,6 +1809,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         description: input.description.trim(),
         fileName: input.fileName || "tai-lieu.pdf",
         fileSizeKb: input.fileSizeKb || 1024,
+        fileDataUrl: input.fileDataUrl,
         isPublic: false,
         downloadCount: 0,
         publishedByOrgUnitId: session.orgUnitId,
@@ -1658,6 +1846,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       } else {
         setResources((prev) => prev.filter((x) => x.id !== id));
+        trackDelete("resources", [id]);
         addNotification({
           recipientAccountId: r.submittedByAccountId,
           notificationType: "CONTRIBUTION_REJECTED",
@@ -1667,7 +1856,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [resources, awardContribution, addNotification]
+    [resources, awardContribution, addNotification, trackDelete]
   );
 
   const saveDirectory = useCallback(
@@ -1947,10 +2136,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       reports, documents, documentRecipients, notifications, feedbacks, feedbackMessages,
       attendances, attendanceOpenIds, liveEvents, liveEnabled, setLiveEnabled, resources, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
-      reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf,
+      reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf, setOrgUnits,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,
       savePost, setPostStatus, createPostFromActivity,
-      distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, saveScore,
+      distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, revokeAssignment, saveScore,
       createDirectiveTask,
       createReport, updateReport, finalizeReport, exportReport,
       createRankingSnapshot, finalizeRanking,
@@ -1959,7 +2148,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
       saveResource, downloadResource,
-      updateSetting, updateAccountStatus, createAccount,
+      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, createAccount,
       forumThreads, forumComments, createForumThread, createForumComment, toggleForumLike, moderateForumItem,
       contributions, memberContributions, createMemberContribution, moderateMemberContribution,
       submitResourceDraft, moderateResourceContribution,
@@ -1984,10 +2173,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       rankingSnapshots, rankingEntries, reports, documents, documentRecipients,
       notifications, feedbacks, feedbackMessages, attendances, attendanceOpenIds, liveEvents, liveEnabled, resources, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
-      reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf,
+      reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf, setOrgUnits,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,
       savePost, setPostStatus, createPostFromActivity,
-      distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, saveScore,
+      distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, revokeAssignment, saveScore,
       createDirectiveTask,
       createReport, updateReport, finalizeReport, exportReport,
       createRankingSnapshot, finalizeRanking,
@@ -1996,7 +2185,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
       saveResource, downloadResource,
-      updateSetting, updateAccountStatus, createAccount,
+      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, createAccount,
     ]
   );
 

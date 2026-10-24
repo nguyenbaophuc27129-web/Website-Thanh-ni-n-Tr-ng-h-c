@@ -52,96 +52,6 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     contactPerson: "Nguyễn Văn Toàn",
     contactPosition: "Phó Trưởng Ban Công tác Thanh Thiếu Nhi",
   },
-  {
-    id: 2,
-    username: "bd.province",
-    displayName: "bd.province",
-    orgUnitId: 12,
-    orgUnitName: "Tỉnh Đoàn Bình Dương",
-    role: "QUAN_TRI_TINH",
-    email: "bandoan@binhduong.doan.vn",
-    contactPerson: "Trần Thị Mai",
-    contactPosition: "Phó Bí thư Tỉnh Đoàn",
-  },
-  {
-    id: 3,
-    username: "hc.hiepthanh",
-    displayName: "hc.hiepthanh",
-    orgUnitId: 25,
-    orgUnitName: "Đoàn Phường Hiệp Thành",
-    role: "QUAN_TRI_CAP3",
-    email: "hiepthanh@bd.doan.vn",
-    contactPerson: "Lê Quốc Hùng",
-    contactPosition: "Bí thư Đoàn Phường",
-  },
-  {
-    id: 4,
-    username: "thpt.chanhphu",
-    displayName: "thpt.chanhphu",
-    orgUnitId: 31,
-    orgUnitName: "Đoàn Trường THPT Chánh Phú Hưng",
-    role: "DON_VI",
-    email: "thptchanhphuhung@bd.edu.vn",
-    contactPerson: "Phạm Minh Tuấn",
-    contactPosition: "Bí thư Đoàn Trường",
-  },
-  {
-    id: 5,
-    username: "btv.tw",
-    displayName: "btv.tw",
-    orgUnitId: 2,
-    orgUnitName: "Ban Biên tập Cổng TNTH — TW Đoàn",
-    role: "BIEN_TAP_VIEN",
-    email: "bientap@tnth.vn",
-    contactPerson: "Võ Ngọc Lan",
-    contactPosition: "Phóng viên biên tập",
-  },
-
-  /* Chức danh TW quyền giới hạn — demo phân quyền theo chức danh (xem data/chuc-danh-quyen.ts) */
-  {
-    id: 16,
-    username: "cv.hs3t",
-    displayName: "cv.hs3t",
-    orgUnitId: 1,
-    orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
-    role: "QUAN_TRI_TW",
-    email: "hs3t@tnth.vn",
-    contactPerson: "Trần Thị Thu Hà",
-    contactPosition: "Chuyên viên phụ trách xét hồ sơ Học sinh 3 tốt",
-  },
-  {
-    id: 17,
-    username: "cv.kiemtra",
-    displayName: "cv.kiemtra",
-    orgUnitId: 1,
-    orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
-    role: "QUAN_TRI_TW",
-    email: "kiemtra@tnth.vn",
-    contactPerson: "Lê Minh Đức",
-    contactPosition: "Chuyên viên phụ trách công tác kiểm tra",
-  },
-  {
-    id: 18,
-    username: "ctv.tintuc",
-    displayName: "ctv.tintuc",
-    orgUnitId: 1,
-    orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
-    role: "QUAN_TRI_TW",
-    email: "tintuc@tnth.vn",
-    contactPerson: "Nguyễn Hải Yến",
-    contactPosition: "CTV phụ trách chuyên mục Tin tức",
-  },
-  {
-    id: 19,
-    username: "ctv.duan",
-    displayName: "ctv.duan",
-    orgUnitId: 1,
-    orgUnitName: "Ban Công tác Thanh Thiếu Nhi — TW Đoàn",
-    role: "QUAN_TRI_TW",
-    email: "duan@tnth.vn",
-    contactPerson: "Phạm Đức Anh",
-    contactPosition: 'CTV phụ trách chuyên mục "Mỗi trường THPT 01 dự án tình nguyện vì cộng đồng"',
-  },
 ];
 
 export interface Session {
@@ -155,6 +65,7 @@ export interface Session {
   contactPerson: string;
   contactPosition: string;
   className?: string;
+  grantedPerms?: string[];
 }
 
 const AuthCtx = createContext<{
@@ -163,55 +74,77 @@ const AuthCtx = createContext<{
   login: (username: string, password: string) => Promise<boolean>;
   loginAs: (account: DemoAccount) => void;
   logout: () => void;
+  updateProfile: (patch: Partial<Session>) => void;
+  refreshSession: () => Promise<void>;
 }>({
   session: null,
   ready: false,
   login: async () => false,
   loginAs: () => {},
   logout: () => {},
+  updateProfile: () => {},
+  refreshSession: async () => {},
 });
 
 export function useAuth() {
   return useContext(AuthCtx);
 }
 
-const STORAGE_KEY = "tnth_demo_user";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  const refreshSession = useCallback(async () => {
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setSession(JSON.parse(raw));
+      const res = await fetch("/api/auth/session");
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.ok && data?.session) {
+          setSession(data.session);
+          return;
+        }
+      }
     } catch {
-      // ignore corrupted storage
+      // offline
     }
-    setReady(true);
   }, []);
 
-  const persist = useCallback((s: Session | null) => {
-    setSession(s);
-    if (s) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    else window.localStorage.removeItem(STORAGE_KEY);
-  }, []);
+  useEffect(() => {
+    // Dọn sạch toàn bộ key localStorage cũ nếu còn sót trong trình duyệt
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("tnth_demo_user");
+        window.localStorage.removeItem("tnth_demo_created_accounts");
+      } catch {}
+    }
 
-  const toSession = useCallback(
-    (acc: DemoAccount): Session => ({
-      accountId: acc.id,
-      username: acc.username,
-      displayName: acc.displayName,
-      orgUnitId: acc.orgUnitId,
-      orgUnitName: acc.orgUnitName,
-      role: acc.role,
-      email: acc.email,
-      contactPerson: acc.contactPerson,
-      contactPosition: acc.contactPosition,
-      className: acc.className,
-    }),
-    []
-  );
+    // Đọc phiên đăng nhập thực tế từ PostgreSQL DB qua cookie session
+    let mounted = true;
+    fetch("/api/auth/session")
+      .then(async (res) => {
+        if (!mounted) return;
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.ok && data?.session) {
+            setSession(data.session);
+            setReady(true);
+            return;
+          }
+        }
+        setSession(null);
+        setReady(true);
+      })
+      .catch(() => {
+        if (mounted) {
+          setSession(null);
+          setReady(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -224,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         if (r.ok) {
           const data = (await r.json()) as { session: Session };
-          persist(data.session);
+          setSession(data.session);
           return true;
         }
         return false;
@@ -232,24 +165,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [persist]
+    []
   );
 
   const loginAs = useCallback(
     (acc: DemoAccount) => {
-      persist(toSession(acc));
+      setSession({
+        accountId: acc.id,
+        username: acc.username,
+        displayName: acc.displayName,
+        orgUnitId: acc.orgUnitId,
+        orgUnitName: acc.orgUnitName,
+        role: acc.role,
+        email: acc.email,
+        contactPerson: acc.contactPerson,
+        contactPosition: acc.contactPosition,
+        className: acc.className,
+      });
     },
-    [persist, toSession]
+    []
   );
 
+  const updateProfile = useCallback((patch: Partial<Session>) => {
+    setSession((prev) => (prev ? { ...prev, ...patch } : null));
+  }, []);
+
   const logout = useCallback(() => {
-    // Thu hồi phiên phía DB (bỏ qua lỗi — cookie/localStorage vẫn xoá)
+    // Thu hồi phiên phía DB
     void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    persist(null);
-  }, [persist]);
+    setSession(null);
+  }, []);
 
   return (
-    <AuthCtx.Provider value={{ session, ready, login, loginAs, logout }}>
+    <AuthCtx.Provider value={{ session, ready, login, loginAs, logout, updateProfile, refreshSession }}>
       {children}
     </AuthCtx.Provider>
   );

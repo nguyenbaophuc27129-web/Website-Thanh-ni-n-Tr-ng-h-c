@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 const STEPS = [
   { icon: Send, title: "Gửi nội dung", desc: "Điền thông tin, không cần đăng nhập" },
-  { icon: ShieldCheck, title: "Nhận mã tra cứu", desc: "Cấp mã PA-2026-XXXXX ngay" },
+  { icon: ShieldCheck, title: "Nhận mã tra cứu", desc: "Cấp mã tra cứu bí mật ngay" },
   { icon: Clock, title: "Chờ tiếp nhận", desc: "Phản hồi qua email và trên cổng" },
   { icon: CheckCircle2, title: "Theo dõi kết quả", desc: "Tra cứu mã để xem tiến độ" },
 ];
@@ -282,8 +282,8 @@ export default function PhanAnhPage() {
             </span>
             <h2 className="mt-4 text-base font-bold text-slate-900">Đã có mã tra cứu?</h2>
             <p className="mt-1.5 text-xs font-light leading-relaxed text-slate-500">
-              Nhập mã dạng <code className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium text-slate-600">PA-2026-XXXXX</code> để xem
-              lịch sử trao đổi và trạng thái xử lý.
+              Nhập mã tra cứu đã nhận khi gửi để xem lịch sử trao đổi và trạng thái xử lý. Mã do hệ
+              thống sinh ngẫu nhiên, chỉ bạn nắm giữ.
             </p>
             <Link
               href="/phan-anh/tra-cuu"

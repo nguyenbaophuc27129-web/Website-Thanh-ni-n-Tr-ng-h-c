@@ -39,3 +39,20 @@ export async function query<R extends QueryResultRow = QueryResultRow>(
   const result = await pool.query<R>(text, params as unknown[]);
   return result.rows;
 }
+
+/** Chạy nhiều lệnh trong 1 transaction — commit khi xong, rollback khi lỗi. */
+export async function withTransaction<T>(fn: (client: { query: Pool["query"] }) => Promise<T>): Promise<T> {
+  if (!pool) throw new Error("DB_UNAVAILABLE");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const out = await fn(client);
+    await client.query("COMMIT");
+    return out;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}

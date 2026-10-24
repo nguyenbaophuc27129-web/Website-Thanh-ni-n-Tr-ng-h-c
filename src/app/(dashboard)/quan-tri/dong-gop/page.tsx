@@ -42,7 +42,7 @@ export default function DongGopAdminPage() {
     () =>
       store.resources
         .filter((r) => r.submittedByAccountId)
-        .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
+        .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
     [store.resources]
   );
 
@@ -222,7 +222,7 @@ export default function DongGopAdminPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-stone-800">{r.title}</p>
                   <p className="text-[11px] text-stone-400">
-                    {r.fileName} · {(r.fileSizeKb / 1024).toFixed(1)} MB · {accountsName(r.submittedByAccountId)} · {formatDateTime(r.publishedAt)}
+                    {r.fileName} · {(r.fileSizeKb / 1024).toFixed(1)} MB · {accountsName(r.submittedByAccountId)} · {r.publishedAt ? formatDateTime(r.publishedAt) : "—"}
                   </p>
                   <p className="mt-0.5 line-clamp-1 text-xs text-stone-500">{r.description}</p>
                 </div>

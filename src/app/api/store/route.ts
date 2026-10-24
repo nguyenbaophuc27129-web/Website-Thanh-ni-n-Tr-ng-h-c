@@ -11,6 +11,7 @@ import {
   buildDeriveCtx,
   readEntity,
   writeEntity,
+  deleteEntityIds,
 } from "@/lib/server/store-tables";
 
 export const runtime = "nodejs";
@@ -93,16 +94,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
   }
   const payload = (await request.json().catch(() => null)) as
-    | { entities?: Record<string, unknown[]> }
+    | { entities?: Record<string, unknown[]>; deletes?: Record<string, unknown[]> }
     | null;
   const requested = Object.keys(payload?.entities ?? {}).filter(
     (name) => ENTITY_SPECS[name] && Array.isArray(payload?.entities?.[name]),
   );
-  if (requested.length === 0) {
+  const deleteNames = Object.keys(payload?.deletes ?? {}).filter(
+    (name) => ENTITY_SPECS[name] && Array.isArray(payload?.deletes?.[name]) && (payload?.deletes?.[name] as unknown[]).length > 0,
+  );
+  if (requested.length === 0 && deleteNames.length === 0) {
     return NextResponse.json({ ok: false, error: "KHÔNG CÓ ENTITY HỢP LỆ" }, { status: 400 });
   }
 
   const session = await resolveSession(request);
+
+  // 0) Xoá dữ liệu: chỉ cán bộ quản trị (scope full) được xoá qua sync
+  if (deleteNames.length > 0 && (!session || session.role === "DOAN_VIEN")) {
+    return NextResponse.json(
+      { ok: false, error: "CHỈ CÁN BỘ QUẢN TRỊ MỚI ĐƯỢC XOÁ DỮ LIỆU" },
+      { status: 403 },
+    );
+  }
 
   // 1) Khách chưa đăng nhập: chỉ được gửi dữ liệu công khai (phản ánh, điểm danh, bài thi...)
   if (!session) {
@@ -123,6 +135,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Hoạt động còn bài xuất bản → chặn xoá sớm để báo lỗi rõ ràng cho client
+  const activityDeleteIds = ((payload?.deletes?.activities ?? []) as unknown[]).map(Number).filter(Number.isFinite);
+  if (activityDeleteIds.length > 0) {
+    const r = await query<{ n: string }>(
+      "SELECT count(*)::text AS n FROM published_posts WHERE activity_id = ANY($1::bigint[])",
+      [activityDeleteIds],
+    );
+    if (Number(r[0]?.n ?? "0") > 0) {
+      return NextResponse.json(
+        { ok: false, error: "KHÔNG XOÁ ĐƯỢC: hoạt động đang có bài viết đã xuất bản — hãy xử lý bài viết trước" },
+        { status: 409 },
+      );
+    }
+  }
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -138,8 +165,14 @@ export async function POST(request: NextRequest) {
         ctx,
       );
     }
+    // Xoá theo tombstone client gửi kèm — NGƯỢC ENTITY_ORDER (con trước, cha sau)
+    const deleteCounts: Record<string, number> = {};
+    for (const entity of [...ENTITY_ORDER].reverse().filter((e) => deleteNames.includes(e))) {
+      const n = await deleteEntityIds(client, entity, (payload?.deletes?.[entity] ?? []) as number[]);
+      if (n > 0) deleteCounts[entity] = n;
+    }
     await client.query("COMMIT");
-    return NextResponse.json({ ok: true, counts });
+    return NextResponse.json({ ok: true, counts, deletes: deleteCounts });
   } catch (err) {
     await client.query("ROLLBACK");
     const message = err instanceof Error ? err.message : "STORE_SYNC_FAILED";

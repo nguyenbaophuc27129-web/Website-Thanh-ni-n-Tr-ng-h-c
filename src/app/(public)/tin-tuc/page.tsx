@@ -8,7 +8,7 @@ import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { moderateText } from "@/lib/ai-moderation";
-import { SPECIAL_CATEGORIES } from "@/data/categories";
+import { SPECIAL_CATEGORIES, SECTION_TAGS } from "@/data/categories";
 import { TechNewsCard } from "@/components/public/tech-news-card";
 import { EmptyState } from "@/components/public/empty-state";
 import { Modal } from "@/components/ui/modal";
@@ -116,8 +116,9 @@ export default function TinTucPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Chủ đề lớn = khung chuyên mục cố định + chuyên mục đang có bài (đều xuất hiện kể cả khi chưa có bài)
   const categories = useMemo(() => {
-    const names = new Set<string>();
+    const names = new Set<string>(SECTION_TAGS);
     publishedPosts.filter((p) => p.status === "PUBLISHED").forEach((p) => p.categoryNames.forEach((c) => names.add(c)));
     return Array.from(names);
   }, [publishedPosts]);
@@ -129,7 +130,7 @@ export default function TinTucPage() {
       .filter((p) =>
         q.trim() === ""
           ? true
-          : `${p.title} ${p.excerpt}`.toLowerCase().includes(q.toLowerCase())
+          : `${p.title} ${p.excerpt} ${p.categoryNames.join(" ")}`.toLowerCase().includes(q.toLowerCase())
       )
       .sort((a, b) => (b.publishedAt ?? b.createdAt).localeCompare(a.publishedAt ?? a.createdAt));
   }, [publishedPosts, cat, q]);
