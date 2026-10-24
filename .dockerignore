@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+.env*
+deploy
+docs
+scripts
+*.md
+Dockerfile
+docker-compose.yml
+secrets
+db
