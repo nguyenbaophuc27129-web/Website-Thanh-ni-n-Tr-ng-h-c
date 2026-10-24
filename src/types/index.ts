@@ -240,6 +240,17 @@ export interface PublishedPost {
   coverSeed: number;
   /** Ảnh bìa thật do người dùng tải lên (data URL) — ưu tiên hơn coverSeed */
   coverDataUrl?: string;
+  coverUrl?: string;
+  subtitle?: string;
+  seoTitle?: string;
+  seoKeywords?: string;
+  imageCaption?: string;
+  postAttributes?: string[];
+  relatedPosts?: string[];
+  relatedTopics?: string[];
+  internalNotes?: string;
+  royaltyAmount?: number;
+  royaltyNotes?: string;
   status: "DRAFT" | "SCHEDULED" | "PUBLISHED" | "UNPUBLISHED";
   isFeatured: boolean;
   publishedAt?: string;

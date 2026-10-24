@@ -71,7 +71,7 @@ export interface Session {
 const AuthCtx = createContext<{
   session: Session | null;
   ready: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   loginAs: (account: DemoAccount) => void;
   logout: () => void;
   updateProfile: (patch: Partial<Session>) => void;
@@ -79,7 +79,7 @@ const AuthCtx = createContext<{
 }>({
   session: null,
   ready: false,
-  login: async () => false,
+  login: async () => ({ ok: false }),
   loginAs: () => {},
   logout: () => {},
   updateProfile: () => {},
@@ -147,22 +147,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (username: string, password: string) => {
-      const uname = username.trim().toLowerCase();
+    async (username: string, password: string): Promise<{ ok: boolean; error?: string }> => {
+      const uname = username.trim();
       try {
         const r = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: uname, password }),
         });
-        if (r.ok) {
-          const data = (await r.json()) as { session: Session };
+        const data = await r.json().catch(() => null);
+        if (r.ok && data?.ok && data?.session) {
           setSession(data.session);
-          return true;
+          return { ok: true };
         }
-        return false;
+        return { ok: false, error: data?.error || "Tên đăng nhập hoặc mật khẩu không đúng." };
       } catch {
-        return false;
+        return { ok: false, error: "Không thể kết nối đến máy chủ xác thực." };
       }
     },
     []

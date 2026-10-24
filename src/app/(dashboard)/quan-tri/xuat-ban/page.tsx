@@ -460,9 +460,11 @@ export default function XuatBanPage() {
           <Button variant="secondary" onClick={openActivityCreate}>
             <Sparkles className="h-4 w-4" /> Tạo bài từ hoạt động
           </Button>
-          <Button onClick={openManualCreate}>
-            <PenSquare className="h-4 w-4" /> Viết bài mới (thủ công)
-          </Button>
+          <Link href="/quan-tri/xuat-ban/dang-bai">
+            <Button>
+              <PenSquare className="h-4 w-4" /> Đăng bài mới (Trang riêng)
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -486,9 +488,11 @@ export default function XuatBanPage() {
             Hãy bắt đầu tạo bài viết mới hoặc nhập từ đường link website/báo chí để xuất bản lên cổng.
           </p>
           <div className="mt-4 flex justify-center gap-2">
-            <Button size="sm" onClick={openManualCreate}>
-              <Plus className="h-4 w-4" /> Viết bài mới
-            </Button>
+            <Link href="/quan-tri/xuat-ban/dang-bai">
+              <Button size="sm">
+                <Plus className="h-4 w-4" /> Đăng bài mới ngay
+              </Button>
+            </Link>
             <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}>
               <Link2 className="h-4 w-4" /> Nhập từ link
             </Button>
@@ -553,9 +557,11 @@ export default function XuatBanPage() {
                 (p.editorAccountId === session.accountId ||
                   session.role === "QUAN_TRI_TW" ||
                   session.role === "BIEN_TAP_VIEN") ? (
-                  <Button size="sm" variant="outline" onClick={() => openEdit(p)}>
-                    <Pencil className="h-3.5 w-3.5" /> Sửa
-                  </Button>
+                  <Link href={`/quan-tri/xuat-ban/dang-bai?id=${p.id}`}>
+                    <Button size="sm" variant="outline">
+                      <Pencil className="h-3.5 w-3.5" /> Sửa bài
+                    </Button>
+                  </Link>
                 ) : null}
               </div>
             </CardBody>

@@ -544,6 +544,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(j.data.documents)) {
           setDocuments(j.data.documents as DocumentRecord[]);
         }
+        if (Array.isArray(j.data.liveEvents)) {
+          setLiveEvents(j.data.liveEvents as LiveEvent[]);
+        }
+        if (Array.isArray(j.data.activities)) {
+          setActivities(j.data.activities as Activity[]);
+        }
+        if (Array.isArray(j.data.taskAssignments)) {
+          setTaskAssignments(j.data.taskAssignments as TaskAssignment[]);
+        }
       } catch {}
     }, 4000);
     return () => clearInterval(timer);

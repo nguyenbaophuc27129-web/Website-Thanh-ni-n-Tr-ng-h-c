@@ -129,7 +129,7 @@ export async function loginAccount(
             a.locked_until, a.failed_login_count, a.contact_person, a.contact_position,
             a.role_code, a.class_name, o.name AS org_name
      FROM accounts a JOIN org_units o ON o.id = a.org_unit_id
-     WHERE a.username = $1 AND a.deleted_at IS NULL
+     WHERE (lower(a.username) = lower($1) OR lower(a.email) = lower($1)) AND a.deleted_at IS NULL
      LIMIT 1`,
     [username],
   );
@@ -140,30 +140,21 @@ export async function loginAccount(
   if (account.status === "PENDING") {
     return { ok: false, status: 403, error: "Tài khoản đang chờ quản trị kích hoạt." };
   }
-  if (account.status === "LOCKED" || account.status === "DISABLED") {
-    return { ok: false, status: 403, error: "Tài khoản đã bị khoá hoặc vô hiệu hoá." };
+  // Bỏ tính năng khóa tài khoản theo yêu cầu — tự động mở khóa nếu có
+  if (account.status === "LOCKED") {
+    await query("UPDATE accounts SET status = 'ACTIVE', failed_login_count = 0, locked_until = NULL WHERE id = $1", [account.id]);
+    account.status = "ACTIVE";
   }
-  if (account.locked_until && account.locked_until.getTime() > Date.now()) {
-    return {
-      ok: false,
-      status: 423,
-      error: `Nhập sai nhiều lần, tài khoản tạm khoá đến ${account.locked_until.toLocaleTimeString("vi-VN")}.`,
-    };
+  if (account.status === "DISABLED") {
+    return { ok: false, status: 403, error: "Tài khoản đã bị vô hiệu hoá. Vui lòng liên hệ quản trị viên." };
   }
   const good = await verifyPassword(password, account.password_hash ?? "");
   if (!good) {
-    await query(
-      `UPDATE accounts SET failed_login_count = failed_login_count + 1,
-        locked_until = CASE WHEN failed_login_count + 1 >= $2
-          THEN now() + ($3 || ' minutes')::interval ELSE locked_until END
-       WHERE id = $1`,
-      [account.id, LOCK_AFTER_FAILED, String(LOCK_MINUTES)],
-    );
     return { ok: false, status: 401, error: "Tên đăng nhập hoặc mật khẩu không đúng." };
   }
   await query(
     `UPDATE accounts SET last_login_at = now(), failed_login_count = 0,
-       locked_until = NULL
+       locked_until = NULL, status = 'ACTIVE'
      WHERE id = $1`,
     [account.id],
   );
