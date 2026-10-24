@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode } from "swiper/modules";
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import type { PublishedPost } from "@/types";
 import { CountUp } from "@/components/public/reveal";
+import { useStore } from "@/lib/store-context";
 
 /**
  * 🌌 STORY FLOW — Dòng Chảy Câu Chuyện Bất Tận (Horizontal Storytelling Flow)
@@ -57,14 +58,15 @@ type DataNode = {
   href: string;
 };
 
-const DATA_NODES: DataNode[] = [
-  { code: "#DATA.01", icon: Rocket, grad: "from-blue-500 to-cyan-400", value: 5210, suffix: "", label: "Lượt truy cập Cổng TNTH ngay ngày đầu vận hành", href: "/tin-tuc" },
-  { code: "#DATA.02", icon: Trophy, grad: "from-amber-400 to-orange-500", value: 1200, suffix: "", label: "Thí sinh dự Hội thi Học sinh 3 tốt cấp tỉnh", href: "/hoc-sinh-3-tot" },
-  { code: "#DATA.03", icon: ShieldCheck, grad: "from-cyan-500 to-blue-600", value: 50000, suffix: "", label: "Học sinh hoàn thành khoá Kỹ năng số chống lừa đảo", href: "/tin-tuc" },
-  { code: "#DATA.04", icon: HeartHandshake, grad: "from-violet-500 to-indigo-500", value: 3500, suffix: "", label: "Tình nguyện viên trong mùa Tiếp sức mùa thi", href: "/tin-tuc" },
-  { code: "#DATA.05", icon: Recycle, grad: "from-emerald-500 to-teal-500", value: 500, suffix: " kg", label: "Rác thải nhựa được thu gom Chủ nhật xanh", href: "/tin-tuc" },
-  { code: "#DATA.06", icon: Star, grad: "from-blue-600 to-indigo-500", value: 95, suffix: " năm", label: "Lịch sử vẻ vang Đoàn TNCS Hồ Chí Minh", href: "/gioi-thieu" },
-  { code: "#DATA.07", icon: Landmark, grad: "from-indigo-500 to-blue-600", value: 28, suffix: "", label: "Đơn vị Đoàn trường cùng vận hành cổng trên toàn quốc", href: "/gioi-thieu" },
+/* Khung 7 ấn phẩm — số liệu TÍNH TỪ DỮ LIỆU THẬT trong store (0 khi chưa có dữ liệu) */
+const NODE_META: Array<Omit<DataNode, "code" | "value">> = [
+  { icon: Rocket, grad: "from-blue-500 to-cyan-400", suffix: "", label: "Bài viết đã xuất bản trên Cổng Thanh niên Trường học", href: "/tin-tuc" },
+  { icon: Trophy, grad: "from-amber-400 to-orange-500", suffix: "", label: "Hoạt động Đoàn - Hội đã đăng tải trên Cổng", href: "/tin-tuc" },
+  { icon: ShieldCheck, grad: "from-cyan-500 to-blue-600", suffix: "", label: "Chia sẻ của đoàn viên trên Diễn đàn Thanh niên Trường học", href: "/dien-dan" },
+  { icon: HeartHandshake, grad: "from-violet-500 to-indigo-500", suffix: "", label: "Dự án tình nguyện đang triển khai", href: "/du-an-tinh-nguyen" },
+  { icon: Recycle, grad: "from-emerald-500 to-teal-500", suffix: "", label: "Tài nguyên, ấn phẩm trong Kho tài nguyên dùng chung", href: "/tai-nguyen" },
+  { icon: Star, grad: "from-blue-600 to-indigo-500", suffix: "", label: "Hồ sơ Học sinh 3 Tốt đã được xét danh hiệu", href: "/hoc-sinh-3-tot" },
+  { icon: Landmark, grad: "from-indigo-500 to-blue-600", suffix: "", label: "Đơn vị Đoàn đang cùng vận hành Cổng", href: "/gioi-thieu" },
 ];
 
 /* Cột dữ liệu trang trí trên chân ấn phẩm */
@@ -493,14 +495,29 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
    SECTION CHÍNH — một cuộc hành trình thị giác kéo dài theo ngang
    ================================================================ */
 export function StoryFlow({ posts }: { posts: PublishedPost[] }) {
+  const store = useStore();
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   const open = zoomIdx !== null;
+
+  /* Số liệu thật từ store — khung ấn phẩm giữ nguyên, đếm = 0 khi chưa có dữ liệu */
+  const dataNodes = useMemo<DataNode[]>(() => {
+    const counts = [
+      store.publishedPosts.filter((p) => p.status === "PUBLISHED").length,
+      store.activities.length,
+      store.forumThreads.filter((t) => t.status === "PUBLISHED").length,
+      store.volunteerProjects.filter((v) => v.status === "APPROVED").length,
+      store.resources.filter((r) => r.isPublic).length,
+      store.hs3tProfiles.filter((h) => h.awardedLevel != null).length,
+      store.orgUnits.filter((u) => u.isActive).length,
+    ];
+    return NODE_META.map((m, i) => ({ ...m, code: `#DATA.${pad2(i + 1)}`, value: counts[i] ?? 0 }));
+  }, [store.publishedPosts, store.activities, store.forumThreads, store.volunteerProjects, store.resources, store.hs3tProfiles, store.orgUnits]);
 
   const close = useCallback(() => setZoomIdx(null), []);
   const step = useCallback(
     (dir: 1 | -1) =>
-      setZoomIdx((i) => (i === null ? 0 : (i + dir + DATA_NODES.length) % DATA_NODES.length)),
-    []
+      setZoomIdx((i) => (i === null ? 0 : (i + dir + dataNodes.length) % dataNodes.length)),
+    [dataNodes.length]
   );
 
   useEffect(() => {
@@ -519,7 +536,7 @@ export function StoryFlow({ posts }: { posts: PublishedPost[] }) {
     };
   }, [open, close, step]);
 
-  const zoomNode = zoomIdx !== null ? DATA_NODES[zoomIdx] : null;
+  const zoomNode = zoomIdx !== null ? dataNodes[zoomIdx] : null;
 
   return (
     <section aria-label="Dòng chảy ấn phẩm TNTH" className="relative overflow-hidden border-y border-white/5 bg-[#0a0f24] py-16 sm:py-20">
@@ -575,7 +592,7 @@ export function StoryFlow({ posts }: { posts: PublishedPost[] }) {
             loop
             loopAdditionalSlides={2}
           >
-            {DATA_NODES.map((n, i) => (
+            {dataNodes.map((n, i) => (
               <SwiperSlide key={n.code} className="!w-auto">
                 <PosterCard node={n} onZoom={() => setZoomIdx(i)} />
               </SwiperSlide>
@@ -654,7 +671,7 @@ export function StoryFlow({ posts }: { posts: PublishedPost[] }) {
               Đọc bài viết gốc <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <p className="relative mt-2 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500">
-              {pad2((zoomIdx ?? 0) + 1)} / {pad2(DATA_NODES.length)} ẤN PHẨM
+              {pad2((zoomIdx ?? 0) + 1)} / {pad2(dataNodes.length)} ẤN PHẨM
             </p>
           </motion.div>
         ) : null}

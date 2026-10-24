@@ -323,7 +323,7 @@ export default function GioiThieuPage() {
             Đăng nhập khu quản trị bằng tài khoản được phân quyền theo cấp (Trung ương, Tỉnh/Thành đoàn, Đoàn cấp huyện/xã, Đoàn trường học hoặc Biên tập viên) để thao tác đúng thẩm quyền và phạm vi dữ liệu.
           </li>
           <li>Đơn vị cơ sở tạo hoạt động → nộp → đăng nhập cấp trên xác nhận → quay lại cập nhật kết quả nhiệm vụ.</li>
-          <li>Bạn muốn xem luồng công khai: gửi phản ánh → nhận mã PA-2026-XXXXX → tra cứu tiến độ xử lý.</li>
+          <li>Bạn muốn xem luồng công khai: gửi phản ánh → nhận mã tra cứu bí mật → tra cứu tiến độ xử lý.</li>
           <li>Tin bài xuất bản từ khu quản trị sẽ xuất hiện ngay trên trang Tin tức của website công khai.</li>
         </ol>
         <div className="mt-6 flex flex-wrap gap-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ScrollText, Plus, Send, Undo2, Eye, Lock, Unlock } from "lucide-react";
+import { ScrollText, Plus, Send, Undo2, Eye, Lock, Unlock, Paperclip, Download, X } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -12,7 +12,6 @@ import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { DocumentStatusBadge } from "@/components/dashboard/status-badge";
-import { MockExportButton } from "@/components/dashboard/mock-export-button";
 import { formatDateTime, formatDate, todayISO } from "@/lib/utils";
 import { documentCategories } from "@/data/categories";
 
@@ -21,6 +20,24 @@ const SCOPE_LABEL: Record<string, string> = {
   DIRECT_CHILDREN: "Trực tiếp cấp dưới",
   SELECTED: "Chọn đơn vị cụ thể",
 };
+
+const MAX_DOC_BYTES = 4 * 1024 * 1024;
+
+/** Nút tải tệp đính kèm của văn bản (nếu có) */
+function DocFileButton({ doc, size = "sm" }: { doc: { fileName?: string; fileDataUrl?: string }; size?: "sm" | "xs" }) {
+  if (!doc.fileDataUrl) return null;
+  return (
+    <a
+      href={doc.fileDataUrl}
+      download={doc.fileName ?? "van-ban"}
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-doan-200 bg-doan-50/60 font-semibold text-doan-700 transition hover:bg-doan-100 ${
+        size === "sm" ? "px-3 py-1.5 text-xs" : "px-2 py-1 text-[11px]"
+      }`}
+    >
+      <Download className="h-3.5 w-3.5" /> Tải tệp {doc.fileName ? `(${doc.fileName})` : "đính kèm"}
+    </a>
+  );
+}
 
 export default function VanBanAdminPage() {
   const { session } = useAuth();
@@ -32,7 +49,20 @@ export default function VanBanAdminPage() {
   const [form, setForm] = useState({
     docNumber: "", title: "", summary: "", documentCategoryId: documentCategories[0]?.id.toString() ?? "",
     effectiveDate: "", recipientScope: "ALL_DESCENDANTS", selectedIds: [] as number[],
+    fileName: "", fileDataUrl: "",
   });
+
+  const pickDocFile = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > MAX_DOC_BYTES) {
+      toast("Tệp quá lớn — tối đa 4MB.", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      setForm((f) => ({ ...f, fileName: file.name, fileDataUrl: String(reader.result ?? "") }));
+    reader.readAsDataURL(file);
+  };
 
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
 
@@ -76,12 +106,13 @@ export default function VanBanAdminPage() {
         issuedDate: todayISO(),
         effectiveDate: form.effectiveDate || undefined,
         recipientScope: form.recipientScope as "ALL_DESCENDANTS" | "DIRECT_CHILDREN" | "SELECTED",
+        ...(form.fileDataUrl ? { fileName: form.fileName, fileDataUrl: form.fileDataUrl } : {}),
       },
       form.selectedIds
     );
     toast("Đã ban hành văn bản — đơn vị nhận được thông báo kèm theo dõi đã đọc.");
     setCreateOpen(false);
-    setForm((f) => ({ ...f, docNumber: "", title: "", summary: "", effectiveDate: "", selectedIds: [] }));
+    setForm((f) => ({ ...f, docNumber: "", title: "", summary: "", effectiveDate: "", selectedIds: [], fileName: "", fileDataUrl: "" }));
   };
 
   const toggleSelected = (id: number) =>
@@ -149,6 +180,7 @@ export default function VanBanAdminPage() {
                     <Button size="sm" variant="secondary" onClick={() => setDetailId(detailId === d.id ? null : d.id)}>
                       <Eye className="h-3.5 w-3.5" /> {detailId === d.id ? "Ẩn người nhận" : "Theo dõi đã đọc"}
                     </Button>
+                    <DocFileButton doc={d} />
                     {recs.length > 0 ? (
                       <Badge tone={readCount === recs.length ? "green" : "yellow"}>
                         {readCount}/{recs.length} đơn vị đã đọc
@@ -156,9 +188,6 @@ export default function VanBanAdminPage() {
                     ) : (
                       <span className="text-xs text-stone-400">Chưa phát hành đến đơn vị nào</span>
                     )}
-                    <div className="ml-auto">
-                      <MockExportButton fileName={`van-ban-${d.id}`} format="DOCX" size="sm" />
-                    </div>
                   </div>
                   {detailId === d.id && recs.length > 0 ? (
                     <ul className="divide-y divide-stone-100 rounded-lg border border-stone-100">
@@ -204,6 +233,7 @@ export default function VanBanAdminPage() {
                 <CardBody className="space-y-3">
                   {d.summary ? <p className="text-sm text-stone-600">{d.summary}</p> : null}
                   <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
+                    <DocFileButton doc={d} />
                     {isRead ? (
                       <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
                         <Unlock className="h-3.5 w-3.5" /> Bạn đã đọc lúc {formatDateTime(rec!.readAt!)}
@@ -220,9 +250,6 @@ export default function VanBanAdminPage() {
                         <Eye className="h-3.5 w-3.5" /> Đánh dấu đã đọc
                       </Button>
                     )}
-                    <div className="ml-auto">
-                      <MockExportButton fileName={`van-ban-${d.id}`} format="PDF" size="sm" />
-                    </div>
                   </div>
                 </CardBody>
               </Card>
@@ -275,6 +302,34 @@ export default function VanBanAdminPage() {
           </Field>
           <Field label="Tóm tắt nội dung">
             <Textarea value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} rows={3} />
+          </Field>
+          <Field label="Tệp đính kèm" hint="PDF/DOC/XLS/ảnh — tối đa 4MB. Người nhận tải trực tiếp từ văn bản.">
+            {form.fileDataUrl ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+                <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-emerald-800">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{form.fileName}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, fileName: "", fileDataUrl: "" }))}
+                  className="shrink-0 rounded p-1 text-emerald-700 hover:bg-emerald-100"
+                  aria-label="Bỏ tệp"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 bg-white px-3 py-3 text-xs font-medium text-stone-500 transition hover:border-doan-400 hover:text-doan-700">
+                <Paperclip className="h-4 w-4" /> Chọn tệp từ máy
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*"
+                  onChange={(e) => pickDocFile(e.target.files?.[0])}
+                />
+              </label>
+            )}
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Ngày có hiệu lực">

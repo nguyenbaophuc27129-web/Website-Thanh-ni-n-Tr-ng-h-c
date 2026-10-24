@@ -18,7 +18,7 @@ export function ruleReply(input: string): ChatReply {
   if (/(xếp hạng|thi đua|điểm)/.test(q))
     return { text: "Bảng xếp hạng thi đua được chốt theo tháng/quý và công bố công khai, xếp theo tổng điểm bộ tiêu chí.", link: { href: "/bang-xep-hang", label: "Xem bảng xếp hạng" } };
   if (/(phản ánh|góp ý|khiếu nại|tra cứu)/.test(q))
-    return { text: "Bạn có thể gửi phản ánh không cần đăng nhập. Sau khi gửi, hệ thống cấp mã tra cứu dạng PA-2026-XXXXX để theo dõi tiến độ xử lý.", link: { href: "/phan-anh", label: "Gửi phản ánh" } };
+    return { text: "Bạn có thể gửi phản ánh không cần đăng nhập. Sau khi gửi, hệ thống cấp một mã tra cứu bí mật để theo dõi tiến độ xử lý — hãy lưu lại mã này.", link: { href: "/phan-anh", label: "Gửi phản ánh" } };
   if (/(văn bản|chỉ thị|nghị quyết|kế hoạch)/.test(q))
     return { text: "Văn bản chỉ đạo, kế hoạch của các cấp được gộp trong khu Tài nguyên — nhóm 'Tài nguyên văn bản'.", link: { href: "/tai-nguyen", label: "Xem tài nguyên văn bản" } };
   if (/(tài nguyên|biểu mẫu|tài liệu|tải)/.test(q))

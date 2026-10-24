@@ -10,7 +10,8 @@ const ALLOWED_ADMIN_ROLES: RoleCode[] = [
   "QUAN_TRI_CAP3",
 ];
 
-/** PATCH /api/accounts/[id] — đổi trạng thái tài khoản (ACTIVE/PENDING/LOCKED/DISABLED). */
+/** PATCH /api/accounts/[id] — đổi trạng thái (status) hoặc sửa thông tin
+ *  (contactPerson/email/phone/contactPosition/chucDanh/className). */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -26,20 +27,38 @@ export async function PATCH(
     }
     if (!ALLOWED_ADMIN_ROLES.includes(session.role as RoleCode)) {
       return NextResponse.json(
-        { ok: false, error: "BẠN KHÔNG CÓ QUYỀN THAY ĐỔI TRẠNG THÁI TÀI KHOẢN" },
+        { ok: false, error: "BẠN KHÔNG CÓ QUYỀN THAY ĐỔI TÀI KHOẢN" },
         { status: 403 },
       );
     }
     const { id } = await params;
     const accountId = Number(id);
-    const body = (await request.json().catch(() => null)) as { status?: string } | null;
-    const status = String(body?.status ?? "");
-    if (!accountId || !["PENDING", "ACTIVE", "LOCKED", "DISABLED"].includes(status)) {
+    const body = (await request.json().catch(() => null)) as
+      | {
+          status?: string;
+          contactPerson?: string;
+          email?: string;
+          phone?: string;
+          contactPosition?: string;
+          chucDanh?: string;
+          className?: string;
+        }
+      | null;
+    if (!accountId || !body) {
+      return NextResponse.json({ ok: false, error: "DỮ LIỆU KHÔNG HỢP LỆ" }, { status: 400 });
+    }
+    const status = String(body.status ?? "");
+    const hasStatus = ["PENDING", "ACTIVE", "LOCKED", "DISABLED"].includes(status);
+    const hasInfo =
+      [body.contactPerson, body.email, body.phone, body.contactPosition, body.chucDanh, body.className].some(
+        (v) => typeof v === "string",
+      );
+    if (!hasStatus && !hasInfo) {
       return NextResponse.json({ ok: false, error: "DỮ LIỆU KHÔNG HỢP LỆ" }, { status: 400 });
     }
 
     // Không cho phép tự khóa tài khoản của chính mình
-    if (accountId === session.accountId) {
+    if (hasStatus && accountId === session.accountId) {
       return NextResponse.json(
         { ok: false, error: "KHÔNG THỂ TỰ THAY ĐỔI TRẠNG THÁI TÀI KHOẢN CỦA CHÍNH MÌNH" },
         { status: 400 },
@@ -61,7 +80,7 @@ export async function PATCH(
     }
 
     // Tài khoản gốc Trung ương (id=1, tw.admin) không thể bị khóa
-    if (target.id === 1 && (status === "LOCKED" || status === "DISABLED")) {
+    if (hasStatus && target.id === 1 && (status === "LOCKED" || status === "DISABLED")) {
       return NextResponse.json(
         { ok: false, error: "KHÔNG THỂ KHÓA TÀI KHOẢN QUẢN TRỊ TRUNG ƯƠNG TỐI CAO" },
         { status: 403 },
@@ -97,7 +116,7 @@ export async function PATCH(
       if (
         !callerPath ||
         !targetPath ||
-        (!targetPath.startsWith(`${callerPath}.`) && target.org_unit_id !== session.orgUnitId)
+        (!targetPath.startsWith(callerPath) && target.org_unit_id !== session.orgUnitId)
       ) {
         return NextResponse.json(
           { ok: false, error: "TÀI KHOẢN NẰM NGOÀI PHẠM VI QUẢN LÝ CỦA BẠN" },
@@ -106,20 +125,38 @@ export async function PATCH(
       }
     }
 
-    const rows = await query<{ id: number }>(
-      `UPDATE accounts SET status = $2, locked_until = NULL, failed_login_count = 0, updated_at = now()
-       WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
-      [accountId, status],
-    );
-    if (!rows[0]) {
-      return NextResponse.json({ ok: false, error: "KHÔNG TÌM THẤY TÀI KHOẢN" }, { status: 404 });
+    if (hasInfo) {
+      const pairs: [string, unknown][] = [];
+      if (typeof body.contactPerson === "string") pairs.push(["contact_person", body.contactPerson.trim() || target.username]);
+      if (typeof body.email === "string" && body.email.trim()) pairs.push(["email", body.email.trim()]);
+      if (typeof body.phone === "string") pairs.push(["phone", body.phone.trim() || null]);
+      if (typeof body.contactPosition === "string") pairs.push(["contact_position", body.contactPosition.trim() || null]);
+      if (typeof body.chucDanh === "string") pairs.push(["chuc_danh", body.chucDanh.trim() || null]);
+      if (typeof body.className === "string") pairs.push(["class_name", body.className.trim() || null]);
+      if (pairs.length > 0) {
+        const params: unknown[] = pairs.map(([, v]) => v);
+        params.push(accountId);
+        await query(
+          `UPDATE accounts SET ${pairs.map(([c], i) => `${c} = $${i + 1}`).join(", ")}, updated_at = now()
+           WHERE id = $${params.length} AND deleted_at IS NULL`,
+          params,
+        );
+      }
     }
-    // Khoá/vô hiệu → thu hồi mọi phiên đăng nhập đang chạy
-    if (status === "LOCKED" || status === "DISABLED") {
+
+    if (hasStatus) {
       await query(
-        "UPDATE auth_sessions SET revoked_at = now() WHERE account_id = $1 AND revoked_at IS NULL",
-        [accountId],
+        `UPDATE accounts SET status = $2, locked_until = NULL, failed_login_count = 0, updated_at = now()
+         WHERE id = $1 AND deleted_at IS NULL`,
+        [accountId, status],
       );
+      // Khoá/vô hiệu → thu hồi mọi phiên đăng nhập đang chạy
+      if (status === "LOCKED" || status === "DISABLED") {
+        await query(
+          "UPDATE auth_sessions SET revoked_at = now() WHERE account_id = $1 AND revoked_at IS NULL",
+          [accountId],
+        );
+      }
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -127,7 +164,7 @@ export async function PATCH(
     if (message === "DB_UNAVAILABLE") {
       return NextResponse.json({ ok: false, error: message }, { status: 503 });
     }
-    console.warn("[TNTH][AUTH] Lỗi đổi trạng thái tài khoản:", message);
+    console.warn("[TNTH][AUTH] Lỗi cập nhật tài khoản:", message);
     return NextResponse.json({ ok: false, error: "ACCOUNT_UPDATE_FAILED" }, { status: 500 });
   }
 }

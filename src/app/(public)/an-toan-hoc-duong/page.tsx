@@ -136,7 +136,7 @@ export default function AnToanHocDuongPage() {
           gửi hôm nay, được chuyển chuyên gia trong 24 giờ làm việc.
         </p>
 
-        {/* ===== Chuyên gia tâm lý & pháp lý ===== */}
+        {/* ===== Tham vấn viên tâm lý & pháp lý ===== */}
         <div className="mt-10">
           <h2 className="inline-flex items-center gap-2 text-lg font-bold text-slate-900">
             <HeartPulse className="h-5 w-5 text-rose-500" /> Chuyên gia đồng hành
@@ -145,7 +145,7 @@ export default function AnToanHocDuongPage() {
             {[
               {
                 icon: HeartPulse,
-                title: "Chuyên gia tâm lý",
+                title: "Tham vấn viên tâm lý",
                 grad: "from-rose-500 to-pink-500",
                 items: [
                   "Lắng nghe, xoa dịu sang chấn tâm lý lúc cấp",

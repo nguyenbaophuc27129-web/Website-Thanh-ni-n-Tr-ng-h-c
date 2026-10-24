@@ -265,8 +265,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       title: "Hệ thống",
       items: [
         { href: "/quan-tri/he-thong/don-vi", label: "Cây đơn vị", icon: Network },
-        { href: "/quan-tri/he-thong/tai-khoan", label: "Tài khoản", icon: Users },
-        { href: "/quan-tri/he-thong/phan-quyen", label: "Phân quyền", icon: ShieldCheck },
+        { href: "/quan-tri/he-thong/phan-quyen", label: "Phân quyền & Tài khoản", icon: ShieldCheck },
         { href: "/quan-tri/he-thong/danh-muc", label: "Danh mục", icon: Database },
         ...(role === "QUAN_TRI_TW" ? [{ href: "/quan-tri/he-thong/cai-dat", label: "Cài đặt", icon: Settings }] : []),
       ],
@@ -293,8 +292,15 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     }
   }
 
-  const isActive = (href: string) =>
-    href === "/quan-tri" ? pathname === "/quan-tri" : pathname.startsWith(href);
+  // Chỉ mục khớp DÀI NHẤT được sáng — mục cha (/quan-tri/nhiem-vu) không sáng cùng mục con (/nhiem-vu/ai-phan-tich)
+  const menuHrefs = groups.flatMap((g) => g.items.map((i) => i.href));
+  const isActive = (href: string) => {
+    if (href === "/quan-tri") return pathname === "/quan-tri";
+    if (!(pathname === href || pathname.startsWith(`${href}/`))) return false;
+    return !menuHrefs.some(
+      (h) => h !== href && h.length > href.length && (pathname === h || pathname.startsWith(`${h}/`))
+    );
+  };
 
   const sidebar = (
     <div className="flex h-full flex-col">

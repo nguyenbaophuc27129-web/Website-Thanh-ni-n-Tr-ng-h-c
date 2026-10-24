@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import {
   Newspaper, MessagesSquare, Trophy, LifeBuoy, FolderOpen, ArrowRight, Users, Activity as ActivityIcon, Landmark,
-  ArrowUpRight, GraduationCap, Award, Heart, FlaskConical, Globe2, Flag,
+  ArrowUpRight, GraduationCap, Award, Heart, FlaskConical, Globe2, Flag, HeartHandshake,
 } from "lucide-react";
 
 import { useStore } from "@/lib/store-context";
@@ -21,10 +21,11 @@ import { PROGRAMS } from "@/data/programs";
 import { SPECIAL_CATEGORIES } from "@/data/categories";
 
 /** Icon của hệ thống nút chuyên mục đặc biệt (thứ tự khớp SPECIAL_CATEGORIES) */
-const SPECIAL_ICONS = [Award, Heart, FlaskConical, Globe2, Flag, Newspaper];
+const SPECIAL_ICONS = [HeartHandshake, Award, Heart, FlaskConical, Globe2, Flag, Newspaper];
 const SPECIAL_TONES = [
   "bg-vang-100 text-vang-600",
   "bg-rose-50 text-rose-600",
+  "bg-pink-50 text-pink-600",
   "bg-cyan-50 text-cyan-600",
   "bg-sky-50 text-sky-600",
   "bg-red-50 text-red-600",
@@ -132,11 +133,12 @@ export default function HomePage() {
 
           {/* Ô cổng dịch vụ nội bộ — hồ sơ Học sinh 3 tốt */}
           {[
-            { label: "Học sinh 3 TỐT", sub: "Hồ sơ thành tích số · xét danh hiệu", href: "/hoc-sinh-3-tot", icon: GraduationCap },
+            { label: "Học sinh 3 TỐT", sub: "Cổng khen thưởng Trung ương Đoàn", href: "https://khenthuong.doanthanhnien.vn/login", icon: GraduationCap, external: true },
           ].map((s) => (
             <a
               key={s.label}
               href={s.href}
+              {...("external" in s && s.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
               className="group flex items-center gap-3 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 py-2 transition-all duration-300 hover:border-cyan-300/60 hover:bg-cyan-400/20 hover:shadow-[0_0_26px_rgba(34,211,238,0.28)]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-400/15 text-cyan-200">
@@ -462,6 +464,18 @@ export default function HomePage() {
                       title="Bảng tin fanpage Thanh niên Trường học — Trung ương Đoàn"
                     />
                   </div>
+                  <p className="border-t border-stone-100 bg-white px-4 py-2.5 text-center text-[11px] text-stone-400">
+                    Khung không hiển thị bài? Trình duyệt có thể đang chặn nội dung Facebook —{" "}
+                    <a
+                      href="https://www.facebook.com/thanhnientruonghoctwd"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-[#1877F2] hover:underline"
+                    >
+                      xem trực tiếp trên fanpage
+                    </a>
+                    .
+                  </p>
                 </div>
               </div>
             </div>

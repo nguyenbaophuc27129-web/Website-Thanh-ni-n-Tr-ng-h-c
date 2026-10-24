@@ -6,7 +6,6 @@ import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Select, Field } from "@/components/ui/input";
-import { MockExportButton } from "@/components/dashboard/mock-export-button";
 import { SectionTitle } from "@/components/dashboard/stat-card";
 import {
   ActivitiesBarChart, TaskProgressPie, PostViewsAreaChart, ScoresHorizontalBar, TrendLineChart,
@@ -97,7 +96,6 @@ export default function ThongKePage() {
             Số liệu tổng hợp trong phạm vi của bạn theo kỳ, có thể xuất Excel phục vụ lãnh đạo.
           </p>
         </div>
-        <MockExportButton fileName={`thong-ke-${year}`} format="XLSX" />
       </div>
 
       <Card>
@@ -175,7 +173,7 @@ export default function ThongKePage() {
 
       <p className="flex items-center gap-1.5 text-[11px] text-stone-400">
         <BarChart3 className="h-3.5 w-3.5" />
-        Số liệu sinh từ mock data của prototype — khi tích hợp CSDL sẽ truy vấn trực tiếp từ bảng activities, task_assignments, scores, published_posts.
+        Số liệu tổng hợp trực tiếp từ dữ liệu hệ thống: hoạt động, phân công nhiệm vụ, chấm điểm và bài viết đã xuất bản.
       </p>
     </div>
   );

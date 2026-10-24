@@ -13,6 +13,10 @@ export const contentCategories: ContentCategory[] = [
   { id: 5, code: "AO_DUA", name: "Áo ấm mùa đông, đồng dao vùng cao" },
   { id: 6, code: "THE_DUC", name: "Thể dục thể thao, Đoàn kết sức trẻ" },
   { id: 7, code: "HS_3_TOT", name: "Học sinh 3 tốt", parentId: 1 },
+  { id: 8, code: "GUONG_MAT_HS3T_TW", name: "Gương mặt Học sinh 3 tốt cấp Trung ương", description: "Gương mặt tiêu biểu Học sinh 3 tốt cấp Trung ương" },
+  { id: 9, code: "HANH_TRINH_KHOA_HOC_TRE", name: "Hành trình khoa học trẻ", description: "Câu chuyện nghiên cứu khoa học, sáng tạo trẻ" },
+  { id: 10, code: "CONG_DAN_TOAN_CAU", name: "Học sinh THPT - Công dân toàn cầu", description: "Học sinh THPT với kỹ năng công dân toàn cầu" },
+  { id: 11, code: "TOI_LA_DANG_VIEN_TRE", name: "Câu chuyện \"Tôi là Đảng viên trẻ\"", description: "Gương đảng viên trẻ - học sinh THPT" },
 ];
 
 export const documentCategories: DocumentCategory[] = [
@@ -35,6 +39,7 @@ export const resourceTypes: ResourceType[] = [
     short: "Clip tuyên truyền tình bạn đẹp",
   },
   { id: 6, code: "THONG_DIEP", name: "Thông điệp tuổi trẻ" },
+  { id: 7, code: "HINH_ANH", name: "Hình ảnh (jpg, png)" },
 ];
 
 export const feedbackTopics: FeedbackTopic[] = [
@@ -83,6 +88,10 @@ export const EVENT_KEYWORDS: string[] = [
 export const SECTION_TAGS: string[] = [
   "Mỗi tuần một câu chuyện đẹp",
   "Bản tin nghiên cứu khoa học",
+  "Gương mặt Học sinh 3 tốt cấp Trung ương",
+  "Hành trình khoa học trẻ",
+  "Học sinh THPT - Công dân toàn cầu",
+  "Câu chuyện \"Tôi là Đảng viên trẻ\"",
 ];
 
 /**

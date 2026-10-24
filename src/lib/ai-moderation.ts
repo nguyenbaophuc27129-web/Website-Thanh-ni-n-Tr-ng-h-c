@@ -7,6 +7,17 @@ import type { ModerationResult } from "@/types";
  *   demo không bao giờ gãy (cùng pattern với ai-chat-widget).
  */
 
+/** Phát ngôn chính trị phản động — chặn thẳng bằng quy tắc (không chờ AI) */
+const REACTIONARY = [
+  "phản động", "lật đổ", "chống đảng", "chống nhà nước", "xuyên tạc",
+  "đảo chính", "phi tập trung hóa chính trị", "đa đảng là", "cộng sản sụp đổ",
+  "chế độ cộng sản đói nghèo", "cách mạng tháng tám là", "hồ chí minh sai",
+  // Phản động ngầm dạng "kinh tế": đề cao thị trường tự do / tư nhân như
+  // ĐỘNG LỰC CHÍNH TRỊ, ngầm phủ nhận kinh tế nhà nước + định hướng XHCN
+  "thị trường tự do", "động lực kinh tế chính trị", "tư nhân là động lực kinh tế chính trị",
+  "kế hoạch hoá sản xuất", "kế hoạch hóa sản xuất",
+];
+
 const PROFANITY = [
   "địt", "đít", "lồn", "cặc", "buồi", "đũy", "đú", "vãi", "clgt", "dm ", "đm ",
   "dcm", "nitk", "mẹ mày", "mo má", "con chó", "thằng chó", "ngu như bò", "đần",
@@ -33,6 +44,12 @@ function includesAny(lower: string, words: string[]): string | null {
 /** Bộ quy tắc heuristic thuần (pure) — first-match-wins, reason tiếng Việt */
 export function ruleModerate(text: string): ModerationResult {
   const lower = ` ${text.toLowerCase()} `;
+
+  // Chính trị phản động — mức nghiêm trọng nhất, chặn trước mọi quy tắc khác
+  const reactionary = includesAny(lower, REACTIONARY);
+  if (reactionary) {
+    return { verdict: "FLAGGED", reason: "Nội dung chính trị nhạy cảm / chống phá (phát hiện từ khóa cấm)", model: "tnth-rule-v1" };
+  }
 
   const profane = includesAny(lower, PROFANITY);
   if (profane) {

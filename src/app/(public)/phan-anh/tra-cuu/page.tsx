@@ -18,8 +18,6 @@ import { useStore } from "@/lib/store-context";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
-const DEMO_CODES = ["PA-2026-000101", "PA-2026-000102", "PA-2026-000103"];
-
 /* Quy trình 4 bước xử lý phản ánh */
 const STEPS = [
   { icon: Send, title: "Gửi phản ánh", desc: "Công dân gửi kèm minh chứng qua biểu mẫu số" },
@@ -93,7 +91,7 @@ export default function TraCuuPage() {
           <div className="relative mt-8 flex items-center gap-6">
             <div className="qr-glow shrink-0 rounded-2xl bg-white p-3">
               <QRCode
-                value={code.trim() ? code.trim().toUpperCase() : DEMO_CODES[0]}
+                value={code.trim().toUpperCase() || "TNTH-TRACUU"}
                 size={120}
                 bgColor="#ffffff"
                 fgColor="#0f172a"
@@ -104,7 +102,7 @@ export default function TraCuuPage() {
                 Mã tra cứu
               </p>
               <p className="mt-1 truncate font-mono text-2xl font-bold tracking-wider text-cyan-300">
-                {code.trim() ? code.trim().toUpperCase() : "PA-2026-·····"}
+                {code.trim() ? code.trim().toUpperCase() : "•••• ••••••••"}
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-white/55">
                 Mã QR cập nhật trực tiếp theo mã bạn nhập — quét để mở phản ánh trên mọi thiết bị.
@@ -148,7 +146,7 @@ export default function TraCuuPage() {
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="PA-2026-XXXXX"
+              placeholder="Nhập mã tra cứu của bạn"
               className="w-full rounded-full border border-slate-200 bg-white px-5 py-3 text-center font-mono text-base tracking-[0.15em] text-slate-800 outline-none transition-all duration-200 placeholder:tracking-normal placeholder:text-slate-300 focus:border-cyan-500/60 focus:shadow-[0_0_0_4px_rgba(6,182,212,0.14)]"
             />
             <button
@@ -160,28 +158,6 @@ export default function TraCuuPage() {
             </button>
           </form>
 
-          <div className="mt-6 border-t border-slate-100 pt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              Thử mã demo
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {DEMO_CODES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCode(c)}
-                  className={cn(
-                    "rounded-full px-3 py-1 font-mono text-[11px] transition-colors",
-                    code === c
-                      ? "bg-cyan-500 text-white"
-                      : "bg-slate-100 text-slate-500 hover:bg-cyan-50 hover:text-cyan-600"
-                  )}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
         </motion.div>
       </div>
 
