@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { callAI } from "@/lib/ai-client";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,9 @@ export interface ReportDraftContext {
   postCount: number;
 }
 
+/** Trần độ dài ngữ cảnh gửi AI (ký tự JSON) */
+const MAX_CTX_CHARS = 20_000;
+
 const REPORT_SYSTEM_PROMPT =
   "Bạn là trợ lý soạn báo cáo cho Đoàn TNCS Hồ Chí Minh. Viết bản nháp báo cáo tiếng Việt trang trọng theo văn phong hành chính Đoàn, 4–6 đoạn, các đoạn cách nhau bằng 1 dòng trống, dựa trên số liệu được cung cấp. Không bịa số liệu ngoài số liệu đã cho; phần kiến nghị giữ tinh thần đề xuất thiết thực.";
 
@@ -36,10 +40,23 @@ async function draftWithAI(ctx: ReportDraftContext): Promise<{ content: string; 
 
 /** POST /api/ai/nhap-bao-cao — { ctx } → { ok, content, model } */
 export async function POST(request: Request) {
+  // Chỉ cán bộ (trang /quan-tri/bao-cao) + giới hạn lượt theo tài khoản
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "ai-nhap-bao-cao",
+    windowMs: 10 * 60_000,
+    perAccount: 20,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
+
   const payload = (await request.json().catch(() => null)) as { ctx?: ReportDraftContext } | null;
   const ctx = payload?.ctx;
   if (!ctx || !ctx.orgUnitName) {
     return NextResponse.json({ ok: false, error: "Thiếu ngữ cảnh báo cáo (ctx)." }, { status: 400 });
+  }
+  if (JSON.stringify(ctx).length > MAX_CTX_CHARS) {
+    return NextResponse.json({ ok: false, error: "Số liệu gửi lên quá lớn để tạo nháp." }, { status: 413 });
   }
   try {
     const { content, model } = await draftWithAI(ctx);

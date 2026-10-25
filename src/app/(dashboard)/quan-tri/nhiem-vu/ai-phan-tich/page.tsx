@@ -110,6 +110,10 @@ export default function AiPhanTichPage() {
       const data = (await res.json().catch(() => null)) as
         | { ok?: boolean; drafts?: DirectiveDraft[]; model?: string; error?: string }
         | null;
+      if ([401, 403, 413, 429].includes(res.status) && data?.error) {
+        // Bị máy chủ từ chối (chưa đăng nhập / quá lượt / quá dài) → báo lý do, vẫn chạy parser cục bộ
+        toast(`${data.error} Tạm dùng bộ phân tích cục bộ.`, "warning");
+      }
       if (!res.ok || !data?.ok || !data.drafts) throw new Error(data?.error ?? `HTTP ${res.status}`);
       parsed = data.drafts;
       if (data.model) setModel(data.model);

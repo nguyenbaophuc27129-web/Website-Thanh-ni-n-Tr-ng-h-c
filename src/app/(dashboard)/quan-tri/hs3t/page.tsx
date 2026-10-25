@@ -128,13 +128,19 @@ export default function Hs3tAdminPage() {
     if (!profile) return;
     setAiLoadingId(profileId);
     const achs = achievementsOf(profileId);
+    /** Lý do máy chủ từ chối (chưa đăng nhập / quá lượt) — hiện thay câu "không phản hồi" */
+    let refused: string | null = null;
     try {
       const res = await fetch("/api/ai/xet-hs3t", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile, achievements: achs }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const err = (await res.json().catch(() => null)) as { error?: string } | null;
+        if ([401, 403, 413, 429].includes(res.status) && err?.error) refused = err.error;
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = (await res.json()) as { suggestedLevel?: "XA" | "TINH" | "TW" | null; reasoning?: string; missing?: string[]; model?: string };
       setAiResult({
         profileId,
@@ -148,7 +154,9 @@ export default function Hs3tAdminPage() {
       setAiResult({
         profileId,
         suggestedLevel: fallback.suggestedLevel,
-        reasoning: "Máy chủ AI không phản hồi — dùng bộ quy tắc ngưỡng cục bộ.",
+        reasoning: refused
+          ? `${refused} Tạm dùng bộ quy tắc ngưỡng cục bộ.`
+          : "Máy chủ AI không phản hồi — dùng bộ quy tắc ngưỡng cục bộ.",
         missing: fallback.missing,
         model: "tnth-hs3t-rule (cục bộ)",
       });

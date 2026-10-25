@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ruleEvaluateHs3t } from "@/lib/hs3t-evaluate";
 import { callAI } from "@/lib/ai-client";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 import type { Hs3tAchievement, Hs3tProfile } from "@/types";
 
 export const runtime = "nodejs";
@@ -13,6 +14,10 @@ export const runtime = "nodejs";
    Chưa có key / AI lỗi → route TỰ fallback ruleEvaluateHs3t trên máy chủ
    nên demo không bao giờ gãy.
    ════════════════════════════════════════════════════════════════════ */
+
+/** Trần số thành tích / độ dài payload gửi AI */
+const MAX_ACHIEVEMENTS = 200;
+const MAX_PAYLOAD_CHARS = 40_000;
 
 const SYSTEM_PROMPT =
   "Bạn là cố vấn xét danh hiệu 'Học sinh 3 tốt' (Đạo đức tốt - Học tập tốt - Thể lực tốt) theo Quy chế QĐ 317-QĐ/TWĐTN-TNTH (điều chỉnh TB 630 ngày 10/10/2025) của Cổng Thanh niên Trường học. " +
@@ -71,11 +76,24 @@ async function evaluateWithAI(
  * → { ok, suggestedLevel, reasoning, missing, model }
  */
 export async function POST(request: Request) {
+  // Chỉ cán bộ (trang /quan-tri/hs3t) + giới hạn lượt theo tài khoản
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "ai-xet-hs3t",
+    windowMs: 10 * 60_000,
+    perAccount: 60,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
+
   const payload = (await request.json().catch(() => null)) as
     | { profile?: Hs3tProfile; achievements?: Hs3tAchievement[] }
     | null;
   if (!payload?.profile || !Array.isArray(payload.achievements)) {
     return NextResponse.json({ ok: false, error: "Thiếu hồ sơ hoặc danh sách thành tích." }, { status: 400 });
+  }
+  if (payload.achievements.length > MAX_ACHIEVEMENTS || JSON.stringify(payload).length > MAX_PAYLOAD_CHARS) {
+    return NextResponse.json({ ok: false, error: "Hồ sơ gửi lên quá lớn để xét bằng AI." }, { status: 413 });
   }
   const profile = payload.profile;
   const achievements = payload.achievements;

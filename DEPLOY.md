@@ -124,6 +124,15 @@ Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<
 - Dung lượng tối đa: ảnh 10MB, video diễn đàn 15MB, văn bản/tài nguyên 25MB (Caddy giới hạn thân request 30MB).
 - `POST /api/store` gặp chuỗi base64 trong cột tệp (tab cũ chưa tải lại) sẽ tự chuyển thành tệp trên đĩa.
 - Chuyển dữ liệu cũ: `scripts/migrate-media.mts` (hướng dẫn chạy ở đầu file).
+- **Dọn tệp mồ côi** (tệp/dòng `media_files` không còn cột nào trong DB nhắc tới, cũ hơn 7 ngày): `scripts/clean-orphan-media.mts`. Chạy tay, chưa đặt lịch. `DATABASE_URL` phải trỏ đúng DB đang dùng thư mục `/srv/tnth/uploads` (hiện là `tnth_dev`); nên sao lưu DB + thư mục tệp trước khi xoá.
+  ```bash
+  docker build --target builder -t tnth-builder:media .
+  # chạy thử: chỉ in danh sách, không xoá
+  docker run --rm --network tnth_internal --env-file .env.production \
+    -v /srv/tnth/uploads:/app/uploads -v "$PWD/scripts:/app/scripts:ro" \
+    tnth-builder:media node scripts/clean-orphan-media.mts
+  # xoá thật: thêm --delete (tự dừng nếu sắp xoá > 50% tệp/dòng; chắc chắn đúng thì thêm --force)
+  ```
 - Chạy `next dev` trên máy lập trình viên: tệp ghi vào `./uploads` và được phục vụ qua `src/app/uploads/[...path]/route.ts`.
 - **Chuyển máy:** chép cả thư mục `/srv/tnth/uploads` (giữ quyền `1000:1000`), không chỉ database.
 
@@ -133,7 +142,19 @@ Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<
 - `fail2ban`: khoá IP 1 giờ sau 5 lần đăng nhập SSH sai trong 10 phút.
 - Cập nhật bảo mật Ubuntu tự động (`unattended-upgrades`).
 - Container `web`: không phải root, hệ thống file chỉ đọc, bỏ toàn bộ capability.
-- `/api/fetch-article`: từ chối địa chỉ nội bộ, localhost và địa chỉ metadata của cloud.
+- `/api/fetch-article`: chỉ tài khoản cán bộ (khác `DOAN_VIEN`), 30 lượt / 10 phút / tài khoản; từ chối địa chỉ nội bộ, localhost và địa chỉ metadata của cloud.
+- `/api/ai/*` (chốt chung `src/lib/server/require-session.ts`, đếm trong bộ nhớ theo tài khoản — khởi động lại web là về 0):
+
+  | Route | Ai được gọi | Giới hạn / 10 phút |
+  |---|---|---|
+  | `chat` (widget Trợ lý ảo) | cả khách | 20 / tài khoản; **mọi khách dùng chung 30** (không có IP thật qua OneShield); câu hỏi ≤ 500 ký tự |
+  | `kiem-duyet` | đã đăng nhập | đoàn viên 30, cán bộ 120 / tài khoản |
+  | `nhap-bao-cao` | cán bộ | 20 / tài khoản; ngữ cảnh ≤ 20.000 ký tự |
+  | `phan-tich-cong-van` | cán bộ | 20 / tài khoản; công văn ≤ 30.000 ký tự |
+  | `xet-hs3t` | cán bộ | 60 / tài khoản; ≤ 200 thành tích |
+  | Tất cả route AI cộng lại | — | 300 lượt toàn hệ thống (giữ hạn mức key AI) |
+
+  Bị chặn trả 401 (chưa đăng nhập), 403 (không phải cán bộ), 429 (quá lượt, kèm `Retry-After`); giao diện báo tiếng Việt và tự dùng bộ quy tắc cục bộ.
 - Log container giới hạn 10 MB × 5 file.
 
 Chưa làm, nên cân nhắc:

@@ -22,7 +22,7 @@ const SCOPE_LABEL: Record<string, string> = {
   SELECTED: "Chọn đơn vị cụ thể",
 };
 
-const MAX_DOC_BYTES = 4 * 1024 * 1024;
+const MAX_DOC_BYTES = 25 * 1024 * 1024;
 
 /** Nút tải tệp đính kèm của văn bản (nếu có) */
 function DocFileButton({ doc, size = "sm" }: { doc: { fileName?: string; fileDataUrl?: string }; size?: "sm" | "xs" }) {
@@ -59,7 +59,7 @@ export default function VanBanAdminPage() {
   const pickDocFile = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > MAX_DOC_BYTES) {
-      toast("Tệp quá lớn — tối đa 4MB.", "warning");
+      toast("Tệp quá lớn — tối đa 25MB.", "warning");
       return;
     }
     setUploadingDoc(true);
@@ -312,7 +312,7 @@ export default function VanBanAdminPage() {
           <Field label="Tóm tắt nội dung">
             <Textarea value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} rows={3} />
           </Field>
-          <Field label="Tệp đính kèm" hint="PDF/DOC/XLS/ảnh — tối đa 4MB. Người nhận tải trực tiếp từ văn bản.">
+          <Field label="Tệp đính kèm" hint="PDF/DOC/XLS/ảnh — tối đa 25MB. Người nhận tải trực tiếp từ văn bản.">
             {form.fileDataUrl ? (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
                 <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-emerald-800">
