@@ -45,3 +45,6 @@ next-env.d.ts
 
 # bí mật trên máy chủ (mật khẩu DB)
 /secrets/
+
+# scratch temporary scripts
+/scratch/

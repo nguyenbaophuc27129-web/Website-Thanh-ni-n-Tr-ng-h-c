@@ -509,6 +509,8 @@ export const PUBLIC_READ_ENTITIES = new Set([
   "documents", "documentRecipients", "resources", "settings",
   "forumThreads", "forumComments", "orgDirectories", "volunteerProjects",
   "quizQuestions", "quizExams", "liveEvents", "hs3tUnitStandards",
+  "criteriaSets", "tasks", "taskMetrics", "taskAssignments", "assignmentTargets",
+  "taskResults", "assignmentReviews", "scores", "rankingSnapshots", "rankingEntries",
 ]);
 
 function coerceIn(value: unknown, type: FieldType): unknown {

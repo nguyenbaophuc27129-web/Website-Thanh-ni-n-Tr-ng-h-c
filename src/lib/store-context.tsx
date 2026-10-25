@@ -111,12 +111,7 @@ function buildRandomLiveEvent(unit: (typeof seedOrgUnits)[number]): Omit<LiveEve
 }
 
 /** Seed điểm danh cho activity 101/102 */
-const seedAttendances: Attendance[] = [
-  { id: 1, activityId: 101, memberName: "Nguyễn Thị Kim Ngân", memberClass: "12A1", orgUnitId: 31, checkedInAt: "2026-08-15T01:10:00Z" },
-  { id: 2, activityId: 101, memberName: "Trần Hoàng Phú", memberClass: "11A3", orgUnitId: 31, checkedInAt: "2026-08-15T01:12:00Z" },
-  { id: 3, activityId: 101, memberName: "Lê Thanh Trúc", memberClass: "10A2", orgUnitId: 31, checkedInAt: "2026-08-15T01:15:00Z" },
-  { id: 4, activityId: 102, memberName: "Phạm Mỹ Duyên", memberClass: "12A5", orgUnitId: 31, checkedInAt: "2026-08-02T02:30:00Z" },
-];
+const seedAttendances: Attendance[] = [];
 
 /* ---------------- v15 — Đồng bộ PostgreSQL qua /api/store ----------------
  * Mỗi entity ghi từ UI được đánh dấu "bẩn" rồi gộp nhóm gửi POST /api/store
@@ -399,6 +394,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshAccounts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/accounts");
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok && Array.isArray(data.accounts)) {
+        setAccounts(data.accounts as Account[]);
+      }
+    } catch {
+      // offline fallback
+    }
+  }, []);
+
   /* ============ v15 — Sync DB: boot merge + theo dõi ghi ============ */
 
   // Ảnh state mới nhất để sync đọc lúc bắn (tránh closure cũ)
@@ -526,7 +533,100 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Những mảng vừa được nạp từ DB — lần render đầu sau nạp không gửi ngược lại
   const hydratedRefs = useRef<Map<string, unknown[]>>(new Map());
 
-  // Tự động đồng bộ realtime mỗi 4 giây (chỉ khi không có thay đổi dở dang phía client)
+  // Nạp snapshot DB: cập nhật state đồng bộ 100% với PostgreSQL thực tế
+  const loadStoreSnapshot = useCallback(async () => {
+    try {
+      const r = await fetch("/api/store");
+      if (!r.ok) return;
+      const j = (await r.json()) as
+        | { ok?: boolean; scope?: string; data?: Record<string, unknown[]> }
+        | null;
+      if (!j?.ok || !j.data) return;
+      const d = j.data;
+      const raw = (k: string): unknown[] => (Array.isArray(d[k]) ? d[k] : []);
+      const has = (k: string) => Array.isArray(d[k]);
+      const hydrate = (k: string, rows: unknown[]) => hydratedRefs.current.set(k, rows);
+      let maxId = 900000;
+      const bumpMax = (rows: unknown[]) => {
+        for (const row of rows) {
+          const id = Number((row as { id?: unknown }).id);
+          if (Number.isFinite(id) && id > maxId) maxId = id;
+        }
+      };
+
+      if (has("activities")) {
+        const links = (raw("activityLinks") as Activity["links"]) ?? [];
+        const cats = (raw("activityCategories") as { activityId: number; categoryId: number }[]) ?? [];
+        const acts = (raw("activities") as Activity[]).map((a) => ({
+          ...a,
+          links: links.filter((l) => l.activityId === a.id),
+          categoryIds: cats.filter((c) => c.activityId === a.id).map((c) => c.categoryId),
+        }));
+        bumpMax(acts); hydrate("activities", acts); setActivities(acts);
+      }
+      if (has("criteriaSets")) { const rows = raw("criteriaSets") as CriteriaSet[]; bumpMax(rows); hydrate("criteriaSets", rows); setCriteriaSets(rows); }
+      if (has("tasks")) { const rows = raw("tasks") as Task[]; bumpMax(rows); hydrate("tasks", rows); setTasks(rows); }
+      if (has("taskMetrics")) { const rows = raw("taskMetrics") as TaskMetric[]; bumpMax(rows); hydrate("taskMetrics", rows); setTaskMetrics(rows); }
+      if (has("taskAssignments")) { const rows = raw("taskAssignments") as TaskAssignment[]; bumpMax(rows); hydrate("taskAssignments", rows); setTaskAssignments(rows); }
+      if (has("assignmentTargets")) { const rows = raw("assignmentTargets") as AssignmentTarget[]; bumpMax(rows); hydrate("assignmentTargets", rows); setAssignmentTargets(rows); }
+      if (has("taskResults")) { const rows = raw("taskResults") as TaskResult[]; bumpMax(rows); hydrate("taskResults", rows); setTaskResults(rows); }
+      if (has("assignmentReviews")) { const rows = raw("assignmentReviews") as AssignmentReview[]; bumpMax(rows); hydrate("assignmentReviews", rows); setAssignmentReviews(rows); }
+      if (has("scores")) { const rows = raw("scores") as Score[]; bumpMax(rows); hydrate("scores", rows); setScores(rows); }
+      if (has("rankingSnapshots")) { const rows = raw("rankingSnapshots") as RankingSnapshot[]; bumpMax(rows); hydrate("rankingSnapshots", rows); setRankingSnapshots(rows); }
+      if (has("rankingEntries")) { const rows = raw("rankingEntries") as RankingEntry[]; bumpMax(rows); hydrate("rankingEntries", rows); setRankingEntries(rows); }
+      if (has("publishedPosts")) { const rows = raw("publishedPosts") as PublishedPost[]; bumpMax(rows); hydrate("publishedPosts", rows); setPublishedPosts(rows); }
+      if (has("reports")) {
+        const rows = (raw("reports") as Report[]).map((rp) => ({ ...rp, exports: [] as Report["exports"] }));
+        bumpMax(rows); hydrate("reports", rows); setReports(rows);
+      }
+      if (has("documents")) { const rows = raw("documents") as DocumentRecord[]; bumpMax(rows); hydrate("documents", rows); setDocuments(rows); }
+      if (has("documentRecipients")) { const rows = raw("documentRecipients") as DocumentRecipient[]; hydrate("documentRecipients", rows); setDocumentRecipients(rows); }
+      if (has("notifications")) { const rows = raw("notifications") as Notification[]; hydrate("notifications", rows); setNotifications(rows); }
+      if (has("feedbacks")) { const rows = raw("feedbacks") as Feedback[]; bumpMax(rows); hydrate("feedbacks", rows); setFeedbacks(rows); }
+      if (has("feedbackMessages")) { const rows = raw("feedbackMessages") as FeedbackMessage[]; bumpMax(rows); hydrate("feedbackMessages", rows); setFeedbackMessages(rows); }
+      if (has("emailLogs")) { const rows = raw("emailLogs") as EmailLog[]; bumpMax(rows); hydrate("emailLogs", rows); setEmailLogs(rows); }
+      if (has("attendances")) { const rows = raw("attendances") as Attendance[]; bumpMax(rows); hydrate("attendances", rows); setAttendances(rows); }
+      if (has("liveEvents")) { const rows = raw("liveEvents") as LiveEvent[]; bumpMax(rows); hydrate("liveEvents", rows); setLiveEvents(rows); }
+      if (has("resources")) { const rows = raw("resources") as Resource[]; bumpMax(rows); hydrate("resources", rows); setResources(rows); }
+      if (has("settings")) { hydrate("settings", raw("settings")); setSettings(raw("settings") as SystemSetting[]); }
+      if (has("forumThreads")) { const rows = raw("forumThreads") as ForumThread[]; bumpMax(rows); hydrate("forumThreads", rows); setForumThreads(rows); }
+      if (has("forumComments")) { const rows = raw("forumComments") as ForumComment[]; bumpMax(rows); hydrate("forumComments", rows); setForumComments(rows); }
+      if (has("hs3tProfiles")) { const rows = raw("hs3tProfiles") as Hs3tProfile[]; bumpMax(rows); hydrate("hs3tProfiles", rows); setHs3tProfiles(rows); }
+      if (has("hs3tAchievements")) { const rows = raw("hs3tAchievements") as Hs3tAchievement[]; bumpMax(rows); hydrate("hs3tAchievements", rows); setHs3tAchievements(rows); }
+      if (has("hs3tUnitStandards")) { const rows = raw("hs3tUnitStandards") as Hs3tUnitStandard[]; bumpMax(rows); hydrate("hs3tUnitStandards", rows); setHs3tUnitStandards(rows); }
+      if (has("quizQuestions")) { const rows = raw("quizQuestions") as QuizQuestion[]; bumpMax(rows); hydrate("quizQuestions", rows); setQuizQuestions(rows); }
+      if (has("quizExams")) { const rows = raw("quizExams") as QuizExam[]; bumpMax(rows); hydrate("quizExams", rows); setQuizExams(rows); }
+      if (has("quizAttempts")) { const rows = raw("quizAttempts") as QuizAttempt[]; bumpMax(rows); hydrate("quizAttempts", rows); setQuizAttempts(rows); }
+      if (has("volunteerProjects")) {
+        const rows = raw("volunteerProjects").map((p0) => {
+          const { reportFileName, reportFileData, ...p } = p0 as VolunteerProject & {
+            reportFileName?: string | null; reportFileData?: string | null;
+          };
+          return {
+            ...p,
+            reportFile: reportFileName ? { name: reportFileName, dataUrl: reportFileData ?? undefined } : undefined,
+          } as VolunteerProject;
+        });
+        bumpMax(rows); hydrate("volunteerProjects", rows); setVolunteerProjects(rows);
+      }
+      if (has("orgDirectories")) { const rows = raw("orgDirectories") as OrgDirectory[]; bumpMax(rows); hydrate("orgDirectories", rows); setOrgDirectories(rows); }
+      if (has("memberContributions")) { const rows = raw("memberContributions") as MemberContribution[]; bumpMax(rows); hydrate("memberContributions", rows); setMemberContributions(rows); }
+      if (has("contributions")) { const rows = raw("contributions") as ContributionLog[]; bumpMax(rows); hydrate("contributions", rows); setContributions(rows); }
+
+      // Chống đụng id: bộ đếm nextId() phải vượt id lớn nhất vừa nạp từ DB
+      if (maxId > uid) uid = maxId;
+    } catch {
+      /* DB chưa nối được — chế độ offline */
+    }
+  }, []);
+
+  // Nạp dữ liệu ngay khi ứng dụng khởi động và mỗi khi phiên đăng nhập thay đổi
+  useEffect(() => {
+    void loadStoreSnapshot();
+    void refreshAccounts();
+  }, [session?.accountId, session?.role, loadStoreSnapshot, refreshAccounts]);
+
+  // Tự động đồng bộ realtime mỗi 4 giây từ PostgreSQL thực tế
   useEffect(() => {
     const timer = setInterval(async () => {
       if (dirtyRef.current.size > 0) return;
@@ -535,199 +635,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!r.ok) return;
         const j = await r.json().catch(() => null);
         if (!j?.ok || !j.data) return;
-        if (Array.isArray(j.data.resources)) {
-          setResources(j.data.resources as Resource[]);
-        }
-        if (Array.isArray(j.data.publishedPosts)) {
-          setPublishedPosts(j.data.publishedPosts as PublishedPost[]);
-        }
-        if (Array.isArray(j.data.documents)) {
-          setDocuments(j.data.documents as DocumentRecord[]);
-        }
-        if (Array.isArray(j.data.liveEvents)) {
-          setLiveEvents(j.data.liveEvents as LiveEvent[]);
-        }
-        if (Array.isArray(j.data.activities)) {
-          setActivities(j.data.activities as Activity[]);
-        }
-        if (Array.isArray(j.data.taskAssignments)) {
-          setTaskAssignments(j.data.taskAssignments as TaskAssignment[]);
-        }
-      } catch {}
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Nạp snapshot DB lúc khởi động: DB có dữ liệu thì DB thắng, bảng nào trống mà
-  // máy có dữ liệu mẫu thì đẩy mẫu lên DB (chỉ khi đã đăng nhập — scope "full")
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/store");
-        if (!r.ok) return;
-        const j = (await r.json()) as
-          | { ok?: boolean; scope?: string; data?: Record<string, unknown[]> }
-          | null;
-        if (cancelled || !j?.ok || !j.data) return;
         const d = j.data;
-        const raw = (k: string): unknown[] => (Array.isArray(d[k]) ? d[k] : []);
-        const has = (k: string) => raw(k).length > 0;
-        const hydrate = (k: string, rows: unknown[]) => hydratedRefs.current.set(k, rows);
-        let maxId = 900000;
-        const bumpMax = (rows: unknown[]) => {
-          for (const row of rows) {
-            const id = Number((row as { id?: unknown }).id);
-            if (Number.isFinite(id) && id > maxId) maxId = id;
-          }
-        };
-
-        if (has("activities")) {
-          const links = raw("activityLinks") as Activity["links"];
-          const cats = raw("activityCategories") as { activityId: number; categoryId: number }[];
-          const acts = (raw("activities") as Activity[]).map((a) => ({
+        if (Array.isArray(d.resources)) setResources(d.resources as Resource[]);
+        if (Array.isArray(d.publishedPosts)) setPublishedPosts(d.publishedPosts as PublishedPost[]);
+        if (Array.isArray(d.documents)) setDocuments(d.documents as DocumentRecord[]);
+        if (Array.isArray(d.liveEvents)) setLiveEvents(d.liveEvents as LiveEvent[]);
+        if (Array.isArray(d.activities)) {
+          const links = (Array.isArray(d.activityLinks) ? d.activityLinks : []) as Activity["links"];
+          const cats = (Array.isArray(d.activityCategories) ? d.activityCategories : []) as { activityId: number; categoryId: number }[];
+          setActivities((d.activities as Activity[]).map((a) => ({
             ...a,
             links: links.filter((l) => l.activityId === a.id),
             categoryIds: cats.filter((c) => c.activityId === a.id).map((c) => c.categoryId),
-          }));
-          bumpMax(acts); hydrate("activities", acts); setActivities(acts);
+          })));
         }
-        if (has("criteriaSets")) { const rows = raw("criteriaSets"); bumpMax(rows); hydrate("criteriaSets", rows); setCriteriaSets(rows as CriteriaSet[]); }
-        if (has("tasks")) { const rows = raw("tasks"); bumpMax(rows); hydrate("tasks", rows); setTasks(rows as Task[]); }
-        if (has("taskMetrics")) { const rows = raw("taskMetrics"); bumpMax(rows); hydrate("taskMetrics", rows); setTaskMetrics(rows as TaskMetric[]); }
-        if (has("taskAssignments")) { const rows = raw("taskAssignments"); bumpMax(rows); hydrate("taskAssignments", rows); setTaskAssignments(rows as TaskAssignment[]); }
-        if (has("assignmentTargets")) { const rows = raw("assignmentTargets"); bumpMax(rows); hydrate("assignmentTargets", rows); setAssignmentTargets(rows as AssignmentTarget[]); }
-        if (has("taskResults")) { const rows = raw("taskResults"); bumpMax(rows); hydrate("taskResults", rows); setTaskResults(rows as TaskResult[]); }
-        if (has("assignmentReviews")) { const rows = raw("assignmentReviews"); bumpMax(rows); hydrate("assignmentReviews", rows); setAssignmentReviews(rows as AssignmentReview[]); }
-        if (has("scores")) { const rows = raw("scores"); bumpMax(rows); hydrate("scores", rows); setScores(rows as Score[]); }
-        if (has("rankingSnapshots")) { const rows = raw("rankingSnapshots"); bumpMax(rows); hydrate("rankingSnapshots", rows); setRankingSnapshots(rows as RankingSnapshot[]); }
-        if (has("rankingEntries")) { const rows = raw("rankingEntries"); bumpMax(rows); hydrate("rankingEntries", rows); setRankingEntries(rows as RankingEntry[]); }
-        if (has("publishedPosts")) { const rows = raw("publishedPosts"); bumpMax(rows); hydrate("publishedPosts", rows); setPublishedPosts(rows as PublishedPost[]); }
-        if (has("reports")) {
-          // report_exports chưa đồng bộ — mặc định danh sách xuất trống
-          const rows = (raw("reports") as Report[]).map((rp) => ({ ...rp, exports: [] as Report["exports"] }));
-          bumpMax(rows); hydrate("reports", rows); setReports(rows);
-        }
-        if (has("documents")) { const rows = raw("documents"); bumpMax(rows); hydrate("documents", rows); setDocuments(rows as DocumentRecord[]); }
-        if (has("documentRecipients")) { const rows = raw("documentRecipients"); hydrate("documentRecipients", rows); setDocumentRecipients(rows as DocumentRecipient[]); }
-        if (has("notifications")) { const rows = raw("notifications"); hydrate("notifications", rows); setNotifications(rows as Notification[]); }
-        if (has("feedbacks")) { const rows = raw("feedbacks"); bumpMax(rows); hydrate("feedbacks", rows); setFeedbacks(rows as Feedback[]); }
-        if (has("feedbackMessages")) { const rows = raw("feedbackMessages"); bumpMax(rows); hydrate("feedbackMessages", rows); setFeedbackMessages(rows as FeedbackMessage[]); }
-        if (has("emailLogs")) { const rows = raw("emailLogs"); bumpMax(rows); hydrate("emailLogs", rows); setEmailLogs(rows as EmailLog[]); }
-        if (has("attendances")) { const rows = raw("attendances"); bumpMax(rows); hydrate("attendances", rows); setAttendances(rows as Attendance[]); }
-        if (has("liveEvents")) { const rows = raw("liveEvents"); bumpMax(rows); hydrate("liveEvents", rows); setLiveEvents(rows as LiveEvent[]); }
-        if (has("resources")) { const rows = raw("resources"); bumpMax(rows); hydrate("resources", rows); setResources(rows as Resource[]); }
-        if (has("settings")) { hydrate("settings", raw("settings")); setSettings(raw("settings") as SystemSetting[]); }
-        if (has("forumThreads")) { const rows = raw("forumThreads"); bumpMax(rows); hydrate("forumThreads", rows); setForumThreads(rows as ForumThread[]); }
-        if (has("forumComments")) { const rows = raw("forumComments"); bumpMax(rows); hydrate("forumComments", rows); setForumComments(rows as ForumComment[]); }
-        if (has("hs3tProfiles")) { const rows = raw("hs3tProfiles"); bumpMax(rows); hydrate("hs3tProfiles", rows); setHs3tProfiles(rows as Hs3tProfile[]); }
-        if (has("hs3tAchievements")) { const rows = raw("hs3tAchievements"); bumpMax(rows); hydrate("hs3tAchievements", rows); setHs3tAchievements(rows as Hs3tAchievement[]); }
-        if (has("hs3tUnitStandards")) { const rows = raw("hs3tUnitStandards"); bumpMax(rows); hydrate("hs3tUnitStandards", rows); setHs3tUnitStandards(rows as Hs3tUnitStandard[]); }
-        if (has("quizQuestions")) { const rows = raw("quizQuestions"); bumpMax(rows); hydrate("quizQuestions", rows); setQuizQuestions(rows as QuizQuestion[]); }
-        if (has("quizExams")) { const rows = raw("quizExams"); bumpMax(rows); hydrate("quizExams", rows); setQuizExams(rows as QuizExam[]); }
-        if (has("quizAttempts")) { const rows = raw("quizAttempts"); bumpMax(rows); hydrate("quizAttempts", rows); setQuizAttempts(rows as QuizAttempt[]); }
-        if (has("volunteerProjects")) {
-          const rows = raw("volunteerProjects").map((p0) => {
-            const { reportFileName, reportFileData, ...p } = p0 as VolunteerProject & {
-              reportFileName?: string | null; reportFileData?: string | null;
-            };
+        if (Array.isArray(d.taskAssignments)) setTaskAssignments(d.taskAssignments as TaskAssignment[]);
+        if (Array.isArray(d.assignmentTargets)) setAssignmentTargets(d.assignmentTargets as AssignmentTarget[]);
+        if (Array.isArray(d.taskResults)) setTaskResults(d.taskResults as TaskResult[]);
+        if (Array.isArray(d.assignmentReviews)) setAssignmentReviews(d.assignmentReviews as AssignmentReview[]);
+        if (Array.isArray(d.scores)) setScores(d.scores as Score[]);
+        if (Array.isArray(d.feedbacks)) setFeedbacks(d.feedbacks as Feedback[]);
+        if (Array.isArray(d.feedbackMessages)) setFeedbackMessages(d.feedbackMessages as FeedbackMessage[]);
+        if (Array.isArray(d.notifications)) setNotifications(d.notifications as Notification[]);
+        if (Array.isArray(d.quizQuestions)) setQuizQuestions(d.quizQuestions as QuizQuestion[]);
+        if (Array.isArray(d.quizExams)) setQuizExams(d.quizExams as QuizExam[]);
+        if (Array.isArray(d.volunteerProjects)) {
+          setVolunteerProjects((d.volunteerProjects as any[]).map((p0) => {
+            const { reportFileName, reportFileData, ...p } = p0;
             return {
               ...p,
               reportFile: reportFileName ? { name: reportFileName, dataUrl: reportFileData ?? undefined } : undefined,
-            } as VolunteerProject;
-          });
-          bumpMax(rows); hydrate("volunteerProjects", rows); setVolunteerProjects(rows);
+            };
+          }));
         }
-        if (has("orgDirectories")) { const rows = raw("orgDirectories"); bumpMax(rows); hydrate("orgDirectories", rows); setOrgDirectories(rows as OrgDirectory[]); }
-        if (has("memberContributions")) { const rows = raw("memberContributions"); bumpMax(rows); hydrate("memberContributions", rows); setMemberContributions(rows as MemberContribution[]); }
-        if (has("contributions")) { const rows = raw("contributions"); bumpMax(rows); hydrate("contributions", rows); setContributions(rows as ContributionLog[]); }
-
-        // Chống đụng id: bộ đếm nextId() phải vượt id lớn nhất vừa nạp từ DB
-        if (maxId > uid) uid = maxId;
-
-        // Bảng DB còn trống mà máy có dữ liệu gốc → đẩy dữ liệu mẫu lên DB lần đầu
-        if (j.scope === "full") {
-          const seedPush: string[] = [];
-          const pushIfEmpty = (k: string, rows: unknown[]) => {
-            if (!has(k) && rows.length > 0) seedPush.push(k);
-          };
-          pushIfEmpty("criteriaSets", criteriaSets);
-          pushIfEmpty("tasks", tasks);
-          pushIfEmpty("taskMetrics", taskMetrics);
-          pushIfEmpty("taskAssignments", taskAssignments);
-          pushIfEmpty("assignmentTargets", assignmentTargets);
-          pushIfEmpty("taskResults", taskResults);
-          pushIfEmpty("assignmentReviews", assignmentReviews);
-          pushIfEmpty("scores", scores);
-          pushIfEmpty("activities", activities);
-          pushIfEmpty("publishedPosts", publishedPosts);
-          pushIfEmpty("attendances", attendances);
-          pushIfEmpty("reports", reports);
-          pushIfEmpty("documents", documents);
-          pushIfEmpty("notifications", notifications);
-          pushIfEmpty("feedbacks", feedbacks);
-          pushIfEmpty("feedbackMessages", feedbackMessages);
-          pushIfEmpty("liveEvents", liveEvents);
-          pushIfEmpty("resources", resources);
-          pushIfEmpty("settings", settings);
-          pushIfEmpty("forumThreads", forumThreads);
-          pushIfEmpty("forumComments", forumComments);
-          pushIfEmpty("hs3tProfiles", hs3tProfiles);
-          pushIfEmpty("hs3tAchievements", hs3tAchievements);
-          pushIfEmpty("hs3tUnitStandards", hs3tUnitStandards);
-          pushIfEmpty("quizQuestions", quizQuestions);
-          pushIfEmpty("quizExams", quizExams);
-          pushIfEmpty("volunteerProjects", volunteerProjects);
-          pushIfEmpty("orgDirectories", orgDirectories);
-          if (seedPush.length > 0) {
-            for (const e of seedPush) dirtyRef.current.add(e);
-            void flushSync();
-          }
-        }
-      } catch {
-        /* DB chưa nối được — chạy chế độ dữ liệu mẫu local như cũ */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Theo dõi thay đổi state → đánh dấu sync (bỏ qua lần chạy đầu và mảng vừa nạp từ DB)
-  const firstWatchRef = useRef(true);
-  const prevSnapRef = useRef<Record<string, unknown[]>>({});
-  useEffect(() => {
-    const snap = syncedStateRef.current;
-    if (firstWatchRef.current) {
-      firstWatchRef.current = false;
-      prevSnapRef.current = { ...snap };
-      return;
-    }
-    const changed: string[] = [];
-    for (const k of Object.keys(snap)) {
-      if (prevSnapRef.current[k] !== snap[k] && !hydratedRefs.current.delete(k)) changed.push(k);
-    }
-    prevSnapRef.current = { ...snap };
-    if (changed.length > 0) markDirty(changed);
-  });
-
-  // Ticker mô phỏng realtime — mặc định TẮT, đệ quy setTimeout 8–15s, cap 40 sự kiện
-  useEffect(() => {
-    if (!liveEnabled) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const spawn = () => {
-      const lvl34 = orgUnits.filter((u) => u.orgLevel === 3 || u.orgLevel === 4);
-      const unit = lvl34[Math.floor(Math.random() * lvl34.length)];
-      if (unit) {
-        const draft = buildRandomLiveEvent(unit);
-        setLiveEvents((prev) => [{ ...draft, orgUnitId: unit.id, id: nextId(), createdAt: nowISO() }, ...prev].slice(0, 40));
-      }
-      timer = setTimeout(spawn, 8000 + Math.random() * 7000);
-    };
-    timer = setTimeout(spawn, 4000);
-    return () => clearTimeout(timer);
-  }, [liveEnabled, orgUnits]);
+      } catch {}
+      void refreshAccounts();
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [refreshAccounts]);
 
   const orgById = useCallback((id: number) => orgUnits.find((u) => u.id === id), [orgUnits]);
   const orgName = useCallback((id: number) => orgUnits.find((u) => u.id === id)?.name ?? `Đơn vị #${id}`, [orgUnits]);
@@ -1469,18 +1414,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => prev.map((s) => (s.settingKey === key ? { ...s, value } : s)));
   }, []);
 
-  const refreshAccounts = useCallback(async () => {
-    try {
-      const res = await fetch("/api/accounts");
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.ok && Array.isArray(data.accounts)) {
-        setAccounts(data.accounts as Account[]);
-      }
-    } catch {
-      // offline fallback
-    }
-  }, []);
-
   const deleteAccount = useCallback(async (accountId: number) => {
     try {
       const r = await fetch(`/api/accounts/${accountId}`, { method: "DELETE" });
@@ -1492,10 +1425,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return { ok: false, error: "Lỗi kết nối cơ sở dữ liệu." };
     }
   }, []);
-
-  useEffect(() => {
-    void refreshAccounts();
-  }, [refreshAccounts]);
 
   const updateAccount = useCallback(
     async (
