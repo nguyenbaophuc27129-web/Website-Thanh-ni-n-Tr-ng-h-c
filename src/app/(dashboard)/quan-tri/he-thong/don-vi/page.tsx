@@ -15,8 +15,8 @@ import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select } from "@/components/ui/input";
 import { TableWrap, THead, Th, Tr, Td, EmptyRow } from "@/components/ui/table";
 import { effectivePermissions, hasPerm } from "@/lib/permissions";
-import { ORG_BLOCKS, ORG_BLOCK_LABEL, ORG_LEVEL_SHORT, schoolTypes } from "@/data/org-units";
-import type { OrgBlock, OrgUnit } from "@/types";
+import { ORG_LEVEL_SHORT, schoolTypes } from "@/data/org-units";
+import type { OrgUnit } from "@/types";
 
 const BLOCK_ICON: Record<string, typeof Building2> = {
   DAN_CU: Landmark,
@@ -39,7 +39,6 @@ interface UnitForm {
   parentId: string;
   name: string;
   shortName: string;
-  block: string; // "" = chưa phân khối
   adminUnitName: string;
   schoolTypeName: string;
   address: string;
@@ -47,12 +46,11 @@ interface UnitForm {
 }
 
 const EMPTY_FORM: UnitForm = {
-  parentId: "", name: "", shortName: "", block: "", adminUnitName: "", schoolTypeName: "", address: "", isActive: true,
+  parentId: "", name: "", shortName: "", adminUnitName: "", schoolTypeName: "", address: "", isActive: true,
 };
 
 interface ImportRow {
   name: string;
-  block: string;
   parentName: string;
   shortName: string;
   adminUnitName: string;
@@ -180,7 +178,6 @@ export default function DonViPage() {
       parentId: String(u.parentId ?? ""),
       name: u.name,
       shortName: u.shortName,
-      block: u.block ?? "",
       adminUnitName: u.adminUnitName ?? "",
       schoolTypeName: u.schoolTypeName ?? "",
       address: u.address ?? "",
@@ -210,9 +207,8 @@ export default function DonViPage() {
             id: editTarget.id,
             name: form.name,
             shortName: form.shortName,
-            block: form.block || null,
             adminUnitName: form.adminUnitName,
-            schoolTypeName: form.block === "TRUONG_HOC" ? form.schoolTypeName : null,
+            schoolTypeName: form.schoolTypeName || null,
             address: form.address,
             isActive: form.isActive,
           }),
@@ -230,9 +226,8 @@ export default function DonViPage() {
             name: form.name,
             shortName: form.shortName,
             orgLevel: Math.min((parent?.orgLevel ?? 1) + 1, 5),
-            block: form.block || null,
             adminUnitName: form.adminUnitName,
-            schoolTypeName: form.block === "TRUONG_HOC" ? form.schoolTypeName : undefined,
+            schoolTypeName: form.schoolTypeName || undefined,
             address: form.address,
           }),
         });
@@ -261,42 +256,46 @@ export default function DonViPage() {
       await refresh(true);
     } catch (err) {
       toast(err instanceof Error ? err.message : "Không xoá được đơn vị.", "warning");
-    } finally {
-      setConfirmDeleteId(null);
     }
   };
 
-  /* ============ Import Excel ============ */
+  /* ============ Excel import ============ */
 
-  const downloadTemplate = async () => {
-    try {
-      const res = await fetch("/api/org-units/template");
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "mau-nhap-don-vi.xlsx";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast("Không tải được file mẫu — thử lại sau.", "warning");
-    }
+  const downloadTemplate = () => {
+    window.open("/api/org-units/template", "_blank");
   };
 
-  const parseImportFile = async (file: File | undefined) => {
+  const parseImportFile = async (file?: File) => {
     if (!file) return;
     setParsing(true);
     try {
-      let rows: string[][] = [];
-      if (/\.(xlsx|xls)$/i.test(file.name)) {
-        const XLSX = await import("xlsx");
-        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: false }) as unknown as string[][];
+      const isCsv = file.name.endsWith(".csv") || file.name.endsWith(".txt");
+      let rows: (string | number | boolean | null)[][] = [];
+      if (!isCsv) {
+        const ExcelJS = (await import("exceljs")).default;
+        const wb = new ExcelJS.Workbook();
+        const buffer = await file.arrayBuffer();
+        await wb.xlsx.load(buffer);
+        const ws = wb.getWorksheet("DonVi") ?? wb.worksheets[0];
+        if (!ws) throw new Error("File Excel không có trang tính (worksheet).");
+        ws.eachRow({ includeEmpty: false }, (row) => {
+          const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+          rows.push(
+            values.map((v) => {
+              if (v == null) return "";
+              if (typeof v === "object" && "richText" in (v as { richText?: { text: string }[] })) {
+                return (v as { richText?: { text: string }[] }).richText?.map((x) => x.text).join("") ?? "";
+              }
+              if (typeof v === "object" && "result" in (v as { result?: string })) {
+                return String((v as { result?: string }).result ?? "");
+              }
+              return String(v);
+            })
+          );
+        });
       } else {
-        rows = (await file.text())
-          .replace(/^\uFEFF/, "")
+        const text = await file.text();
+        rows = text
           .split(/\r?\n/)
           .filter((line) => line.trim().length > 0)
           .map((line) => line.split(","));
@@ -307,7 +306,6 @@ export default function DonViPage() {
       const header = rows[headerIdx].map((c) => norm(String(c)));
       const col = (kw: string) => header.findIndex((h) => h.includes(kw));
       const iName = col("ten to chuc");
-      const iBlock = col("loai to chuc");
       const iParent = col("cap tren") !== -1 ? col("cap tren") : col("don vi cap tren");
       const iShort = col("viet tat");
       const iAdmin = col("hanh chinh");
@@ -316,7 +314,6 @@ export default function DonViPage() {
 
       const unitByName = new Map<string, OrgUnit>();
       for (const u of units) unitByName.set(norm(u.name), u);
-      const blockByLabel = new Map<string, OrgBlock>(ORG_BLOCKS.map((b) => [norm(b.label), b.value]));
       const schoolNames = new Set(schoolTypes.map((s) => norm(s.name)));
 
       const parsed: ImportRow[] = [];
@@ -324,18 +321,14 @@ export default function DonViPage() {
         const get = (i: number) => (i >= 0 ? String(r[i] ?? "").trim() : "");
         const name = get(iName);
         if (!name) continue;
-        const blockLabel = get(iBlock);
         const parentName = get(iParent);
         const schoolTypeName = get(iSchool);
         let error: string | undefined;
-        const block = blockByLabel.get(norm(blockLabel));
-        if (!block) error = `Loại tổ chức "${blockLabel}" không hợp lệ — chọn trong sheet DanhMuc.`;
-        else if (!parentName) error = "Thiếu đơn vị cấp trên.";
+        if (!parentName) error = "Thiếu đơn vị cấp trên.";
         else if (!unitByName.has(norm(parentName))) error = `Đơn vị cấp trên "${parentName}" không tồn tại trên hệ thống.`;
         else if (schoolTypeName && !schoolNames.has(norm(schoolTypeName))) error = `Loại trường "${schoolTypeName}" không có trong danh mục.`;
         parsed.push({
           name,
-          block: blockLabel,
           parentName,
           shortName: get(iShort),
           adminUnitName: get(iAdmin),
@@ -377,7 +370,6 @@ export default function DonViPage() {
             name: row.name,
             shortName: row.shortName,
             orgLevel: Math.min(parent.orgLevel + 1, 5),
-            block: row.block,
             adminUnitName: row.adminUnitName,
             schoolTypeName: row.schoolTypeName || undefined,
             address: row.address,
@@ -518,7 +510,6 @@ export default function DonViPage() {
                     <tr>
                       <Th className="w-14">STT</Th>
                       <Th>Tên tổ chức</Th>
-                      <Th>Loại tổ chức</Th>
                       <Th>Cấp tổ chức</Th>
                       <Th className="text-right">Thao tác</Th>
                     </tr>
@@ -536,7 +527,6 @@ export default function DonViPage() {
                             {query ? ` · Cấp trên: ${parentName}` : ""}
                           </p>
                         </Td>
-                        <Td className="text-xs">{unit.block ? ORG_BLOCK_LABEL[unit.block] : "—"}</Td>
                         <Td>
                           <Badge tone={unit.orgLevel === 2 ? "blue" : unit.orgLevel === 3 ? "yellow" : unit.orgLevel >= 4 ? "green" : "purple"}>
                             {ORG_LEVEL_SHORT[unit.orgLevel] ?? `Cấp ${unit.orgLevel}`}
@@ -570,7 +560,7 @@ export default function DonViPage() {
                       </Tr>
                     ))}
                     {tableRows.length === 0 ? (
-                      <EmptyRow colSpan={5} message={query ? "Không tìm thấy đơn vị nào khớp từ khoá." : "Đơn vị này chưa có cấp dưới — bấm 'Thêm mới' để tạo."} />
+                      <EmptyRow colSpan={4} message={query ? "Không tìm thấy đơn vị nào khớp từ khoá." : "Đơn vị này chưa có cấp dưới — bấm 'Thêm mới' để tạo."} />
                     ) : null}
                   </tbody>
                 </table>
@@ -613,20 +603,15 @@ export default function DonViPage() {
         }
       >
         <div className="space-y-4">
-          <Field label="Tên tổ chức" required hint="Ví dụ: Đoàn Phường Tân Định · Đoàn Trường THPT Chuyên Tuyên Quang">
+          <Field label="Tên tổ chức" required hint="Ví dụ: Đoàn Trường THPT Chuyên Lào Cai · Đoàn Khối Doanh nghiệp">
             <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tên viết tắt">
-              <Input value={form.shortName} onChange={(e) => setForm((f) => ({ ...f, shortName: e.target.value }))} placeholder="VD: Đoàn P. Tân Định" />
+              <Input value={form.shortName} onChange={(e) => setForm((f) => ({ ...f, shortName: e.target.value }))} placeholder="VD: Đoàn THPT Chuyên" />
             </Field>
-            <Field label="Loại tổ chức" required hint={ORG_BLOCKS.find((b) => String(b.value) === form.block)?.hint ?? "Chọn 1 trong 4 khối tổ chức Đoàn"}>
-              <Select value={form.block} onChange={(e) => setForm((f) => ({ ...f, block: e.target.value }))}>
-                <option value="">— Chọn khối tổ chức —</option>
-                {ORG_BLOCKS.map((b) => (
-                  <option key={b.value} value={b.value}>{b.label}</option>
-                ))}
-              </Select>
+            <Field label="Đơn vị hành chính" hint="Ví dụ: Tỉnh Lào Cai · Phường Cốc Lếu">
+              <Input value={form.adminUnitName} onChange={(e) => setForm((f) => ({ ...f, adminUnitName: e.target.value }))} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -644,21 +629,14 @@ export default function DonViPage() {
               <Input value={ORG_LEVEL_SHORT[formLevel] ?? ""} disabled />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Đơn vị hành chính" hint="Ví dụ: Tỉnh Lào Cai · Phường Tân Định">
-              <Input value={form.adminUnitName} onChange={(e) => setForm((f) => ({ ...f, adminUnitName: e.target.value }))} />
-            </Field>
-            {form.block === "TRUONG_HOC" ? (
-              <Field label="Loại trường" hint="Chỉ áp dụng khi tổ chức là trường học cấp cơ sở">
-                <Select value={form.schoolTypeName} onChange={(e) => setForm((f) => ({ ...f, schoolTypeName: e.target.value }))}>
-                  <option value="">— Chọn loại trường —</option>
-                  {schoolTypes.map((s) => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
-                  ))}
-                </Select>
-              </Field>
-            ) : null}
-          </div>
+          <Field label="Loại trường (nếu là trường học)" hint="Chỉ áp dụng khi tổ chức thuộc trường học cấp cơ sở">
+            <Select value={form.schoolTypeName} onChange={(e) => setForm((f) => ({ ...f, schoolTypeName: e.target.value }))}>
+              <option value="">— Không thuộc trường học / Chọn loại trường —</option>
+              {schoolTypes.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Địa chỉ">
             <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
           </Field>
@@ -705,7 +683,7 @@ export default function DonViPage() {
       >
         <div className="space-y-4">
           <p className="text-sm text-stone-600">
-            File mẫu đã có <b>danh sách thả xuống</b> cho Loại tổ chức, Đơn vị cấp trên (cập nhật theo cây hiện tại) và Loại trường — chọn thay vì gõ tay.
+            File mẫu đã có <b>danh sách thả xuống</b> cho Đơn vị cấp trên (cập nhật theo cây hiện tại) và Loại trường — chọn thay vì gõ tay.
             Cấp tổ chức tự xếp theo đơn vị cấp trên.
           </p>
           <div className="flex flex-wrap items-center gap-2">
@@ -730,7 +708,6 @@ export default function DonViPage() {
                     <tr>
                       <Th className="w-10">#</Th>
                       <Th>Tên tổ chức</Th>
-                      <Th>Loại tổ chức</Th>
                       <Th>Đơn vị cấp trên</Th>
                       <Th>Kết quả đọc</Th>
                     </tr>
@@ -740,7 +717,6 @@ export default function DonViPage() {
                       <Tr key={i}>
                         <Td className="text-stone-400">{i + 1}</Td>
                         <Td className="font-medium">{r.name}</Td>
-                        <Td className="text-xs">{r.block}</Td>
                         <Td className="text-xs">{r.parentName}</Td>
                         <Td>
                           {r.error ? (
