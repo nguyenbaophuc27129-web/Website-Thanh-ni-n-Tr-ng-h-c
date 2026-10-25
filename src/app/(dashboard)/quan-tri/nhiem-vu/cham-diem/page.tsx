@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Calculator, Save, RotateCcw, Scale, ClipboardList, ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import type { Task } from "@/types";
+import { effectivePermissions, hasPerm } from "@/lib/permissions";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, Input, Field, Textarea } from "@/components/ui/input";
@@ -31,11 +32,33 @@ export default function ChamDiemPage() {
   const currentSet = store.criteriaSets.find((s) => s.id === setId);
 
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
-  const scorableUnits = useMemo(
-    () => store.orgUnits.filter((u) => scope.includes(u.id) && u.orgLevel >= 3 && u.isActive),
-    [store.orgUnits, scope]
-  );
-  const [unitId, setUnitId] = useState<string>(scorableUnits[0]?.id.toString() ?? "");
+  const isTW = session?.role === "QUAN_TRI_TW" || session?.orgUnitId === 1;
+  const isTinh = session?.role === "QUAN_TRI_TINH";
+
+  // Cấp trên chấm cấp dưới: TW chấm cho 34 Tỉnh/Thành đoàn + 5 Đoàn trực thuộc TW; Tỉnh/Thành chấm cho cấp dưới của mình
+  const scorableUnits = useMemo(() => {
+    if (!session) return [];
+    if (isTW) {
+      return store.orgUnits
+        .filter((u) => u.orgLevel === 2 && u.isActive)
+        .sort((a, b) => a.id - b.id);
+    }
+    if (isTinh) {
+      return store.orgUnits
+        .filter((u) => (u.parentId === session.orgUnitId || scope.includes(u.id)) && u.id !== session.orgUnitId && u.isActive)
+        .sort((a, b) => a.orgLevel - b.orgLevel || a.name.localeCompare(b.name, "vi"));
+    }
+    return store.orgUnits
+      .filter((u) => scope.includes(u.id) && u.id !== session.orgUnitId && u.isActive)
+      .sort((a, b) => a.orgLevel - b.orgLevel || a.name.localeCompare(b.name, "vi"));
+  }, [store.orgUnits, session, isTW, isTinh, scope]);
+
+  const [unitId, setUnitId] = useState<string>("");
+  useEffect(() => {
+    if (scorableUnits.length > 0 && (!unitId || !scorableUnits.some((u) => u.id.toString() === unitId))) {
+      setUnitId(scorableUnits[0].id.toString());
+    }
+  }, [scorableUnits, unitId]);
   const [points, setPoints] = useState<Record<number, string>>({});
   const [notes, setNotes] = useState<Record<number, string>>({});
 
@@ -103,7 +126,11 @@ export default function ChamDiemPage() {
     return sum + (v ?? 0);
   }, 0);
 
-  const canManage = session?.role === "QUAN_TRI_TW" || session?.role === "QUAN_TRI_TINH";
+  const perms = useMemo(
+    () => (session ? effectivePermissions({ role: session.role, contactPosition: session.contactPosition, grantedPerms: session.grantedPerms }) : []),
+    [session]
+  );
+  const canManage = isTW || isTinh || hasPerm(perms, "score.manage") || hasPerm(perms, "*");
 
   const resetDraft = () => {
     setPoints({});
@@ -181,11 +208,11 @@ export default function ChamDiemPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Đơn vị được chấm" className="min-w-72 flex-1">
+          <Field label={isTW ? "Tỉnh / Thành đoàn hoặc Đoàn trực thuộc được chấm" : "Đơn vị cấp dưới được chấm"} className="min-w-72 flex-1">
             <Select value={unitId} onChange={(e) => { setUnitId(e.target.value); resetDraft(); }}>
               {scorableUnits.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.name} (cấp {u.orgLevel})
+                  {u.name} ({u.orgLevel === 2 ? (u.block === "VU_TRANG" || u.block === "CO_QUAN" ? "Đoàn trực thuộc TW" : "Tỉnh / Thành đoàn") : `Cấp ${u.orgLevel}`})
                 </option>
               ))}
             </Select>
