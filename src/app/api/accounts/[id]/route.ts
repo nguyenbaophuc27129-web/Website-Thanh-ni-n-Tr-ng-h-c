@@ -10,6 +10,65 @@ const ALLOWED_ADMIN_ROLES: RoleCode[] = [
   "QUAN_TRI_CAP3",
 ];
 
+type Session = NonNullable<Awaited<ReturnType<typeof sessionFromToken>>>;
+interface TargetAccount {
+  id: number;
+  role_code: string;
+  org_unit_id: number;
+  username: string;
+}
+
+/** Kiểm tra phân cấp khi tác động lên tài khoản NGƯỜI KHÁC — dùng chung cho sửa (PATCH) và xoá (DELETE).
+ *  Trả về response lỗi nếu không đủ thẩm quyền, null nếu được phép. */
+async function checkManageScope(
+  session: Session,
+  target: TargetAccount,
+  verb: "THAY ĐỔI" | "XÓA",
+): Promise<NextResponse | null> {
+  if (!ALLOWED_ADMIN_ROLES.includes(session.role as RoleCode)) {
+    return NextResponse.json(
+      { ok: false, error: `BẠN KHÔNG CÓ QUYỀN ${verb} TÀI KHOẢN KHÁC` },
+      { status: 403 },
+    );
+  }
+  // Chỉ QUAN_TRI_TW mới được tác động lên tài khoản QUAN_TRI_TW khác
+  if (session.role === "QUAN_TRI_TW") return null;
+  if (target.role_code === "QUAN_TRI_TW") {
+    return NextResponse.json(
+      { ok: false, error: `BẠN KHÔNG CÓ QUYỀN ${verb} TÀI KHOẢN CẤP TRUNG ƯƠNG` },
+      { status: 403 },
+    );
+  }
+  // Cấp tỉnh và cấp 3 chỉ được tác động tài khoản thuộc phạm vi cây đơn vị của mình
+  if (session.role === "QUAN_TRI_CAP3" && target.role_code === "QUAN_TRI_TINH") {
+    return NextResponse.json(
+      { ok: false, error: `QUẢN TRỊ CẤP 3 KHÔNG THỂ ${verb} TÀI KHOẢN CẤP TỈNH` },
+      { status: 403 },
+    );
+  }
+  const callerUnits = await query<{ path: string }>(
+    "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
+    [session.orgUnitId],
+  );
+  const targetUnits = await query<{ path: string }>(
+    "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
+    [target.org_unit_id],
+  );
+  const callerPath = callerUnits[0]?.path;
+  const targetPath = targetUnits[0]?.path;
+  if (
+    !callerPath ||
+    !targetPath ||
+    (!targetPath.startsWith(callerPath) && target.org_unit_id !== session.orgUnitId)
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "TÀI KHOẢN NẰM NGOÀI PHẠM VI QUẢN LÝ CỦA BẠN" },
+      { status: 403 },
+    );
+  }
+  return null;
+}
+
 /** PATCH /api/accounts/[id] — đổi trạng thái (status) hoặc sửa thông tin
  *  (contactPerson/email/phone/contactPosition/chucDanh/className).
  *  Người dùng được quyền sửa thông tin tài khoản của chính mình. */
@@ -78,12 +137,7 @@ export async function PATCH(
       );
     }
 
-    const targetAccounts = await query<{
-      id: number;
-      role_code: string;
-      org_unit_id: number;
-      username: string;
-    }>(
+    const targetAccounts = await query<TargetAccount>(
       "SELECT id, role_code, org_unit_id, username FROM accounts WHERE id = $1 AND deleted_at IS NULL",
       [accountId],
     );
@@ -102,43 +156,8 @@ export async function PATCH(
 
     // Khi sửa tài khoản người khác: kiểm tra phân cấp quản lý
     if (!isSelf) {
-      // Chỉ QUAN_TRI_TW mới được chỉnh sửa tài khoản QUAN_TRI_TW khác
-      if (target.role_code === "QUAN_TRI_TW" && session.role !== "QUAN_TRI_TW") {
-        return NextResponse.json(
-          { ok: false, error: "BẠN KHÔNG CÓ QUYỀN THAY ĐỔI TÀI KHOẢN CẤP TRUNG ƯƠNG" },
-          { status: 403 },
-        );
-      }
-
-      // Cấp tỉnh và cấp 3 chỉ được chỉnh sửa tài khoản thuộc phạm vi cây đơn vị của mình
-      if (session.role !== "QUAN_TRI_TW") {
-        if (session.role === "QUAN_TRI_CAP3" && target.role_code === "QUAN_TRI_TINH") {
-          return NextResponse.json(
-            { ok: false, error: "QUẢN TRỊ CẤP 3 KHÔNG THỂ THAY ĐỔI TÀI KHOẢN CẤP TỈNH" },
-            { status: 403 },
-          );
-        }
-        const callerUnits = await query<{ path: string }>(
-          "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
-          [session.orgUnitId],
-        );
-        const targetUnits = await query<{ path: string }>(
-          "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
-          [target.org_unit_id],
-        );
-        const callerPath = callerUnits[0]?.path;
-        const targetPath = targetUnits[0]?.path;
-        if (
-          !callerPath ||
-          !targetPath ||
-          (!targetPath.startsWith(callerPath) && target.org_unit_id !== session.orgUnitId)
-        ) {
-          return NextResponse.json(
-            { ok: false, error: "TÀI KHOẢN NẰM NGOÀI PHẠM VI QUẢN LÝ CỦA BẠN" },
-            { status: 403 },
-          );
-        }
-      }
+      const denied = await checkManageScope(session, target, "THAY ĐỔI");
+      if (denied) return denied;
     }
 
     if (hasInfo) {
@@ -225,12 +244,7 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "KHÔNG THỂ XÓA TÀI KHOẢN QUẢN TRỊ TRUNG ƯƠNG TỐI CAO" }, { status: 403 });
     }
 
-    const targetAccounts = await query<{
-      id: number;
-      role_code: string;
-      org_unit_id: number;
-      username: string;
-    }>(
+    const targetAccounts = await query<TargetAccount>(
       "SELECT id, role_code, org_unit_id, username FROM accounts WHERE id = $1 AND deleted_at IS NULL",
       [accountId],
     );
@@ -239,36 +253,9 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "KHÔNG TÌM THẤY TÀI KHOẢN" }, { status: 404 });
     }
 
-    // Kiểm tra thẩm quyền đoàn cấp trên:
-    // Cấp TW (QUAN_TRI_TW) được xóa bất kỳ tài khoản nào khác
-    if (session.role !== "QUAN_TRI_TW") {
-      if (target.role_code === "QUAN_TRI_TW") {
-        return NextResponse.json({ ok: false, error: "BẠN KHÔNG CÓ QUYỀN XÓA TÀI KHOẢN CẤP TRUNG ƯƠNG" }, { status: 403 });
-      }
-      if (session.role === "QUAN_TRI_CAP3" && target.role_code === "QUAN_TRI_TINH") {
-        return NextResponse.json({ ok: false, error: "QUẢN TRỊ CẤP 3 KHÔNG THỂ XÓA TÀI KHOẢN CẤP TỈNH" }, { status: 403 });
-      }
-      const callerUnits = await query<{ path: string }>(
-        "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
-        [session.orgUnitId],
-      );
-      const targetUnits = await query<{ path: string }>(
-        "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
-        [target.org_unit_id],
-      );
-      const callerPath = callerUnits[0]?.path;
-      const targetPath = targetUnits[0]?.path;
-      if (
-        !callerPath ||
-        !targetPath ||
-        (!targetPath.startsWith(callerPath) && target.org_unit_id !== session.orgUnitId)
-      ) {
-        return NextResponse.json(
-          { ok: false, error: "TÀI KHOẢN NẰM NGOÀI PHẠM VI QUẢN LÝ CỦA BẠN" },
-          { status: 403 },
-        );
-      }
-    }
+    // Kiểm tra thẩm quyền đoàn cấp trên: phải là quản trị và tài khoản nằm trong phạm vi quản lý
+    const denied = await checkManageScope(session, target, "XÓA");
+    if (denied) return denied;
 
     // Xóa mềm: đánh dấu deleted_at = now() và thu hồi các phiên đăng nhập đang hoạt động
     await query(

@@ -6,8 +6,13 @@ import {
   loginAccount,
   sessionCookieOptions,
 } from "@/lib/server/auth";
+import { clearAttempts, recordAttempt, retryAfterSeconds } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
+
+/** Chặn dò mật khẩu mà không khoá tài khoản: sai 10 lần / 15 phút thì phải chờ hết cửa sổ */
+const MAX_FAILED_LOGINS = 10;
+const FAILED_LOGIN_WINDOW_MS = 15 * 60_000;
 
 /** POST /api/auth/login — { username, password } → { ok, session } + cookie phiên. */
 export async function POST(request: NextRequest) {
@@ -29,14 +34,24 @@ export async function POST(request: NextRequest) {
       { status: 503 },
     );
   }
+  const limitKey = `login:${username.toLowerCase()}`;
+  const wait = retryAfterSeconds(limitKey, MAX_FAILED_LOGINS);
+  if (wait > 0) {
+    return NextResponse.json(
+      { ok: false, error: `Nhập sai quá nhiều lần. Vui lòng thử lại sau ${Math.ceil(wait / 60)} phút.` },
+      { status: 429, headers: { "Retry-After": String(wait) } },
+    );
+  }
   try {
     const result = await loginAccount(username, password);
     if (!result.ok) {
+      if (result.status === 401) recordAttempt(limitKey, FAILED_LOGIN_WINDOW_MS);
       return NextResponse.json(
         { ok: false, error: result.error },
         { status: result.status },
       );
     }
+    clearAttempts(limitKey);
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
     const ipOk = ip && /^[0-9a-fA-F:.]+$/.test(ip) ? ip : null;
     const token = await createSession(
