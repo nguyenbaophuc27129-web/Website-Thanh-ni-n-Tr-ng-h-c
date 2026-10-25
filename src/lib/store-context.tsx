@@ -616,6 +616,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /** Setter state theo tên entity (setter của useState luôn ổn định) */
+  const entitySetters = useMemo<Record<string, (rows: never[]) => void>>(() => ({
+    criteriaSets: setCriteriaSets, tasks: setTasks, taskMetrics: setTaskMetrics,
+    taskAssignments: setTaskAssignments, assignmentTargets: setAssignmentTargets,
+    taskResults: setTaskResults, assignmentReviews: setAssignmentReviews, scores: setScores,
+    rankingSnapshots: setRankingSnapshots, rankingEntries: setRankingEntries,
+    activities: setActivities, publishedPosts: setPublishedPosts, attendances: setAttendances,
+    reports: setReports, documents: setDocuments, documentRecipients: setDocumentRecipients,
+    notifications: setNotifications, feedbacks: setFeedbacks, feedbackMessages: setFeedbackMessages,
+    emailLogs: setEmailLogs, liveEvents: setLiveEvents, resources: setResources, settings: setSettings,
+    forumThreads: setForumThreads, forumComments: setForumComments,
+    hs3tProfiles: setHs3tProfiles, hs3tAchievements: setHs3tAchievements, hs3tUnitStandards: setHs3tUnitStandards,
+    quizQuestions: setQuizQuestions, quizExams: setQuizExams, quizAttempts: setQuizAttempts,
+    volunteerProjects: setVolunteerProjects, orgDirectories: setOrgDirectories,
+    memberContributions: setMemberContributions, contributions: setContributions,
+  }), []);
+
+  /**
+   * Đưa dòng do API riêng (phản ánh, diễn đàn, thi…) vừa ghi DB trả về vào state,
+   * đánh dấu là đã khớp DB → bộ theo dõi KHÔNG gửi lại qua /api/store.
+   * `rows` phải đúng dạng state phía client (cùng dạng readEntity/toObj trả về).
+   */
+  const adoptServerRows = useCallback((entity: string, rows: Record<string, unknown>[]) => {
+    const setRows = entitySetters[entity];
+    if (!setRows || rows.length === 0) return;
+    const current = (syncedStateRef.current[entity] ?? []) as Record<string, unknown>[];
+    const incoming = new Map(rows.map((r) => [syncRowKey(entity, r), r]));
+    const replaced = current.map((r) => incoming.get(syncRowKey(entity, r)) ?? r);
+    const existing = new Set(current.map((r) => syncRowKey(entity, r)));
+    const next = [...rows.filter((r) => !existing.has(syncRowKey(entity, r))), ...replaced];
+    const base = (baseRef.current[entity] ??= new Map());
+    for (const r of rows) {
+      const key = syncRowKey(entity, r);
+      base.set(key, r);
+      pendingRef.current[entity]?.delete(key);
+    }
+    setRows(next as never[]);
+  }, [entitySetters]);
+
   // Nạp snapshot DB: cập nhật state đồng bộ 100% với PostgreSQL thực tế
   const loadStoreSnapshotRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const loadStoreSnapshot = useCallback(async (force = false) => {
@@ -661,23 +700,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             } as VolunteerProject;
           }),
       };
-      const setters: Record<string, (rows: never[]) => void> = {
-        criteriaSets: setCriteriaSets, tasks: setTasks, taskMetrics: setTaskMetrics,
-        taskAssignments: setTaskAssignments, assignmentTargets: setAssignmentTargets,
-        taskResults: setTaskResults, assignmentReviews: setAssignmentReviews, scores: setScores,
-        rankingSnapshots: setRankingSnapshots, rankingEntries: setRankingEntries,
-        activities: setActivities, publishedPosts: setPublishedPosts, attendances: setAttendances,
-        reports: setReports, documents: setDocuments, documentRecipients: setDocumentRecipients,
-        notifications: setNotifications, feedbacks: setFeedbacks, feedbackMessages: setFeedbackMessages,
-        emailLogs: setEmailLogs, liveEvents: setLiveEvents, resources: setResources, settings: setSettings,
-        forumThreads: setForumThreads, forumComments: setForumComments,
-        hs3tProfiles: setHs3tProfiles, hs3tAchievements: setHs3tAchievements, hs3tUnitStandards: setHs3tUnitStandards,
-        quizQuestions: setQuizQuestions, quizExams: setQuizExams, quizAttempts: setQuizAttempts,
-        volunteerProjects: setVolunteerProjects, orgDirectories: setOrgDirectories,
-        memberContributions: setMemberContributions, contributions: setContributions,
-      };
 
-      for (const [entity, setRows] of Object.entries(setters)) {
+      for (const [entity, setRows] of Object.entries(entitySetters)) {
         // Entity phiên này không được đọc → để trống (vd. vừa đăng xuất khỏi quyền quản trị)
         const incoming = Array.isArray(d[entity]) ? (fromDb[entity]?.() ?? raw(entity)) : [];
         const current = (syncedStateRef.current[entity] ?? []) as Record<string, unknown>[];
@@ -700,7 +724,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       /* DB chưa nối được — chế độ offline */
     }
-  }, []);
+  }, [entitySetters]);
   useEffect(() => {
     loadStoreSnapshotRef.current = loadStoreSnapshot;
   }, [loadStoreSnapshot]);
