@@ -67,13 +67,20 @@ export default function DonViPage() {
   const { toast } = useToast();
 
   const perms = useMemo(
-    () => (session ? effectivePermissions({ role: session.role, contactPosition: session.contactPosition }) : []),
+    () => (session ? effectivePermissions({ role: session.role, contactPosition: session.contactPosition, grantedPerms: session.grantedPerms }) : []),
     [session]
   );
-  const canManage = !!session && session.role === "QUAN_TRI_TW" && hasPerm(perms, "*");
+  const isTW = session?.role === "QUAN_TRI_TW";
+  const isTinh = session?.role === "QUAN_TRI_TINH";
+  const canManage = !!session && (isTW || isTinh || hasPerm(perms, "*") || hasPerm(perms, "system.orgtree.view"));
 
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [selectedId, setSelectedId] = useState<number>(1);
+  useEffect(() => {
+    if (isTinh && session?.orgUnitId) {
+      setSelectedId(session.orgUnitId);
+    }
+  }, [isTinh, session?.orgUnitId]);
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -156,9 +163,10 @@ export default function DonViPage() {
   }, [query, units, childrenOf, selectedId, store]);
 
   /* Đơn vị cha khả dụng cho form: mọi đơn vị đang hoạt động, sắp theo cấp */
+  const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
   const parentOptions = useMemo(
-    () => [...units].filter((u) => u.isActive).sort((a, b) => a.orgLevel - b.orgLevel || a.name.localeCompare(b.name, "vi")),
-    [units]
+    () => [...units].filter((u) => u.isActive && (isTW || scope.includes(u.id))).sort((a, b) => a.orgLevel - b.orgLevel || a.name.localeCompare(b.name, "vi")),
+    [units, isTW, scope]
   );
 
   const openCreate = () => {
@@ -434,13 +442,17 @@ export default function DonViPage() {
       <Card>
         <CardBody className="py-14 text-center">
           <ShieldCheck className="mx-auto h-8 w-8 text-stone-300" />
-          <p className="mt-3 text-sm font-medium text-stone-600">Chỉ Quản trị Trung ương (toàn quyền) mới quản lý cây đơn vị tổ chức.</p>
+          <p className="mt-3 text-sm font-medium text-stone-600">Bạn không có quyền quản lý cây đơn vị tổ chức.</p>
         </CardBody>
       </Card>
     );
   }
 
-  const roots = units.filter((u) => u.parentId === null);
+  const roots = useMemo(() => {
+    if (isTW) return units.filter((u) => u.parentId === null);
+    const provinceRoots = units.filter((u) => u.id === session?.orgUnitId);
+    return provinceRoots.length > 0 ? provinceRoots : units.filter((u) => u.parentId === null);
+  }, [units, isTW, session]);
 
   return (
     <div className="space-y-5">

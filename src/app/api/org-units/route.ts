@@ -8,14 +8,22 @@ export const runtime = "nodejs";
 
 const VALID_BLOCKS: OrgBlock[] = ["DAN_CU", "TRUONG_HOC", "CO_QUAN", "VU_TRANG"];
 
-/** Chỉ tài khoản TW có chức danh toàn quyền mới được sửa cây tổ chức */
-async function fullAdmin(request: NextRequest) {
+/** Tài khoản TW hoặc Tỉnh có quyền sửa cây tổ chức */
+async function getOrgAdminSession(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? await sessionFromToken(token) : null;
   if (!session) return null;
-  const perms = effectivePermissions({ role: session.role, contactPosition: session.contactPosition });
-  if (!hasPerm(perms, "*")) return null;
-  return session;
+  if (session.role === "QUAN_TRI_TW") return session;
+  const perms = effectivePermissions({
+    role: session.role,
+    contactPosition: session.contactPosition,
+    grantedPerms: session.grantedPerms,
+  });
+  if (hasPerm(perms, "*") || hasPerm(perms, "system.orgtree.manage") || hasPerm(perms, "system.orgtree.view")) {
+    return session;
+  }
+  if (session.role === "QUAN_TRI_TINH") return session;
+  return null;
 }
 
 type UnitRow = {
@@ -48,12 +56,9 @@ function toUnit(r: UnitRow) {
   };
 }
 
-/** GET /api/org-units — danh sách đơn vị đang sống + loại trường (cần đăng nhập) */
-export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const session = token ? await sessionFromToken(token) : null;
+/** GET /api/org-units — danh sách đơn vị đang sống + loại trường */
+export async function GET() {
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
-  if (!session) return NextResponse.json({ ok: false, error: "YÊU CẦU ĐĂNG NHẬP" }, { status: 401 });
   const rows = await query<UnitRow>(
     `SELECT o.id, o.parent_id, o.code, o.name, o.short_name, o.org_level, o.org_block,
             o.address, o.is_active, au.name AS admin_unit_name, st.name AS school_type_name
@@ -99,8 +104,9 @@ async function generateCode(name: string): Promise<string> {
 
 /** POST /api/org-units — thêm đơn vị mới: { parentId, name, orgLevel, block?, shortName?, adminUnitName?, schoolTypeName?, address? } */
 export async function POST(request: NextRequest) {
-  if (!(await fullAdmin(request))) {
-    return NextResponse.json({ ok: false, error: "CHỈ QUẢN TRỊ TW MỚI ĐƯỢC SỬA CÂY TỔ CHỨC" }, { status: 403 });
+  const admin = await getOrgAdminSession(request);
+  if (!admin) {
+    return NextResponse.json({ ok: false, error: "KHÔNG CÓ QUYỀN SỬA CÂY TỔ CHỨC" }, { status: 403 });
   }
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
 
@@ -132,6 +138,13 @@ export async function POST(request: NextRequest) {
   if (!parent) return NextResponse.json({ ok: false, error: "Đơn vị cấp trên không tồn tại." }, { status: 400 });
   if (orgLevel <= Number(parent.org_level)) {
     return NextResponse.json({ ok: false, error: "Cấp tổ chức mới phải THẤP hơn đơn vị cấp trên." }, { status: 400 });
+  }
+
+  // Tỉnh Đoàn chỉ được tạo cấp dưới trong phạm vi tỉnh mình
+  if (admin.role === "QUAN_TRI_TINH") {
+    if (parentId !== admin.orgUnitId && !parent.path.startsWith(`/1/${admin.orgUnitId}/`)) {
+      return NextResponse.json({ ok: false, error: "Bạn chỉ được tạo đơn vị cấp dưới trong địa bàn tỉnh của mình." }, { status: 403 });
+    }
   }
 
   try {
@@ -173,8 +186,9 @@ export async function POST(request: NextRequest) {
 
 /** PATCH /api/org-units — sửa thông tin: { id, name?, shortName?, block?, adminUnitName?, schoolTypeName?, address?, isActive? } */
 export async function PATCH(request: NextRequest) {
-  if (!(await fullAdmin(request))) {
-    return NextResponse.json({ ok: false, error: "CHỈ QUẢN TRỊ TW MỚI ĐƯỢC SỬA CÂY TỔ CHỨC" }, { status: 403 });
+  const admin = await getOrgAdminSession(request);
+  if (!admin) {
+    return NextResponse.json({ ok: false, error: "KHÔNG CÓ QUYỀN SỬA CÂY TỔ CHỨC" }, { status: 403 });
   }
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
 
@@ -193,12 +207,19 @@ export async function PATCH(request: NextRequest) {
   const id = Number(body?.id);
   if (!Number.isInteger(id)) return NextResponse.json({ ok: false, error: "Thiếu mã đơn vị." }, { status: 400 });
 
-  const units = await query<{ id: number; org_level: number }>(
-    "SELECT id, org_level FROM org_units WHERE id = $1 AND deleted_at IS NULL",
+  const units = await query<{ id: number; org_level: number; path: string }>(
+    "SELECT id, org_level, path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
     [id]
   );
   const unit = units[0];
   if (!unit) return NextResponse.json({ ok: false, error: "Đơn vị không tồn tại." }, { status: 404 });
+
+  // Tỉnh Đoàn chỉ được sửa đơn vị trong tỉnh mình
+  if (admin.role === "QUAN_TRI_TINH") {
+    if (id !== admin.orgUnitId && !unit.path.startsWith(`/1/${admin.orgUnitId}/`)) {
+      return NextResponse.json({ ok: false, error: "Bạn chỉ được chỉnh sửa đơn vị trong địa bàn tỉnh của mình." }, { status: 403 });
+    }
+  }
 
   try {
     const sets: string[] = [];
@@ -237,8 +258,9 @@ export async function PATCH(request: NextRequest) {
 
 /** DELETE /api/org-units?id=N — xoá đơn vị (soft delete); chặn khi còn đơn vị con hoặc còn tài khoản */
 export async function DELETE(request: NextRequest) {
-  if (!(await fullAdmin(request))) {
-    return NextResponse.json({ ok: false, error: "CHỈ QUẢN TRỊ TW MỚI ĐƯỢC SỬA CÂY TỔ CHỨC" }, { status: 403 });
+  const admin = await getOrgAdminSession(request);
+  if (!admin) {
+    return NextResponse.json({ ok: false, error: "KHÔNG CÓ QUYỀN SỬA CÂY TỔ CHỨC" }, { status: 403 });
   }
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
 
@@ -246,11 +268,20 @@ export async function DELETE(request: NextRequest) {
   if (!Number.isInteger(id) || id === 1) {
     return NextResponse.json({ ok: false, error: "Mã đơn vị không hợp lệ." }, { status: 400 });
   }
+
+  // Tỉnh Đoàn chỉ được xoá đơn vị cấp dưới trong tỉnh mình
+  if (admin.role === "QUAN_TRI_TINH") {
+    const units = await query<{ path: string }>("SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL", [id]);
+    if (!units[0] || !units[0].path.startsWith(`/1/${admin.orgUnitId}/`)) {
+      return NextResponse.json({ ok: false, error: "Bạn chỉ được xoá đơn vị cấp dưới trong địa bàn tỉnh của mình." }, { status: 403 });
+    }
+  }
+
   const children = await query<{ c: string }>("SELECT count(*) c FROM org_units WHERE parent_id = $1 AND deleted_at IS NULL", [id]);
   if (Number(children[0].c) > 0) {
     return NextResponse.json({ ok: false, error: "Đơn vị còn cấp dưới trực tiếp — phải xoá (hoặc chuyển) các đơn vị con trước." }, { status: 409 });
   }
-  const accounts = await query<{ c: string }>("SELECT count(*) c FROM accounts WHERE org_unit_id = $1", [id]);
+  const accounts = await query<{ c: string }>("SELECT count(*) c FROM accounts WHERE org_unit_id = $1 AND deleted_at IS NULL", [id]);
   if (Number(accounts[0].c) > 0) {
     return NextResponse.json({ ok: false, error: "Đơn vị còn tài khoản đang gắn vào — chuyển tài khoản sang đơn vị khác trước khi xoá." }, { status: 409 });
   }

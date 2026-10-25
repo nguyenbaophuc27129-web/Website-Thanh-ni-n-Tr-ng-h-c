@@ -287,6 +287,7 @@ interface StoreValue {
   }) => Promise<{ ok: boolean; error?: string }>;
   updateAccountPermissions: (accountId: number, perms: string[]) => Promise<{ ok: boolean; error?: string }>;
   refreshAccounts: () => Promise<void>;
+  refreshOrgUnits: () => Promise<void>;
   deleteAccount: (accountId: number) => Promise<{ ok: boolean; error?: string }>;
   createAccount: (input: {
     orgUnitId: number; username: string; email: string; phone?: string; contactPerson: string;
@@ -400,6 +401,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok && Array.isArray(data.accounts)) {
         setAccounts(data.accounts as Account[]);
+      }
+    } catch {
+      // offline fallback
+    }
+  }, []);
+
+  const refreshOrgUnits = useCallback(async () => {
+    try {
+      const res = await fetch("/api/org-units");
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok && Array.isArray(data.units)) {
+        setOrgUnits(data.units as typeof seedOrgUnits);
       }
     } catch {
       // offline fallback
@@ -624,7 +637,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadStoreSnapshot();
     void refreshAccounts();
-  }, [session?.accountId, session?.role, loadStoreSnapshot, refreshAccounts]);
+    void refreshOrgUnits();
+  }, [session?.accountId, session?.role, loadStoreSnapshot, refreshAccounts, refreshOrgUnits]);
 
   // Tự động đồng bộ realtime mỗi 4 giây từ PostgreSQL thực tế
   useEffect(() => {
@@ -670,9 +684,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       } catch {}
       void refreshAccounts();
+      void refreshOrgUnits();
     }, 4000);
     return () => clearInterval(timer);
-  }, [refreshAccounts]);
+  }, [refreshAccounts, refreshOrgUnits]);
 
   const orgById = useCallback((id: number) => orgUnits.find((u) => u.id === id), [orgUnits]);
   const orgName = useCallback((id: number) => orgUnits.find((u) => u.id === id)?.name ?? `Đơn vị #${id}`, [orgUnits]);
@@ -2131,7 +2146,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
       saveResource, deleteResource, downloadResource,
-      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, deleteAccount, createAccount,
+      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, refreshOrgUnits, deleteAccount, createAccount,
       forumThreads, forumComments, createForumThread, createForumComment, toggleForumLike, moderateForumItem,
       contributions, memberContributions, createMemberContribution, moderateMemberContribution,
       submitResourceDraft, moderateResourceContribution,
@@ -2168,7 +2183,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
       saveResource, deleteResource, downloadResource,
-      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, deleteAccount, createAccount,
+      updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, refreshOrgUnits, deleteAccount, createAccount,
     ]
   );
 

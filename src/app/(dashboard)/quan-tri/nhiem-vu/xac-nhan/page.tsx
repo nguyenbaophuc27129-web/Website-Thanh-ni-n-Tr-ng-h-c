@@ -27,22 +27,31 @@ export default function XacNhanPage() {
 
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
 
+  const hasReported = (a: (typeof store.taskAssignments)[number]) =>
+    a.progressStatus === "COMPLETED" || a.completionRate > 0 || store.resultsOf(a.id).length > 0;
+
   const queue = useMemo(
     () =>
       store.taskAssignments
         .filter((a) => scope.includes(a.orgUnitId) && a.orgUnitId !== session?.orgUnitId)
-        .filter((a) => a.confirmStatus === tab)
+        .filter((a) => (tab === "PENDING" ? hasReported(a) && a.confirmStatus === "PENDING" : a.confirmStatus === tab))
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-    [store.taskAssignments, scope, session, tab]
+    [store, scope, session, tab]
   );
 
   const counts = useMemo(() => {
     const c: Record<Queue, number> = { PENDING: 0, NEEDS_INFO: 0, REJECTED: 0, CONFIRMED: 0 };
     store.taskAssignments
       .filter((a) => scope.includes(a.orgUnitId) && a.orgUnitId !== session?.orgUnitId)
-      .forEach((a) => { c[a.confirmStatus]++; });
+      .forEach((a) => {
+        if (a.confirmStatus === "PENDING") {
+          if (hasReported(a)) c.PENDING++;
+        } else {
+          c[a.confirmStatus]++;
+        }
+      });
     return c;
-  }, [store.taskAssignments, scope, session]);
+  }, [store, scope, session]);
 
   const submitReview = () => {
     if (!reviewing || !session) return;
