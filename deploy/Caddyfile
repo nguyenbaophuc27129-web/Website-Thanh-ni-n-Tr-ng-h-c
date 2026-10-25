@@ -22,7 +22,26 @@
 		max_size 30MB
 	}
 
-	reverse_proxy web:3000
+	# Tệp người dùng tải lên: Caddy trả thẳng từ /srv/tnth/uploads (gắn chỉ đọc), không qua Next.js.
+	# Tên tệp là mã băm nội dung, không bao giờ đổi → cache 1 năm. Không liệt kê thư mục.
+	handle_path /uploads/* {
+		root * /srv/uploads
+		header {
+			Cache-Control "public, max-age=31536000, immutable"
+			X-Content-Type-Options nosniff
+		}
+		# Ảnh/video/âm thanh: không cho chạy script dù trình duyệt mở trực tiếp
+		@media path *.webp *.mp4 *.mov *.webm *.mp3
+		header @media Content-Security-Policy "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox"
+		# Văn bản Office, tệp nén, txt/csv: luôn tải xuống, không mở trong trình duyệt
+		@download path *.doc *.docx *.xls *.xlsx *.ppt *.pptx *.zip *.rar *.7z *.txt *.csv
+		header @download Content-Disposition attachment
+		file_server
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
 
 	log {
 		output stdout

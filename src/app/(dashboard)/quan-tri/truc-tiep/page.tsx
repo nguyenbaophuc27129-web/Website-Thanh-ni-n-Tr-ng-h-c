@@ -90,7 +90,7 @@ export default function TrucTiepPage() {
 
   /**
    * Danh sách đơn vị trực thuộc cần theo dõi:
-   * - Trung ương (QUAN_TRI_TW): Theo dõi toàn bộ 63 Tỉnh/Thành/Trực thuộc (orgLevel === 2)
+   * - Trung ương (QUAN_TRI_TW): Theo dõi toàn bộ Tỉnh/Thành đoàn và Đoàn trực thuộc TW đang hoạt động (orgLevel === 2)
    * - Tỉnh/Thành (QUAN_TRI_TINH): Theo dõi các Quận/Huyện/Thị xã, Đoàn trường trực thuộc (cấp dưới)
    * - Cấp 3 / Trường (QUAN_TRI_CAP3 / DON_VI): Theo dõi các chi đoàn lớp / đơn vị cơ sở
    */
@@ -99,8 +99,8 @@ export default function TrucTiepPage() {
 
     let units = store.orgUnits;
     if (session.role === "QUAN_TRI_TW") {
-      // Trung ương theo dõi toàn bộ 63 Tỉnh/Thành/Trực thuộc (Level 2)
-      units = store.orgUnits.filter((u) => u.orgLevel === 2 || u.parentId === 1 || u.parentId === session.orgUnitId);
+      // Trung ương theo dõi các đơn vị cấp 2 đang hoạt động — khớp danh sách chấm điểm thi đua
+      units = store.orgUnits.filter((u) => u.orgLevel === 2 && u.isActive);
     } else if (session.role === "QUAN_TRI_TINH") {
       // Tỉnh/thành theo dõi toàn bộ cấp dưới thuộc cây đơn vị của tỉnh mình
       const provinceDescendants = new Set(store.descendantsOf(session.orgUnitId));
@@ -195,6 +195,13 @@ export default function TrucTiepPage() {
   const isTW = session?.role === "QUAN_TRI_TW";
   const isTinh = session?.role === "QUAN_TRI_TINH";
 
+  // Cơ cấu đơn vị TW đang giám sát: khối vũ trang / cơ quan là Đoàn trực thuộc, còn lại là Tỉnh/Thành đoàn
+  const twBreakdown = useMemo(() => {
+    const direct = monitoredUnits.filter((c) => c.unit.block === "VU_TRANG" || c.unit.block === "CO_QUAN").length;
+    return { provinces: monitoredUnits.length - direct, direct };
+  }, [monitoredUnits]);
+  const twScopeText = `${lights.total} đơn vị (${twBreakdown.provinces} Tỉnh/Thành đoàn · ${twBreakdown.direct} Đoàn trực thuộc)`;
+
   return (
     <div className="space-y-6">
       {/* ===== Header Bar Realtime ===== */}
@@ -216,7 +223,7 @@ export default function TrucTiepPage() {
 
           <p className="mt-1 text-xs text-blue-200">
             {isTW
-              ? "Trung ương Đoàn giám sát hoạt động & điểm nghẽn của 63 Tỉnh / Thành / Đoàn trực thuộc theo thời gian thực."
+              ? `Trung ương Đoàn giám sát hoạt động & điểm nghẽn của ${twScopeText} theo thời gian thực.`
               : isTinh
               ? "Tỉnh / Thành đoàn giám sát toàn bộ hoạt động & tiến độ của các đơn vị Quận, Huyện và Đoàn trường trực thuộc."
               : "Giám sát tiến độ nhiệm vụ và hoạt động trực tiếp của đơn vị."}
@@ -242,10 +249,10 @@ export default function TrucTiepPage() {
             <CardHeader
               title={
                 isTW
-                  ? "Bảng đèn cảnh báo 63 Tỉnh/Thành/Trực thuộc"
+                  ? `Bảng đèn cảnh báo ${twScopeText}`
                   : isTinh
-                  ? "Bảng đèn cảnh báo các đơn vị trực thuộc Tỉnh/Thành"
-                  : "Bảng đèn cảnh báo đơn vị trực thuộc"
+                  ? `Bảng đèn cảnh báo ${lights.total} đơn vị trực thuộc Tỉnh/Thành`
+                  : `Bảng đèn cảnh báo ${lights.total} đơn vị trực thuộc`
               }
               subtitle="Tự động phát hiện điểm nghẽn: Đỏ (quá hạn/tồn đọng > 3 ngày) · Vàng (chờ xử lý) · Xanh (hoạt động tốt)"
             />

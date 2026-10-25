@@ -34,6 +34,7 @@ import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { formatDateTime, formatNumber } from "@/lib/utils";
+import { uploadFile } from "@/lib/upload-client";
 import type { PublishedPost } from "@/types";
 
 type Cat = "all" | string;
@@ -76,6 +77,7 @@ export default function TinTucPage() {
   const [cContent, setCContent] = useState("");
   const [cCover, setCCover] = useState<string | undefined>(undefined);
   const [cCoverName, setCCoverName] = useState("");
+  const [cCoverUploading, setCCoverUploading] = useState(false);
   const [cBusy, setCBusy] = useState(false);
 
   const openContribute = () => {
@@ -92,16 +94,23 @@ export default function TinTucPage() {
       toast("Ảnh bìa vượt quá 10MB — hãy chọn ảnh nhỏ hơn.", "warning");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCCover(String(reader.result));
-      setCCoverName(file.name);
-    };
-    reader.readAsDataURL(file);
+    // Ảnh bìa lưu trên máy chủ — chỉ giữ đường dẫn /uploads/...
+    setCCoverUploading(true);
+    uploadFile(file, "dong-gop")
+      .then((uploaded) => {
+        setCCover(uploaded.url);
+        setCCoverName(file.name);
+      })
+      .catch((e: unknown) => toast(e instanceof Error ? e.message : "Không tải được ảnh bìa lên máy chủ.", "warning"))
+      .finally(() => setCCoverUploading(false));
   };
 
   const submitContribution = async () => {
     if (!session) return;
+    if (cCoverUploading) {
+      toast("Ảnh bìa đang được tải lên máy chủ — vui lòng đợi trong giây lát.", "warning");
+      return;
+    }
     if (cTitle.trim().length < 8 || cContent.trim().length < 40) {
       toast("Cần tiêu đề tối thiểu 8 ký tự và nội dung tối thiểu 40 ký tự.", "warning");
       return;

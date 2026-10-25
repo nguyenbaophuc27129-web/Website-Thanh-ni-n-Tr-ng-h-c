@@ -13,6 +13,7 @@ import {
   writeEntity,
   deleteEntityIds,
 } from "@/lib/server/store-tables";
+import { externalizeDataUrls } from "@/lib/server/media";
 
 export const runtime = "nodejs";
 
@@ -22,12 +23,20 @@ export const runtime = "nodejs";
  *                                  - Khách: chỉ nhận nhóm công khai
  *                                  - Đoàn viên: nhận nhóm công khai + dữ liệu cá nhân (phản ánh của mình)
  *                                  - Cán bộ quản trị: nhận đầy đủ phạm vi
+ *                                  - Khách & đoàn viên chỉ thấy bài viết ĐÃ XUẤT BẢN, không kèm ghi chú nội bộ
  *   POST /api/store {entities}   → ghi dữ liệu theo cơ chế UPSERT (bảo vệ toàn vẹn dữ liệu,
  *                                  KHÔNG xoá cả bảng):
  *                                  - Khách: chỉ ghi nhóm công khai (phản ánh, điểm danh...)
  *                                  - Đoàn viên: chỉ ghi dữ liệu cá nhân / HS3T / diễn đàn
  *                                  - Cán bộ quản trị: ghi dữ liệu quản lý tương ứng
+ *                                  - Tệp base64 (data:) lọt vào cột tệp được chuyển thành tệp
+ *                                    trên ổ đĩa (/uploads/...) trước khi ghi DB
  */
+
+/** Cột chỉ dành cho ban biên tập — bỏ khỏi snapshot gửi khách / đoàn viên */
+const STAFF_ONLY_FIELDS: Record<string, string[]> = {
+  publishedPosts: ["internalNotes"],
+};
 
 async function resolveSession(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -78,8 +87,16 @@ export async function GET(request: NextRequest) {
             "feedback_id IN (SELECT id FROM citizen_feedbacks WHERE sender_account_id = $1)",
           params: [session.accountId],
         });
+      } else if (scope !== "full" && entity === "publishedPosts") {
+        // Bản nháp / đã gỡ / hẹn giờ chỉ cán bộ quản trị mới thấy
+        data[entity] = await readEntity(entity, { where: "status = 'PUBLISHED'", params: [] });
       } else {
         data[entity] = await readEntity(entity);
+      }
+      if (scope !== "full" && STAFF_ONLY_FIELDS[entity]) {
+        for (const row of data[entity] as Record<string, unknown>[]) {
+          for (const field of STAFF_ONLY_FIELDS[entity]) delete row[field];
+        }
       }
     }
     return NextResponse.json({ ok: true, scope, data });
@@ -158,6 +175,11 @@ export async function POST(request: NextRequest) {
     // KHÔNG XOÁ CẢ BẢNG — writeEntity sử dụng UPSERT bảo vệ toàn bộ dữ liệu hiện có
     const counts: Record<string, number> = {};
     for (const entity of ENTITY_ORDER.filter((e) => requested.includes(e))) {
+      await externalizeDataUrls(
+        entity,
+        (payload?.entities?.[entity] ?? []) as Record<string, unknown>[],
+        session?.accountId ?? null,
+      );
       counts[entity] = await writeEntity(
         client,
         entity,

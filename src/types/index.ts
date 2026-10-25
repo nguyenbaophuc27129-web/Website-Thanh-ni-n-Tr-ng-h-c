@@ -238,8 +238,9 @@ export interface PublishedPost {
   excerpt: string;
   content: string;
   coverSeed: number;
-  /** Ảnh bìa thật do người dùng tải lên (data URL) — ưu tiên hơn coverSeed */
+  /** Ảnh bìa thật — đường dẫn /uploads/... trên máy chủ (dữ liệu cũ có thể là link ngoài), ưu tiên hơn coverSeed */
   coverDataUrl?: string;
+  /** Cột cũ cover_url — không còn ghi mới, chỉ đọc để tương thích */
   coverUrl?: string;
   subtitle?: string;
   seoTitle?: string;
@@ -249,8 +250,6 @@ export interface PublishedPost {
   relatedPosts?: string[];
   relatedTopics?: string[];
   internalNotes?: string;
-  royaltyAmount?: number;
-  royaltyNotes?: string;
   status: "DRAFT" | "SCHEDULED" | "PUBLISHED" | "UNPUBLISHED";
   isFeatured: boolean;
   publishedAt?: string;
@@ -507,6 +506,7 @@ export interface ModerationResult {
 /** Ảnh/video đính kèm diễn đàn — base64 dataUrl (ảnh ≤2MB × 4, video ≤15MB × 1) */
 export interface ForumMedia {
   kind: "image" | "video";
+  /** Đường dẫn /uploads/dien-dan/... trên máy chủ (tên trường giữ nguyên để tương thích dữ liệu cũ) */
   dataUrl: string;
   name?: string;
 }

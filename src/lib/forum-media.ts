@@ -1,21 +1,14 @@
 import type { ForumMedia } from "@/types";
+import { uploadFile } from "@/lib/upload-client";
 
 /** Giới hạn đính kèm diễn đàn: ảnh ≤2MB × tối đa, video ≤15MB × 1, tổng ≤5 tệp */
 export const FORUM_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 export const FORUM_VIDEO_MAX_BYTES = 15 * 1024 * 1024;
 export const FORUM_MEDIA_MAX_ITEMS = 5;
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error(`Không đọc được tệp ${file.name}`));
-    reader.readAsDataURL(file);
-  });
-}
-
 /**
- * Kiểm tra + đọc file đính kèm (chỉ gọi trong handler sự kiện).
+ * Kiểm tra + tải file đính kèm lên máy chủ (chỉ gọi trong handler sự kiện).
+ * `dataUrl` của media giờ là đường dẫn /uploads/dien-dan/... chứ không còn base64.
  * Trả về danh sách media mới (gộp sẵn để set) hoặc thông báo lỗi.
  */
 export async function readForumMediaFiles(
@@ -50,9 +43,10 @@ export async function readForumMediaFiles(
       }
     }
     try {
-      media.push({ kind: isImage ? "image" : "video", dataUrl: await readFileAsDataUrl(file), name: file.name });
-    } catch {
-      return { error: `Không đọc được tệp “${file.name}”.` };
+      const uploaded = await uploadFile(file, "dien-dan");
+      media.push({ kind: isImage ? "image" : "video", dataUrl: uploaded.url, name: file.name });
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : `Không tải được tệp “${file.name}” lên máy chủ.` };
     }
   }
   return { media: [...existing, ...media] };

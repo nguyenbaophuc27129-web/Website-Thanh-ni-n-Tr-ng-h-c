@@ -14,6 +14,7 @@ import { useToast } from "@/lib/toast-context";
 import { moderateText } from "@/lib/ai-moderation";
 import { buildTemplateWordData, downloadWordDoc } from "@/lib/word-export";
 import { relTime } from "@/lib/utils";
+import { uploadFile } from "@/lib/upload-client";
 import { FIELD_META, PHASE_META } from "@/lib/volunteer-meta";
 import type { VolunteerProject, VolunteerProjectField, VolunteerProjectPhase } from "@/types";
 
@@ -64,6 +65,7 @@ export default function DuAnTinhNguyenPage() {
   const [pBeneficiaries, setPBeneficiaries] = useState("");
   const [pParticipants, setPParticipants] = useState("50");
   const [pReportFile, setPReportFile] = useState<{ name: string; dataUrl?: string } | null>(null);
+  const [reportUploading, setReportUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const reportInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,16 +136,22 @@ export default function DuAnTinhNguyenPage() {
     if (file.size > REPORT_FILE_MAX_BYTES) {
       toast(`File "${file.name}" vượt 5MB — hãy nén hoặc chọn file nhỏ hơn.`, "warning");
     } else {
-      const reader = new FileReader();
-      reader.onload = () => setPReportFile({ name: file.name, dataUrl: String(reader.result) });
-      reader.onerror = () => toast(`Không đọc được file "${file.name}".`, "warning");
-      reader.readAsDataURL(file);
+      // File báo cáo lưu trên máy chủ — chỉ giữ đường dẫn /uploads/...
+      setReportUploading(true);
+      uploadFile(file, "du-an")
+        .then((uploaded) => setPReportFile({ name: file.name, dataUrl: uploaded.url }))
+        .catch((e: unknown) => toast(e instanceof Error ? e.message : `Không tải được file "${file.name}".`, "warning"))
+        .finally(() => setReportUploading(false));
     }
     if (reportInputRef.current) reportInputRef.current.value = "";
   };
 
   const submitProject = async () => {
     if (!session) return;
+    if (reportUploading) {
+      toast("File báo cáo đang được tải lên máy chủ — vui lòng đợi trong giây lát.", "warning");
+      return;
+    }
     if (pName.trim().length < 8 || pSummary.trim().length < 20) {
       toast("Cần tên dự án tối thiểu 8 ký tự và tóm tắt tối thiểu 20 ký tự.", "warning");
       return;

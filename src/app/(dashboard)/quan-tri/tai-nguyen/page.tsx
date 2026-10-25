@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FolderOpen, Plus, Globe, Archive, Download, FileUp, Pencil, Trash2 } from "lucide-react";
+import { FolderOpen, Plus, Globe, Archive, Download, FileUp, Pencil, Trash2, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -12,6 +12,7 @@ import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime, formatNumber, todayISO } from "@/lib/utils";
+import { uploadFile } from "@/lib/upload-client";
 import { resourceTypes } from "@/data/categories";
 import type { Resource } from "@/types";
 
@@ -30,7 +31,7 @@ const EMPTY_FORM: Form = {
   title: "", description: "", resourceTypeId: "", fileName: "", fileSizeKb: "", isPublic: true, status: "PUBLISHED",
 };
 
-/** Đọc tệp thành dataUrl để tải lại được thật (giới hạn 25MB) */
+/** Giới hạn dung lượng mỗi tệp tài nguyên (tệp lưu trên máy chủ, không lưu base64) */
 const MAX_RESOURCE_BYTES = 25 * 1024 * 1024;
 
 export default function TaiNguyenAdminPage() {
@@ -41,6 +42,7 @@ export default function TaiNguyenAdminPage() {
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [form, setForm] = useState<Form>(EMPTY_FORM);
   const [selectedFiles, setSelectedFiles] = useState<UploadedFileItem[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
 
   const list = useMemo(
     () =>
@@ -93,12 +95,14 @@ export default function TaiNguyenAdminPage() {
         toast(`Tệp "${file.name}" vượt quá 25MB — đã bỏ qua.`, "warning");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
+      // Tệp lưu trên máy chủ — chỉ giữ đường dẫn /uploads/... trong dữ liệu
+      setUploadingCount((n) => n + 1);
+      uploadFile(file, "tai-nguyen")
+        .then((uploaded) => {
         const item: UploadedFileItem = {
           name: file.name,
           sizeKb: Math.max(1, Math.round(file.size / 1024)),
-          fileDataUrl: String(reader.result ?? ""),
+          fileDataUrl: uploaded.url,
         };
         setSelectedFiles((prev) => {
           const next = editingId === "new" ? [...prev, item].slice(0, 5) : [item];
@@ -111,8 +115,9 @@ export default function TaiNguyenAdminPage() {
           }));
           return next;
         });
-      };
-      reader.readAsDataURL(file);
+        })
+        .catch((e: unknown) => toast(e instanceof Error ? e.message : `Không tải được tệp "${file.name}" lên máy chủ.`, "warning"))
+        .finally(() => setUploadingCount((n) => n - 1));
     });
   };
 
@@ -140,6 +145,10 @@ export default function TaiNguyenAdminPage() {
 
   const handleSave = () => {
     if (!session) return;
+    if (uploadingCount > 0) {
+      toast("Tệp đang được tải lên máy chủ — vui lòng đợi xong rồi lưu.", "warning");
+      return;
+    }
     if (editingId === "new" && selectedFiles.length > 1) {
       // Lưu hàng loạt nhiều tệp (tối đa 5)
       for (const f of selectedFiles) {
@@ -344,7 +353,8 @@ export default function TaiNguyenAdminPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-700 transition-colors hover:bg-stone-50">
-                    <FileUp className="h-4 w-4" /> {selectedFiles.length > 0 ? "Chọn thêm tệp…" : "Chọn tệp (tối đa 5 tệp)…"}
+                    {uploadingCount > 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}{" "}
+                    {uploadingCount > 0 ? "Đang tải lên máy chủ…" : selectedFiles.length > 0 ? "Chọn thêm tệp…" : "Chọn tệp (tối đa 5 tệp)…"}
                     <input
                       type="file"
                       multiple={editingId === "new"}

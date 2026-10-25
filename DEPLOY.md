@@ -98,12 +98,34 @@ Mật khẩu nằm trong `secrets/db.env`; bảng tổng hợp để gửi cho c
 
 Sao lưu:
 - Cron `/etc/cron.d/tnth-db` chạy `deploy/db-backup.sh` lúc 02:30 mỗi đêm, giữ 14 ngày tại `/var/backups/tnth/`, log ở `/var/log/tnth-db-backup.log`.
+- Cùng script chụp thư mục tệp tải lên thành `/var/backups/tnth/uploads-<ngày giờ>/` (rsync `--link-dest`: tệp không đổi dùng chung hard link nên chỉ tốn chỗ cho tệp mới), giữ 14 bản.
 - Cùng lúc đó tạo trước phân vùng tháng cho `post_views` và `audit_logs`.
 - **Bản sao lưu đang nằm cùng máy với database.** Hỏng đĩa hoặc mất máy là mất cả hai. Trước khi có dữ liệu thật cần chép thêm ra nơi khác (object storage hoặc máy thứ hai).
 
 Schema: `db/schema_v1.sql` (43 bảng), kiểm thử `db/test_schema.sql`. Hướng dẫn cho lập trình viên: `docs/huong-dan-ket-noi-db.md`.
 
 Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<mật khẩu>@db:5432/tnth_prod` vào `.env.production` (trong mạng Compose, host là `db`).
+
+## Tệp tải lên (ảnh, video, văn bản)
+
+Ảnh bài viết, ảnh/video diễn đàn, tệp văn bản, tài nguyên, báo cáo dự án **lưu trên ổ đĩa máy chủ**, không lưu base64 trong database.
+
+| Thành phần | Chi tiết |
+|---|---|
+| Thư mục trên máy chủ | `/srv/tnth/uploads` (chủ sở hữu `1000:1000` = user `node` trong container) |
+| Trong container `web` | `/app/uploads` (đọc ghi) — `src/lib/server/media.ts` ghi tệp |
+| Trong container `proxy` | `/srv/uploads` (chỉ đọc) — Caddy phục vụ thẳng `https://<tên miền>/uploads/...` |
+| Cấu trúc | `/uploads/<phân hệ>/<năm>/<tháng>/<sha256>.<đuôi>`; phân hệ: `bai-viet`, `dong-gop`, `dien-dan`, `van-ban`, `tai-nguyen`, `du-an` |
+| Nhật ký | Bảng `media_files` (migration 0026): đường dẫn, mã băm, người tải, dung lượng |
+| API | `POST /api/uploads` — bắt buộc đăng nhập; `bai-viet`, `van-ban` chỉ cho cán bộ quản trị |
+
+- Ảnh luôn chuyển sang WebP, xoá EXIF/GPS, cạnh dài tối đa 2000px; không nhận SVG.
+- Video/văn bản giữ nguyên tệp, chỉ nhận định dạng trong danh sách và kiểm tra chữ ký tệp. Tệp Office/nén/txt luôn tải xuống (`Content-Disposition: attachment`).
+- Dung lượng tối đa: ảnh 10MB, video diễn đàn 15MB, văn bản/tài nguyên 25MB (Caddy giới hạn thân request 30MB).
+- `POST /api/store` gặp chuỗi base64 trong cột tệp (tab cũ chưa tải lại) sẽ tự chuyển thành tệp trên đĩa.
+- Chuyển dữ liệu cũ: `scripts/migrate-media.mts` (hướng dẫn chạy ở đầu file).
+- Chạy `next dev` trên máy lập trình viên: tệp ghi vào `./uploads` và được phục vụ qua `src/app/uploads/[...path]/route.ts`.
+- **Chuyển máy:** chép cả thư mục `/srv/tnth/uploads` (giữ quyền `1000:1000`), không chỉ database.
 
 ## Bảo mật đã thiết lập
 

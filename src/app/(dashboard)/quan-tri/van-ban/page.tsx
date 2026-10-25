@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ScrollText, Plus, Send, Undo2, Eye, Lock, Unlock, Paperclip, Download, X } from "lucide-react";
+import { ScrollText, Plus, Send, Undo2, Eye, Lock, Unlock, Paperclip, Download, X, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { DocumentStatusBadge } from "@/components/dashboard/status-badge";
 import { formatDateTime, formatDate, todayISO } from "@/lib/utils";
 import { documentCategories } from "@/data/categories";
+import { uploadFile } from "@/lib/upload-client";
 
 const SCOPE_LABEL: Record<string, string> = {
   ALL_DESCENDANTS: "Toàn bộ cấp dưới",
@@ -52,16 +53,24 @@ export default function VanBanAdminPage() {
     fileName: "", fileDataUrl: "",
   });
 
-  const pickDocFile = (file: File | undefined) => {
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  /** Tệp đính kèm lưu trên máy chủ — form chỉ giữ đường dẫn /uploads/... */
+  const pickDocFile = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > MAX_DOC_BYTES) {
       toast("Tệp quá lớn — tối đa 4MB.", "warning");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () =>
-      setForm((f) => ({ ...f, fileName: file.name, fileDataUrl: String(reader.result ?? "") }));
-    reader.readAsDataURL(file);
+    setUploadingDoc(true);
+    try {
+      const uploaded = await uploadFile(file, "van-ban");
+      setForm((f) => ({ ...f, fileName: file.name, fileDataUrl: uploaded.url }));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Không tải được tệp lên máy chủ.", "warning");
+    } finally {
+      setUploadingDoc(false);
+    }
   };
 
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
@@ -272,7 +281,7 @@ export default function VanBanAdminPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>Hủy</Button>
-            <Button onClick={handleIssue}><Send className="h-4 w-4" /> Ban hành</Button>
+            <Button onClick={handleIssue} disabled={uploadingDoc}><Send className="h-4 w-4" /> Ban hành</Button>
           </>
         }
       >
@@ -321,12 +330,17 @@ export default function VanBanAdminPage() {
               </div>
             ) : (
               <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 bg-white px-3 py-3 text-xs font-medium text-stone-500 transition hover:border-doan-400 hover:text-doan-700">
-                <Paperclip className="h-4 w-4" /> Chọn tệp từ máy
+                {uploadingDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                {uploadingDoc ? "Đang tải tệp lên máy chủ…" : "Chọn tệp từ máy"}
                 <input
                   type="file"
                   className="hidden"
+                  disabled={uploadingDoc}
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*"
-                  onChange={(e) => pickDocFile(e.target.files?.[0])}
+                  onChange={(e) => {
+                    void pickDocFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
                 />
               </label>
             )}

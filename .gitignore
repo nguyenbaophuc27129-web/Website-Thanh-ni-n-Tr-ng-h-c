@@ -48,3 +48,6 @@ next-env.d.ts
 
 # scratch temporary scripts
 /scratch/
+
+# tệp tải lên khi chạy next dev (production nằm ở /srv/tnth/uploads)
+/uploads/

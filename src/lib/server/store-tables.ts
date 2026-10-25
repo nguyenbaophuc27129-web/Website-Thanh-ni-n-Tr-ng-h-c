@@ -199,7 +199,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       editorAccountId: f("editor_account_id", "int", (o) => Number(o.editorAccountId) || 1),
       contributorAccountId: f("contributor_account_id", "int"),
       categoryNames: f("category_names", "strarr"),
-      metaDescription: f("meta_description", "str"), subtitle: f("subtitle", "str"), seoTitle: f("seo_title", "str"), seoKeywords: f("seo_keywords", "str"), imageCaption: f("image_caption", "str"), coverUrl: f("cover_url", "str"), postAttributes: f("post_attributes", "strarr"), relatedPosts: f("related_posts", "strarr"), relatedTopics: f("related_topics", "strarr"), internalNotes: f("internal_notes", "str"), royaltyAmount: f("royalty_amount", "num"), royaltyNotes: f("royalty_notes", "str"), createdAt: f("created_at", "ts"),
+      metaDescription: f("meta_description", "str"), subtitle: f("subtitle", "str"), seoTitle: f("seo_title", "str"), seoKeywords: f("seo_keywords", "str"), imageCaption: f("image_caption", "str"), coverUrl: f("cover_url", "str"), postAttributes: f("post_attributes", "strarr"), relatedPosts: f("related_posts", "strarr"), relatedTopics: f("related_topics", "strarr"), internalNotes: f("internal_notes", "str"), createdAt: f("created_at", "ts"),
     },
   },
   reports: {

@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/public/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import type { Resource } from "@/types";
+import { uploadFile } from "@/lib/upload-client";
 
 /* Staggered fade-up — mỗi dòng lệch nhau 50ms */
 const listVariants = {
@@ -154,20 +155,32 @@ export default function TaiNguyenPage() {
     setContribOpen(true);
   };
 
-  const pickFile = (file: File | null) => {
+  const [rUploading, setRUploading] = useState(false);
+
+  /** Tệp đóng góp lưu trên máy chủ — chỉ giữ đường dẫn /uploads/... */
+  const pickFile = async (file: File | null) => {
     if (!file) return;
     if (file.size > 4 * 1024 * 1024) {
       toast("Tệp vượt quá 4MB — hãy chọn tệp nhỏ hơn.", "warning");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () =>
-      setRFile({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), dataUrl: String(reader.result ?? "") });
-    reader.readAsDataURL(file);
+    setRUploading(true);
+    try {
+      const uploaded = await uploadFile(file, "tai-nguyen");
+      setRFile({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), dataUrl: uploaded.url });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Không tải được tệp lên máy chủ.", "warning");
+    } finally {
+      setRUploading(false);
+    }
   };
 
   const submitResourceContribute = () => {
     if (!session) return;
+    if (rUploading) {
+      toast("Tệp đang được tải lên máy chủ — vui lòng đợi trong giây lát.", "warning");
+      return;
+    }
     if (rTitle.trim().length < 6 || !rFile) {
       toast("Cần tên tài nguyên tối thiểu 6 ký tự và chọn tệp đính kèm.", "warning");
       return;

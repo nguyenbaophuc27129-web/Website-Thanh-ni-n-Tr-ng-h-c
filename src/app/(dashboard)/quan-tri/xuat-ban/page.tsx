@@ -31,6 +31,7 @@ import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
 import type { PublishedPost } from "@/types";
 import { formatNumber, formatDateTime, slugify } from "@/lib/utils";
+import { isExternalUrl, localizeMarkdownImages, uploadFile, uploadFromUrl } from "@/lib/upload-client";
 
 /** Kết quả trích xuất từ đường link */
 interface ImportedArticle {
@@ -51,6 +52,9 @@ function EditorToolbar({
   value: string;
   onChange: (val: string) => void;
 }) {
+  const { toast } = useToast();
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const insertText = (before: string, after: string = "", placeholder: string = "") => {
     const el = textareaRef.current;
     if (!el) {
@@ -68,11 +72,46 @@ function EditorToolbar({
     }, 40);
   };
 
-  const insertImage = () => {
-    const url = window.prompt("Nhập đường dẫn hình ảnh (URL bắt đầu bằng https://):", "https://");
+  /** Chèn ảnh đã lưu trên máy chủ tại con trỏ — đọc giá trị mới nhất vì tải ảnh mất thời gian */
+  const insertUploadedImage = (url: string, caption = "") => {
+    const el = textareaRef.current;
+    const current = el?.value ?? value;
+    const pos = el ? Math.min(el.selectionEnd, current.length) : current.length;
+    const snippet = `\n\n![${caption}](${url})` + (caption ? `\n*${caption}*\n\n` : "\n\n");
+    onChange(current.slice(0, pos) + snippet + current.slice(pos));
+  };
+
+  const uploadImages = async (files: File[]) => {
+    setUploadingImage(true);
+    try {
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) {
+          toast(`"${file.name}" không phải hình ảnh — đã bỏ qua.`, "warning");
+          continue;
+        }
+        try {
+          insertUploadedImage((await uploadFile(file, "bai-viet")).url);
+        } catch (e) {
+          toast(e instanceof Error ? e.message : `Không tải được ảnh "${file.name}".`, "warning");
+        }
+      }
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const insertImageFromUrl = async () => {
+    const url = window.prompt("Nhập đường dẫn ảnh — máy chủ sẽ tải ảnh về lưu trữ riêng (URL https://):", "https://");
     if (!url || url === "https://") return;
     const caption = window.prompt("Nhập chú thích ảnh (tùy chọn):", "") || "";
-    insertText(`\n\n![${caption}](${url})` + (caption ? `\n*${caption}*\n\n` : "\n\n"));
+    setUploadingImage(true);
+    try {
+      insertUploadedImage((await uploadFromUrl(url.trim(), "bai-viet")).url, caption);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Không tải được ảnh từ đường link.", "warning");
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const insertLink = () => {
@@ -124,11 +163,33 @@ function EditorToolbar({
         <span className="mx-1 h-4 w-px bg-stone-300" />
         <button
           type="button"
-          onClick={insertImage}
-          title="Chèn hình ảnh từ URL"
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800"
+          onClick={() => imageInputRef.current?.click()}
+          disabled={uploadingImage}
+          title="Chọn ảnh từ máy — ảnh được lưu trên máy chủ"
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800 disabled:opacity-60"
         >
-          <ImagePlus className="h-3.5 w-3.5" /> Chèn ảnh
+          {uploadingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />} Chèn ảnh
+        </button>
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            void uploadImages(files);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => void insertImageFromUrl()}
+          disabled={uploadingImage}
+          title="Lấy ảnh từ một đường link về máy chủ rồi chèn vào bài"
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800 disabled:opacity-60"
+        >
+          <Globe className="h-3.5 w-3.5" /> Ảnh từ link
         </button>
         <button
           type="button"
@@ -224,6 +285,8 @@ export default function XuatBanPage() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  // Đang tải ảnh bìa / lấy ảnh link ngoài về máy chủ — khoá các nút lưu
+  const [busyMedia, setBusyMedia] = useState(false);
   const createTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Chỉnh sửa bài đã có
@@ -241,19 +304,50 @@ export default function XuatBanPage() {
   const [imported, setImported] = useState<ImportedArticle | null>(null);
   const importTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const readCover = (file: File | undefined, setter: (v: string | null) => void) => {
+  /** Ảnh bìa: tải thẳng lên máy chủ, giữ lại đường dẫn /uploads/... */
+  const readCover = async (file: File | undefined, setter: (v: string | null) => void) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast("Tệp không phải là hình ảnh.", "warning");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      toast("Ảnh bìa tối đa 2MB. Vui lòng chọn ảnh nhỏ hơn.", "warning");
+    if (file.size > 10 * 1024 * 1024) {
+      toast("Ảnh bìa tối đa 10MB. Vui lòng chọn ảnh nhỏ hơn.", "warning");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setter(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(file);
+    setBusyMedia(true);
+    try {
+      setter((await uploadFile(file, "bai-viet")).url);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Không tải được ảnh bìa lên máy chủ.", "warning");
+    } finally {
+      setBusyMedia(false);
+    }
+  };
+
+  /**
+   * Trước khi lưu: ảnh bìa nhập bằng link và ảnh trong nội dung còn trỏ ra web
+   * ngoài → máy chủ tải về lưu trữ riêng. Ảnh nào lỗi thì giữ link gốc và báo.
+   */
+  const localizeMedia = async (cover: string | undefined, content: string) => {
+    setBusyMedia(true);
+    try {
+      const localized = await localizeMarkdownImages(content, "bai-viet");
+      let finalCover = cover;
+      if (isExternalUrl(finalCover)) {
+        try {
+          finalCover = (await uploadFromUrl(finalCover, "bai-viet")).url;
+        } catch {
+          localized.failed++;
+        }
+      }
+      if (localized.failed > 0) {
+        toast(`${localized.failed} ảnh từ link ngoài không tải về được — ảnh đó vẫn dùng link gốc.`, "warning");
+      }
+      return { cover: finalCover, content: localized.content };
+    } finally {
+      setBusyMedia(false);
+    }
   };
 
   const pickCover = (file: File | undefined) => readCover(file, setCoverDataUrl);
@@ -296,7 +390,7 @@ export default function XuatBanPage() {
     setCreateOpen(true);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!session) return;
     if (!form.title.trim()) {
       toast("Vui lòng nhập tiêu đề bài viết.", "warning");
@@ -314,13 +408,16 @@ export default function XuatBanPage() {
     const derived = act?.categoryIds.map((cid) => store.contentCategories.find((c) => c.id === cid)?.name ?? "").filter(Boolean) ?? [];
     const categoryNames = Array.from(new Set([...derived, ...keywords]));
 
-    const finalCover = form.coverUrl.trim() || coverDataUrl || undefined;
+    const media = await localizeMedia(
+      form.coverUrl.trim() || coverDataUrl || undefined,
+      form.content.trim() || act?.summary || "",
+    );
 
     store.createPostFromActivity(session, actId, form.title.trim(), excerpt, {
-      content: form.content.trim() || act?.summary || "",
+      content: media.content,
       categoryNames,
       metaDescription: excerpt.slice(0, 160),
-      coverDataUrl: finalCover,
+      coverDataUrl: media.cover,
     });
 
     toast(actId ? "Đã tạo bản nháp từ hoạt động." : "Đã tạo bài viết thủ công mới thành công!");
@@ -364,8 +461,10 @@ export default function XuatBanPage() {
     }
   };
 
-  const saveImported = () => {
+  const saveImported = async () => {
     if (!session || !imported) return;
+    // Ảnh đại diện + ảnh trong bài gốc được tải về máy chủ, không trỏ sang trang nguồn
+    const media = await localizeMedia(imported.imageUrl, imported.content);
     const id = Date.now();
     store.savePost({
       id,
@@ -373,9 +472,9 @@ export default function XuatBanPage() {
       slug: slugify(imported.title) || `bai-nhap-${id}`,
       title: imported.title.trim(),
       excerpt: imported.excerpt.trim(),
-      content: imported.content,
+      content: media.content,
       coverSeed: 1,
-      coverDataUrl: imported.imageUrl ?? undefined,
+      coverDataUrl: media.cover,
       status: "DRAFT",
       isFeatured: false,
       viewCount: 0,
@@ -403,7 +502,7 @@ export default function XuatBanPage() {
     setEditCover(undefined);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editing) return;
     if (!editForm.title.trim()) {
       toast("Tiêu đề bài viết không được để trống.", "warning");
@@ -416,17 +515,20 @@ export default function XuatBanPage() {
     } else if (editCover === undefined) {
       finalCover = editing.coverDataUrl;
     } else {
-      finalCover = editCover ?? undefined;
+      // null = người dùng bấm bỏ ảnh → ghi chuỗi rỗng để DB xoá theo
+      finalCover = editCover ?? "";
     }
+
+    const media = await localizeMedia(finalCover, editForm.content);
 
     store.savePost({
       ...editing,
       title: editForm.title.trim(),
       excerpt: editForm.excerpt.trim(),
-      content: editForm.content,
+      content: media.content,
       categoryNames: editKeywords,
       metaDescription: editForm.excerpt.trim().slice(0, 160),
-      coverDataUrl: finalCover,
+      coverDataUrl: media.cover,
     });
     toast("Đã cập nhật bài viết.");
     setEditing(null);
@@ -581,7 +683,7 @@ export default function XuatBanPage() {
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={handleCreate}>
+            <Button onClick={() => void handleCreate()} disabled={busyMedia}>
               <Megaphone className="h-4 w-4" /> Tạo bản nháp
             </Button>
           </>
@@ -676,7 +778,7 @@ export default function XuatBanPage() {
             <KeywordPicker value={keywords} onChange={setKeywords} />
           </Field>
 
-          <Field label="Ảnh bìa (Đại diện bài viết)" hint="Tải tệp lên (JPG/PNG tối đa 2MB) hoặc dán trực tiếp đường dẫn ảnh (URL).">
+          <Field label="Ảnh bìa (Đại diện bài viết)" hint="Tải tệp lên (JPG/PNG/WebP tối đa 10MB) hoặc dán link ảnh — ảnh luôn được lưu trên máy chủ của Cổng.">
             <div className="space-y-3">
               <input
                 ref={coverInputRef}
@@ -700,7 +802,7 @@ export default function XuatBanPage() {
                   onClick={() => coverInputRef.current?.click()}
                   className="shrink-0"
                 >
-                  <ImagePlus className="h-4 w-4" /> Tải tệp lên
+                  {busyMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />} Tải tệp lên
                 </Button>
               </div>
 
@@ -744,7 +846,7 @@ export default function XuatBanPage() {
             <Button variant="secondary" onClick={() => setImportOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={saveImported} disabled={!imported || importing}>
+            <Button onClick={() => void saveImported()} disabled={!imported || importing || busyMedia}>
               <Megaphone className="h-4 w-4" /> Tạo bản nháp
             </Button>
           </>
@@ -843,7 +945,7 @@ export default function XuatBanPage() {
             <Button variant="secondary" onClick={() => setEditing(null)}>
               Hủy
             </Button>
-            <Button onClick={saveEdit}>
+            <Button onClick={() => void saveEdit()} disabled={busyMedia}>
               <Pencil className="h-4 w-4" /> Lưu thay đổi
             </Button>
           </>
@@ -889,7 +991,7 @@ export default function XuatBanPage() {
             <KeywordPicker value={editKeywords} onChange={setEditKeywords} />
           </Field>
 
-          <Field label="Ảnh bìa" hint="Dán đường dẫn ảnh trực tuyến hoặc tải tệp lên (JPG/PNG tối đa 2MB).">
+          <Field label="Ảnh bìa" hint="Dán link ảnh hoặc tải tệp lên (JPG/PNG/WebP tối đa 10MB) — ảnh luôn được lưu trên máy chủ của Cổng.">
             <input
               ref={editCoverInputRef}
               type="file"
@@ -913,7 +1015,7 @@ export default function XuatBanPage() {
                   onClick={() => editCoverInputRef.current?.click()}
                   className="shrink-0"
                 >
-                  <ImagePlus className="h-4 w-4" /> Tải tệp lên
+                  {busyMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />} Tải tệp lên
                 </Button>
               </div>
 

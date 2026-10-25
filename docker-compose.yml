@@ -14,6 +14,10 @@ services:
     tmpfs:
       - /tmp
       - /app/.next/cache:uid=1000,gid=1000
+    # Ảnh / video / văn bản người dùng tải lên — thư mục riêng trên máy chủ, chủ sở hữu 1000:1000
+    # (user node trong container). Caddy đọc cùng thư mục để phục vụ /uploads/*.
+    volumes:
+      - /srv/tnth/uploads:/app/uploads
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 1g
@@ -34,6 +38,7 @@ services:
       - "443:443/udp"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/tnth/uploads:/srv/uploads:ro
       - caddy_data:/data
       - caddy_config:/config
     mem_limit: 256m
