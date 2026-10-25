@@ -186,6 +186,21 @@ export async function POST(request: NextRequest) {
         (payload?.entities?.[entity] ?? []) as Record<string, unknown>[],
         ctx,
       );
+      if (entity === "activities") {
+        // Danh mục + liên kết của hoạt động gửi kèm là bản ĐẦY ĐỦ → thay hết bản cũ
+        // (nếu chỉ UPSERT thì mục người dùng đã bỏ vẫn nằm lại trong DB)
+        const ids = ((payload?.entities?.activities ?? []) as { id?: unknown }[])
+          .map((a) => Number(a.id))
+          .filter(Number.isFinite);
+        if (ids.length > 0) {
+          if (Array.isArray(payload?.entities?.activityCategories)) {
+            await client.query("DELETE FROM activity_categories WHERE activity_id = ANY($1::bigint[])", [ids]);
+          }
+          if (Array.isArray(payload?.entities?.activityLinks)) {
+            await client.query("DELETE FROM activity_links WHERE activity_id = ANY($1::bigint[])", [ids]);
+          }
+        }
+      }
     }
     // Xoá theo tombstone client gửi kèm — NGƯỢC ENTITY_ORDER (con trước, cha sau)
     const deleteCounts: Record<string, number> = {};

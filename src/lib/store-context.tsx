@@ -78,7 +78,12 @@ export interface DirectiveTaskInput {
 }
 
 let uid = 900000;
-const nextId = () => ++uid;
+/**
+ * Id do trình duyệt sinh: theo thời gian (µs giả lập) + ngẫu nhiên để 2 máy tạo
+ * cùng lúc không trùng id (trùng id = UPSERT đè bản ghi của người khác).
+ * Vẫn luôn lớn hơn id lớn nhất đã nạp từ DB.
+ */
+const nextId = () => (uid = Math.max(uid + 1, Date.now() * 1000 + Math.floor(Math.random() * 1000)));
 
 const nowISO = () => new Date().toISOString();
 
@@ -113,45 +118,45 @@ function buildRandomLiveEvent(unit: (typeof seedOrgUnits)[number]): Omit<LiveEve
 /** Seed điểm danh cho activity 101/102 */
 const seedAttendances: Attendance[] = [];
 
-/* ---------------- v15 — Đồng bộ PostgreSQL qua /api/store ----------------
- * Mỗi entity ghi từ UI được đánh dấu "bẩn" rồi gộp nhóm gửi POST /api/store
- * (xoá toàn bộ + insert lại trong 1 transaction phía server). Nhóm phải đóng
- * kín phụ thuộc FK: xoá bảng cha bắt buộc xoá luôn bảng con trong cùng POST. */
-const G_TASK = [
-  "criteriaSets", "tasks", "taskMetrics", "taskAssignments", "assignmentTargets",
-  "taskResults", "assignmentReviews", "scores",
-];
-const ENTITY_SYNC_GROUP: Record<string, string[]> = {
-  criteriaSets: G_TASK, tasks: G_TASK, taskMetrics: G_TASK, taskAssignments: G_TASK,
-  assignmentTargets: G_TASK, taskResults: G_TASK, assignmentReviews: G_TASK, scores: G_TASK,
-  activities: ["activities", "activityCategories", "activityLinks", "attendances", "publishedPosts"],
-  activityCategories: ["activityCategories"],
-  activityLinks: ["activityLinks"],
-  attendances: ["attendances"],
-  publishedPosts: ["publishedPosts"],
-  reports: ["reports"],
-  documents: ["documents", "documentRecipients"],
-  documentRecipients: ["documentRecipients"],
-  notifications: ["notifications"],
-  feedbacks: ["feedbacks", "feedbackMessages"],
-  feedbackMessages: ["feedbackMessages"],
-  emailLogs: ["emailLogs"],
-  liveEvents: ["liveEvents"],
-  resources: ["resources"],
-  settings: ["settings"],
-  forumThreads: ["forumThreads", "forumComments"],
-  forumComments: ["forumComments"],
-  hs3tProfiles: ["hs3tProfiles", "hs3tAchievements"],
-  hs3tAchievements: ["hs3tAchievements"],
-  hs3tUnitStandards: ["hs3tUnitStandards"],
-  quizQuestions: ["quizQuestions"],
-  quizExams: ["quizExams", "quizAttempts"],
-  quizAttempts: ["quizAttempts"],
-  volunteerProjects: ["volunteerProjects"],
-  orgDirectories: ["orgDirectories"],
-  memberContributions: ["memberContributions"],
-  contributions: ["contributions"],
-};
+/* ---------------- Đồng bộ PostgreSQL qua /api/store ----------------
+ * Client chỉ gửi các dòng mới/đổi (xem StoreProvider). Server UPSERT từng dòng,
+ * xoá theo tombstone; bảng con của Activity (categories/links) thay theo hoạt động. */
+
+/** Khoá so khớp 1 dòng — bảng không có cột id dùng khoá tự nhiên */
+function syncRowKey(entity: string, row: Record<string, unknown>): string {
+  switch (entity) {
+    case "settings":
+      return String(row.settingKey);
+    case "documentRecipients":
+      return `${row.documentId}:${row.orgUnitId}`;
+    default:
+      return String(row.id);
+  }
+}
+
+/**
+ * Ghép dữ liệu mới nạp từ DB vào state hiện tại: dòng nào nội dung không đổi
+ * thì giữ nguyên đối tượng cũ (không re-render, không bị coi là "đã sửa").
+ * Không có gì đổi → trả lại đúng mảng cũ.
+ */
+function reconcileRows(
+  entity: string,
+  current: Record<string, unknown>[],
+  incoming: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const byKey = new Map(current.map((r) => [syncRowKey(entity, r), r]));
+  let same = current.length === incoming.length;
+  const next = incoming.map((row, i) => {
+    const old = byKey.get(syncRowKey(entity, row));
+    if (old !== undefined && JSON.stringify(old) === JSON.stringify(row)) {
+      if (current[i] !== old) same = false;
+      return old;
+    }
+    same = false;
+    return row;
+  });
+  return same ? current : next;
+}
 
 /* Phạm vi entity được GỬI SYNC theo phiên đăng nhập — phải khớp gate phía
  * server (src/lib/server/store-tables.ts). Phần entity ngoài phạm vi KHÔNG gửi
@@ -419,7 +424,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  /* ============ v15 — Sync DB: boot merge + theo dõi ghi ============ */
+  /* ============ Đồng bộ PostgreSQL: chỉ gửi DÒNG thay đổi ============
+   * - baseRef: bản đã khớp với DB của từng dòng (theo tham chiếu đối tượng).
+   *   Mọi cập nhật state đều bất biến (map/spread) nên dòng nào đổi là có đối
+   *   tượng mới → so tham chiếu với baseRef là biết dòng nào cần gửi.
+   * - Chỉ gửi dòng mới/đổi, không gửi cả bảng: lượt gửi nhỏ (kịp gửi khi F5/đóng tab,
+   *   giới hạn keepalive ~64KB) và không đè thay đổi của người khác lên dòng mình không sửa.
+   * - Nạp lại từ DB mỗi 4 giây chỉ áp khi máy không còn thay đổi chờ gửi.
+   */
 
   // Ảnh state mới nhất để sync đọc lúc bắn (tránh closure cũ)
   const syncedStateRef = useRef<Record<string, unknown[]>>({});
@@ -434,82 +446,138 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     orgDirectories, memberContributions, contributions,
   };
 
-  /** activityCategories/activityLinks tách từ Activity (links + categoryIds lồng nhau) */
-  const snapshotEntity = useCallback((entity: string): unknown[] | null => {
-    if (entity === "activityCategories") {
-      return ((syncedStateRef.current.activities ?? []) as Activity[]).flatMap((a) =>
-        a.categoryIds.map((categoryId) => ({ activityId: a.id, categoryId })),
-      );
-    }
-    if (entity === "activityLinks") {
-      return ((syncedStateRef.current.activities ?? []) as Activity[]).flatMap((a) => a.links);
-    }
-    return syncedStateRef.current[entity] ?? null;
-  }, []);
-
-  const dirtyRef = useRef<Set<string>>(new Set());
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Dòng đã khớp DB, theo entity → khoá dòng → đối tượng */
+  const baseRef = useRef<Record<string, Map<string, unknown>>>({});
+  /** Dòng đổi ở máy, chờ gửi */
+  const pendingRef = useRef<Record<string, Map<string, unknown>>>({});
   // Danh sách id đã xoá phía client chờ gửi DELETE lên server (tombstone)
   const deletedIdsRef = useRef<Record<string, number[]>>({});
-  // Chỉ cảnh báo toast MỖI CHUỖI lỗi một lần, thành công thì.reset
-  const syncFailToastedRef = useRef(false);
+  const prevArraysRef = useRef<Record<string, unknown[]>>({});
+  /** Tăng mỗi khi có thay đổi cục bộ — kết quả nạp DB về trễ hơn thay đổi thì bỏ */
+  const localVersionRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const flushAgainRef = useRef(false);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryDelayRef = useRef(5000);
+  const flushSyncRef = useRef<(immediate?: boolean) => Promise<void>>(async () => {});
+
+  const hasPendingSync = () =>
+    inFlightRef.current ||
+    Object.values(pendingRef.current).some((m) => m.size > 0) ||
+    Object.values(deletedIdsRef.current).some((ids) => ids.length > 0);
+
+  const scheduleFlush = useCallback((delay = 1200) => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      syncTimerRef.current = null;
+      void flushSyncRef.current();
+    }, delay);
+  }, []);
+
+  // Theo dõi thay đổi state → ghi nhận dòng mới/đổi (chạy sau mỗi lần render)
+  useEffect(() => {
+    const allowed = scopeAllowedEntities(sessionRef.current);
+    let found = false;
+    for (const [entity, rows] of Object.entries(syncedStateRef.current)) {
+      if (prevArraysRef.current[entity] === rows) continue;
+      prevArraysRef.current[entity] = rows;
+      const base = baseRef.current[entity];
+      // Chưa nạp xong từ DB, hoặc phiên không được ghi entity này → không gửi
+      if (!base || (allowed && !allowed.has(entity))) continue;
+      for (const row of rows as Record<string, unknown>[]) {
+        const key = syncRowKey(entity, row);
+        if (base.get(key) === row) continue;
+        (pendingRef.current[entity] ??= new Map()).set(key, row);
+        found = true;
+      }
+    }
+    if (found) {
+      localVersionRef.current++;
+      scheduleFlush();
+    }
+  });
 
   const flushSync = useCallback(async (immediate = false) => {
-    const names = new Set<string>();
-    for (const e of dirtyRef.current) for (const g of ENTITY_SYNC_GROUP[e] ?? [e]) names.add(g);
-    dirtyRef.current.clear();
-    if (names.size === 0) return;
-    // Lọc entity theo phạm vi phiên — phần ngoài phạm vi giữ lại dirty để gửi
-    // khi phiên đủ quyền (tránh server 401/403 từ chối CẢ lô)
-    const allowed = scopeAllowedEntities(sessionRef.current);
-    const entities: Record<string, unknown[]> = {};
-    const deletes: Record<string, number[]> = {};
-    for (const n of names) {
-      if (allowed && !allowed.has(n)) {
-        dirtyRef.current.add(n);
-        continue;
-      }
-      const rows = snapshotEntity(n);
-      if (rows) entities[n] = rows;
-      const del = deletedIdsRef.current[n];
-      if (del && del.length > 0) deletes[n] = del;
+    if (inFlightRef.current) {
+      flushAgainRef.current = true;
+      return;
     }
-    if (Object.keys(entities).length === 0 && Object.keys(deletes).length === 0) return;
+    const entities: Record<string, unknown[]> = {};
+    const sent: [string, string, unknown][] = [];
+    for (const [entity, map] of Object.entries(pendingRef.current)) {
+      if (map.size === 0) continue;
+      const rows = [...map.values()];
+      entities[entity] = rows;
+      for (const [key, row] of map) sent.push([entity, key, row]);
+      map.clear();
+      if (entity === "activities") {
+        // Bảng con lồng trong Activity — server thay toàn bộ con của các hoạt động này
+        const acts = rows as Activity[];
+        entities.activityCategories = acts.flatMap((a) => a.categoryIds.map((categoryId) => ({ activityId: a.id, categoryId })));
+        entities.activityLinks = acts.flatMap((a) => a.links);
+      }
+    }
+    const deletes: Record<string, number[]> = {};
+    for (const [entity, ids] of Object.entries(deletedIdsRef.current)) {
+      if (ids.length > 0) deletes[entity] = ids;
+    }
+    deletedIdsRef.current = {};
+    if (sent.length === 0 && Object.keys(deletes).length === 0) return;
+
     const requeue = () => {
-      for (const n of Object.keys(entities)) dirtyRef.current.add(n);
-      for (const n of Object.keys(deletes)) dirtyRef.current.add(n);
+      for (const [entity, key, row] of sent) {
+        const map = (pendingRef.current[entity] ??= new Map());
+        if (!map.has(key)) map.set(key, row); // bản sửa mới hơn (nếu có) được ưu tiên
+      }
+      for (const [entity, ids] of Object.entries(deletes)) {
+        deletedIdsRef.current[entity] = [...ids, ...(deletedIdsRef.current[entity] ?? [])];
+      }
     };
+
+    inFlightRef.current = true;
     try {
+      const body = JSON.stringify({ entities, deletes });
       const r = await fetch("/api/store", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entities, deletes }),
-        // flush khi rời trang phải kịp gửi trước khi tab đóng
-        ...(immediate ? { keepalive: true } : {}),
+        body,
+        // flush khi rời trang phải kịp gửi trước khi tab đóng (keepalive tối đa ~64KB)
+        ...(immediate && body.length < 60_000 ? { keepalive: true } : {}),
       });
-      if (!r.ok) {
-        requeue();
-        console.warn("[TNTH][STORE] Sync bị từ chối (HTTP", r.status, ") — dữ liệu vẫn giữ tại máy.");
-        // Im lặng thử lại nền, không hiện toast quấy rầy người dùng
+      if (r.ok) {
+        for (const [entity, key, row] of sent) (baseRef.current[entity] ??= new Map()).set(key, row);
+        retryDelayRef.current = 5000;
+      } else if (r.status >= 400 && r.status < 500) {
+        // Bị từ chối (quyền, dữ liệu sai) — thử lại cũng vô ích: báo rồi nạp lại bản thật từ DB
+        const j = (await r.json().catch(() => null)) as { error?: string } | null;
+        toast(`Không lưu được thay đổi: ${j?.error ?? `HTTP ${r.status}`}`, "warning");
+        console.warn("[TNTH][STORE] Sync bị từ chối (HTTP", r.status, "):", j?.error);
+        void loadStoreSnapshotRef.current(true);
       } else {
-        for (const n of Object.keys(deletes)) delete deletedIdsRef.current[n];
-        syncFailToastedRef.current = false;
+        requeue();
+        console.warn("[TNTH][STORE] Sync lỗi máy chủ (HTTP", r.status, ") — giữ dữ liệu tại máy, tự thử lại.");
+        scheduleFlush(retryDelayRef.current);
+        retryDelayRef.current = Math.min(retryDelayRef.current * 2, 60_000);
       }
     } catch {
       requeue();
-      console.warn("[TNTH][STORE] Không tới được máy chủ — giữ dữ liệu tại máy, thử lại ở lần ghi sau.");
-      // Giữ dữ liệu tại máy, tự thử lại khi có kết nối
+      console.warn("[TNTH][STORE] Không tới được máy chủ — giữ dữ liệu tại máy, tự thử lại.");
+      scheduleFlush(retryDelayRef.current);
+      retryDelayRef.current = Math.min(retryDelayRef.current * 2, 60_000);
+    } finally {
+      inFlightRef.current = false;
+      if (flushAgainRef.current) {
+        flushAgainRef.current = false;
+        scheduleFlush(0);
+      }
     }
-  }, [snapshotEntity, toast]);
+  }, [scheduleFlush, toast]);
+  useEffect(() => {
+    flushSyncRef.current = flushSync;
+  }, [flushSync]);
 
-  const markDirty = useCallback(
-    (entities: string[]) => {
-      for (const e of entities) dirtyRef.current.add(e);
-      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-      syncTimerRef.current = setTimeout(() => void flushSync(), 1200);
-    },
-    [flushSync],
-  );
+  /** Giữ chữ ký cũ cho nơi gọi trực tiếp — việc phát hiện dòng đổi đã do bộ theo dõi lo */
+  const markDirty = useCallback((_entities: string[]) => scheduleFlush(), [scheduleFlush]);
 
   /** Ghi nhận xoá phía client để server DELETE đúng dòng khi sync (tombstone) */
   const trackDelete = useCallback(
@@ -517,9 +585,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const clean = ids.filter((id) => Number.isFinite(id));
       if (clean.length === 0) return;
       deletedIdsRef.current[entity] = [...(deletedIdsRef.current[entity] ?? []), ...clean];
-      markDirty([entity]);
+      for (const id of clean) {
+        pendingRef.current[entity]?.delete(String(id));
+        baseRef.current[entity]?.delete(String(id));
+      }
+      localVersionRef.current++;
+      scheduleFlush();
     },
-    [markDirty],
+    [scheduleFlush],
   );
 
   // Rời trang / tab ẩn → flush NGAY (không chờ debounce), keepalive để fetch
@@ -530,7 +603,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         clearTimeout(syncTimerRef.current);
         syncTimerRef.current = null;
       }
-      void flushSync(true);
+      void flushSyncRef.current(true);
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flushNow();
@@ -541,13 +614,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("pagehide", flushNow);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [flushSync]);
-
-  // Những mảng vừa được nạp từ DB — lần render đầu sau nạp không gửi ngược lại
-  const hydratedRefs = useRef<Map<string, unknown[]>>(new Map());
+  }, []);
 
   // Nạp snapshot DB: cập nhật state đồng bộ 100% với PostgreSQL thực tế
-  const loadStoreSnapshot = useCallback(async () => {
+  const loadStoreSnapshotRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
+  const loadStoreSnapshot = useCallback(async (force = false) => {
+    if (!force && hasPendingSync()) return;
+    const versionAtStart = localVersionRef.current;
     try {
       const r = await fetch("/api/store");
       if (!r.ok) return;
@@ -555,76 +628,72 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         | { ok?: boolean; scope?: string; data?: Record<string, unknown[]> }
         | null;
       if (!j?.ok || !j.data) return;
+      // Trong lúc chờ, máy vừa có thay đổi mới → bỏ kết quả này để không đè lên
+      if (localVersionRef.current !== versionAtStart || (!force && hasPendingSync())) return;
+      if (force) {
+        pendingRef.current = {};
+        deletedIdsRef.current = {};
+      }
       const d = j.data;
       const raw = (k: string): unknown[] => (Array.isArray(d[k]) ? d[k] : []);
-      const has = (k: string) => Array.isArray(d[k]);
-      const hydrate = (k: string, rows: unknown[]) => hydratedRefs.current.set(k, rows);
       let maxId = 900000;
-      const bumpMax = (rows: unknown[]) => {
-        for (const row of rows) {
-          const id = Number((row as { id?: unknown }).id);
-          if (Number.isFinite(id) && id > maxId) maxId = id;
-        }
+
+      // Dữ liệu DB → dạng state phía client (gộp bảng con, đổi tên trường)
+      const fromDb: Record<string, () => unknown[]> = {
+        activities: () => {
+          const links = raw("activityLinks") as Activity["links"];
+          const cats = raw("activityCategories") as { activityId: number; categoryId: number }[];
+          return (raw("activities") as Activity[]).map((a) => ({
+            ...a,
+            links: links.filter((l) => l.activityId === a.id),
+            categoryIds: cats.filter((c) => c.activityId === a.id).map((c) => c.categoryId),
+          }));
+        },
+        reports: () => (raw("reports") as Report[]).map((rp) => ({ ...rp, exports: [] as Report["exports"] })),
+        volunteerProjects: () =>
+          raw("volunteerProjects").map((p0) => {
+            const { reportFileName, reportFileData, ...p } = p0 as VolunteerProject & {
+              reportFileName?: string | null; reportFileData?: string | null;
+            };
+            return {
+              ...p,
+              reportFile: reportFileName ? { name: reportFileName, dataUrl: reportFileData ?? undefined } : undefined,
+            } as VolunteerProject;
+          }),
+      };
+      const setters: Record<string, (rows: never[]) => void> = {
+        criteriaSets: setCriteriaSets, tasks: setTasks, taskMetrics: setTaskMetrics,
+        taskAssignments: setTaskAssignments, assignmentTargets: setAssignmentTargets,
+        taskResults: setTaskResults, assignmentReviews: setAssignmentReviews, scores: setScores,
+        rankingSnapshots: setRankingSnapshots, rankingEntries: setRankingEntries,
+        activities: setActivities, publishedPosts: setPublishedPosts, attendances: setAttendances,
+        reports: setReports, documents: setDocuments, documentRecipients: setDocumentRecipients,
+        notifications: setNotifications, feedbacks: setFeedbacks, feedbackMessages: setFeedbackMessages,
+        emailLogs: setEmailLogs, liveEvents: setLiveEvents, resources: setResources, settings: setSettings,
+        forumThreads: setForumThreads, forumComments: setForumComments,
+        hs3tProfiles: setHs3tProfiles, hs3tAchievements: setHs3tAchievements, hs3tUnitStandards: setHs3tUnitStandards,
+        quizQuestions: setQuizQuestions, quizExams: setQuizExams, quizAttempts: setQuizAttempts,
+        volunteerProjects: setVolunteerProjects, orgDirectories: setOrgDirectories,
+        memberContributions: setMemberContributions, contributions: setContributions,
       };
 
-      if (has("activities")) {
-        const links = (raw("activityLinks") as Activity["links"]) ?? [];
-        const cats = (raw("activityCategories") as { activityId: number; categoryId: number }[]) ?? [];
-        const acts = (raw("activities") as Activity[]).map((a) => ({
-          ...a,
-          links: links.filter((l) => l.activityId === a.id),
-          categoryIds: cats.filter((c) => c.activityId === a.id).map((c) => c.categoryId),
-        }));
-        bumpMax(acts); hydrate("activities", acts); setActivities(acts);
+      for (const [entity, setRows] of Object.entries(setters)) {
+        // Entity phiên này không được đọc → để trống (vd. vừa đăng xuất khỏi quyền quản trị)
+        const incoming = Array.isArray(d[entity]) ? (fromDb[entity]?.() ?? raw(entity)) : [];
+        const current = (syncedStateRef.current[entity] ?? []) as Record<string, unknown>[];
+        const next = reconcileRows(entity, current, incoming as Record<string, unknown>[]);
+        const base = new Map<string, unknown>();
+        for (const row of next) {
+          base.set(syncRowKey(entity, row), row);
+          const id = Number(row.id);
+          if (Number.isFinite(id) && id > maxId) maxId = id;
+        }
+        baseRef.current[entity] = base;
+        if (next !== current) {
+          prevArraysRef.current[entity] = next;
+          setRows(next as never[]);
+        }
       }
-      if (has("criteriaSets")) { const rows = raw("criteriaSets") as CriteriaSet[]; bumpMax(rows); hydrate("criteriaSets", rows); setCriteriaSets(rows); }
-      if (has("tasks")) { const rows = raw("tasks") as Task[]; bumpMax(rows); hydrate("tasks", rows); setTasks(rows); }
-      if (has("taskMetrics")) { const rows = raw("taskMetrics") as TaskMetric[]; bumpMax(rows); hydrate("taskMetrics", rows); setTaskMetrics(rows); }
-      if (has("taskAssignments")) { const rows = raw("taskAssignments") as TaskAssignment[]; bumpMax(rows); hydrate("taskAssignments", rows); setTaskAssignments(rows); }
-      if (has("assignmentTargets")) { const rows = raw("assignmentTargets") as AssignmentTarget[]; bumpMax(rows); hydrate("assignmentTargets", rows); setAssignmentTargets(rows); }
-      if (has("taskResults")) { const rows = raw("taskResults") as TaskResult[]; bumpMax(rows); hydrate("taskResults", rows); setTaskResults(rows); }
-      if (has("assignmentReviews")) { const rows = raw("assignmentReviews") as AssignmentReview[]; bumpMax(rows); hydrate("assignmentReviews", rows); setAssignmentReviews(rows); }
-      if (has("scores")) { const rows = raw("scores") as Score[]; bumpMax(rows); hydrate("scores", rows); setScores(rows); }
-      if (has("rankingSnapshots")) { const rows = raw("rankingSnapshots") as RankingSnapshot[]; bumpMax(rows); hydrate("rankingSnapshots", rows); setRankingSnapshots(rows); }
-      if (has("rankingEntries")) { const rows = raw("rankingEntries") as RankingEntry[]; bumpMax(rows); hydrate("rankingEntries", rows); setRankingEntries(rows); }
-      if (has("publishedPosts")) { const rows = raw("publishedPosts") as PublishedPost[]; bumpMax(rows); hydrate("publishedPosts", rows); setPublishedPosts(rows); }
-      if (has("reports")) {
-        const rows = (raw("reports") as Report[]).map((rp) => ({ ...rp, exports: [] as Report["exports"] }));
-        bumpMax(rows); hydrate("reports", rows); setReports(rows);
-      }
-      if (has("documents")) { const rows = raw("documents") as DocumentRecord[]; bumpMax(rows); hydrate("documents", rows); setDocuments(rows); }
-      if (has("documentRecipients")) { const rows = raw("documentRecipients") as DocumentRecipient[]; hydrate("documentRecipients", rows); setDocumentRecipients(rows); }
-      if (has("notifications")) { const rows = raw("notifications") as Notification[]; hydrate("notifications", rows); setNotifications(rows); }
-      if (has("feedbacks")) { const rows = raw("feedbacks") as Feedback[]; bumpMax(rows); hydrate("feedbacks", rows); setFeedbacks(rows); }
-      if (has("feedbackMessages")) { const rows = raw("feedbackMessages") as FeedbackMessage[]; bumpMax(rows); hydrate("feedbackMessages", rows); setFeedbackMessages(rows); }
-      if (has("emailLogs")) { const rows = raw("emailLogs") as EmailLog[]; bumpMax(rows); hydrate("emailLogs", rows); setEmailLogs(rows); }
-      if (has("attendances")) { const rows = raw("attendances") as Attendance[]; bumpMax(rows); hydrate("attendances", rows); setAttendances(rows); }
-      if (has("liveEvents")) { const rows = raw("liveEvents") as LiveEvent[]; bumpMax(rows); hydrate("liveEvents", rows); setLiveEvents(rows); }
-      if (has("resources")) { const rows = raw("resources") as Resource[]; bumpMax(rows); hydrate("resources", rows); setResources(rows); }
-      if (has("settings")) { hydrate("settings", raw("settings")); setSettings(raw("settings") as SystemSetting[]); }
-      if (has("forumThreads")) { const rows = raw("forumThreads") as ForumThread[]; bumpMax(rows); hydrate("forumThreads", rows); setForumThreads(rows); }
-      if (has("forumComments")) { const rows = raw("forumComments") as ForumComment[]; bumpMax(rows); hydrate("forumComments", rows); setForumComments(rows); }
-      if (has("hs3tProfiles")) { const rows = raw("hs3tProfiles") as Hs3tProfile[]; bumpMax(rows); hydrate("hs3tProfiles", rows); setHs3tProfiles(rows); }
-      if (has("hs3tAchievements")) { const rows = raw("hs3tAchievements") as Hs3tAchievement[]; bumpMax(rows); hydrate("hs3tAchievements", rows); setHs3tAchievements(rows); }
-      if (has("hs3tUnitStandards")) { const rows = raw("hs3tUnitStandards") as Hs3tUnitStandard[]; bumpMax(rows); hydrate("hs3tUnitStandards", rows); setHs3tUnitStandards(rows); }
-      if (has("quizQuestions")) { const rows = raw("quizQuestions") as QuizQuestion[]; bumpMax(rows); hydrate("quizQuestions", rows); setQuizQuestions(rows); }
-      if (has("quizExams")) { const rows = raw("quizExams") as QuizExam[]; bumpMax(rows); hydrate("quizExams", rows); setQuizExams(rows); }
-      if (has("quizAttempts")) { const rows = raw("quizAttempts") as QuizAttempt[]; bumpMax(rows); hydrate("quizAttempts", rows); setQuizAttempts(rows); }
-      if (has("volunteerProjects")) {
-        const rows = raw("volunteerProjects").map((p0) => {
-          const { reportFileName, reportFileData, ...p } = p0 as VolunteerProject & {
-            reportFileName?: string | null; reportFileData?: string | null;
-          };
-          return {
-            ...p,
-            reportFile: reportFileName ? { name: reportFileName, dataUrl: reportFileData ?? undefined } : undefined,
-          } as VolunteerProject;
-        });
-        bumpMax(rows); hydrate("volunteerProjects", rows); setVolunteerProjects(rows);
-      }
-      if (has("orgDirectories")) { const rows = raw("orgDirectories") as OrgDirectory[]; bumpMax(rows); hydrate("orgDirectories", rows); setOrgDirectories(rows); }
-      if (has("memberContributions")) { const rows = raw("memberContributions") as MemberContribution[]; bumpMax(rows); hydrate("memberContributions", rows); setMemberContributions(rows); }
-      if (has("contributions")) { const rows = raw("contributions") as ContributionLog[]; bumpMax(rows); hydrate("contributions", rows); setContributions(rows); }
 
       // Chống đụng id: bộ đếm nextId() phải vượt id lớn nhất vừa nạp từ DB
       if (maxId > uid) uid = maxId;
@@ -632,62 +701,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       /* DB chưa nối được — chế độ offline */
     }
   }, []);
+  useEffect(() => {
+    loadStoreSnapshotRef.current = loadStoreSnapshot;
+  }, [loadStoreSnapshot]);
 
   // Nạp dữ liệu ngay khi ứng dụng khởi động và mỗi khi phiên đăng nhập thay đổi
   useEffect(() => {
-    void loadStoreSnapshot();
+    void loadStoreSnapshot(true);
     void refreshAccounts();
     void refreshOrgUnits();
   }, [session?.accountId, session?.role, loadStoreSnapshot, refreshAccounts, refreshOrgUnits]);
 
-  // Tự động đồng bộ realtime mỗi 4 giây từ PostgreSQL thực tế
+  // Tự động đồng bộ realtime mỗi 4 giây từ PostgreSQL thực tế (bỏ qua khi tab ẩn)
   useEffect(() => {
-    const timer = setInterval(async () => {
-      if (dirtyRef.current.size > 0) return;
-      try {
-        const r = await fetch("/api/store");
-        if (!r.ok) return;
-        const j = await r.json().catch(() => null);
-        if (!j?.ok || !j.data) return;
-        const d = j.data;
-        if (Array.isArray(d.resources)) setResources(d.resources as Resource[]);
-        if (Array.isArray(d.publishedPosts)) setPublishedPosts(d.publishedPosts as PublishedPost[]);
-        if (Array.isArray(d.documents)) setDocuments(d.documents as DocumentRecord[]);
-        if (Array.isArray(d.liveEvents)) setLiveEvents(d.liveEvents as LiveEvent[]);
-        if (Array.isArray(d.activities)) {
-          const links = (Array.isArray(d.activityLinks) ? d.activityLinks : []) as Activity["links"];
-          const cats = (Array.isArray(d.activityCategories) ? d.activityCategories : []) as { activityId: number; categoryId: number }[];
-          setActivities((d.activities as Activity[]).map((a) => ({
-            ...a,
-            links: links.filter((l) => l.activityId === a.id),
-            categoryIds: cats.filter((c) => c.activityId === a.id).map((c) => c.categoryId),
-          })));
-        }
-        if (Array.isArray(d.taskAssignments)) setTaskAssignments(d.taskAssignments as TaskAssignment[]);
-        if (Array.isArray(d.assignmentTargets)) setAssignmentTargets(d.assignmentTargets as AssignmentTarget[]);
-        if (Array.isArray(d.taskResults)) setTaskResults(d.taskResults as TaskResult[]);
-        if (Array.isArray(d.assignmentReviews)) setAssignmentReviews(d.assignmentReviews as AssignmentReview[]);
-        if (Array.isArray(d.scores)) setScores(d.scores as Score[]);
-        if (Array.isArray(d.feedbacks)) setFeedbacks(d.feedbacks as Feedback[]);
-        if (Array.isArray(d.feedbackMessages)) setFeedbackMessages(d.feedbackMessages as FeedbackMessage[]);
-        if (Array.isArray(d.notifications)) setNotifications(d.notifications as Notification[]);
-        if (Array.isArray(d.quizQuestions)) setQuizQuestions(d.quizQuestions as QuizQuestion[]);
-        if (Array.isArray(d.quizExams)) setQuizExams(d.quizExams as QuizExam[]);
-        if (Array.isArray(d.volunteerProjects)) {
-          setVolunteerProjects((d.volunteerProjects as any[]).map((p0) => {
-            const { reportFileName, reportFileData, ...p } = p0;
-            return {
-              ...p,
-              reportFile: reportFileName ? { name: reportFileName, dataUrl: reportFileData ?? undefined } : undefined,
-            };
-          }));
-        }
-      } catch {}
+    const timer = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void loadStoreSnapshot();
       void refreshAccounts();
       void refreshOrgUnits();
     }, 4000);
     return () => clearInterval(timer);
-  }, [refreshAccounts, refreshOrgUnits]);
+  }, [loadStoreSnapshot, refreshAccounts, refreshOrgUnits]);
 
   const orgById = useCallback((id: number) => orgUnits.find((u) => u.id === id), [orgUnits]);
   const orgName = useCallback((id: number) => orgUnits.find((u) => u.id === id)?.name ?? `Đơn vị #${id}`, [orgUnits]);

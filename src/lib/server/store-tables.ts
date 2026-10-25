@@ -554,20 +554,28 @@ function coerceOut(value: unknown, type: FieldType): unknown {
   }
 }
 
-/** Object client → mảng giá trị theo cột (kèm cột phái sinh) */
+/**
+ * Object client → mảng giá trị theo cột (kèm cột phái sinh).
+ * `nullCols`: cột client GỬI RÕ null (người dùng xoá giá trị) — khi UPDATE sẽ đặt
+ * NULL nếu cột cho phép; khi INSERT vẫn bỏ qua để DEFAULT phía DB hoạt động.
+ */
 export function toRow(
   entity: string,
   obj: Record<string, unknown>,
   ctx: DeriveCtx,
-): { cols: string[]; values: unknown[] } {
+): { cols: string[]; values: unknown[]; nullCols: string[] } {
   const spec = ENTITY_SPECS[entity];
   const cols: string[] = [];
   const values: unknown[] = [];
+  const nullCols: string[] = [];
   for (const [field, fs] of Object.entries(spec.fields)) {
     const raw = fs.get ? fs.get(obj) : obj[field];
     const value = coerceIn(raw, fs.type);
     // Bỏ qua cột giá trị rỗng — DEFAULT phía DB lo các cột NOT NULL (updated_at, evidence_names…)
-    if (value === null) continue;
+    if (value === null) {
+      if (!fs.get && raw === null) nullCols.push(fs.col);
+      continue;
+    }
     cols.push(fs.col);
     values.push(value);
   }
@@ -577,7 +585,26 @@ export function toRow(
       values.push(value);
     }
   }
-  return { cols, values };
+  return { cols, values, nullCols: nullCols.filter((c) => !cols.includes(c)) };
+}
+
+/** Cột cho phép NULL của từng bảng (đọc information_schema 1 lần mỗi tiến trình) */
+let nullableColsCache: Map<string, Set<string>> | null = null;
+async function nullableColsOf(
+  client: { query: (text: string, params?: unknown[]) => Promise<unknown> },
+  table: string,
+): Promise<Set<string>> {
+  if (!nullableColsCache) {
+    const r = (await client.query(
+      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND is_nullable = 'YES'",
+    )) as { rows: { table_name: string; column_name: string }[] };
+    nullableColsCache = new Map();
+    for (const row of r.rows) {
+      if (!nullableColsCache.has(row.table_name)) nullableColsCache.set(row.table_name, new Set());
+      nullableColsCache.get(row.table_name)!.add(row.column_name);
+    }
+  }
+  return nullableColsCache.get(table) ?? new Set();
 }
 
 /** Dòng DB → object client */
@@ -628,9 +655,11 @@ export async function writeEntity(
   if (!spec || objs.length === 0) return 0;
 
   const overriding = spec.noIdentity ? "" : " OVERRIDING SYSTEM VALUE";
+  const nullable = await nullableColsOf(client, spec.table);
   for (const obj of objs) {
-    const { cols, values } = toRow(entity, obj, ctx);
+    const { cols, values, nullCols } = toRow(entity, obj, ctx);
     if (cols.length === 0) continue;
+    const clearCols = nullCols.filter((c) => nullable.has(c));
     const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
     const colList = cols.map((c) => `"${c}"`).join(", ");
 
@@ -645,9 +674,12 @@ export async function writeEntity(
     } else if (entity === "documentRecipients") {
       conflictClause = " ON CONFLICT (document_id, org_unit_id) DO NOTHING";
     } else if (cols.includes("id")) {
-      const updateCols = cols.filter((c) => c !== "id");
-      conflictClause = updateCols.length > 0
-        ? ` ON CONFLICT (id) DO UPDATE SET ${updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")}`
+      const sets = [
+        ...cols.filter((c) => c !== "id").map((c) => `"${c}" = EXCLUDED."${c}"`),
+        ...clearCols.map((c) => `"${c}" = NULL`),
+      ];
+      conflictClause = sets.length > 0
+        ? ` ON CONFLICT (id) DO UPDATE SET ${sets.join(", ")}`
         : " ON CONFLICT (id) DO NOTHING";
     }
 
