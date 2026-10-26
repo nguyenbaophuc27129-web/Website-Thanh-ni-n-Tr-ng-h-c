@@ -31,191 +31,26 @@ import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
 import type { PublishedPost } from "@/types";
 import { formatNumber, formatDateTime, slugify } from "@/lib/utils";
-import { isExternalUrl, localizeMarkdownImages, uploadFile, uploadFromUrl } from "@/lib/upload-client";
+import { isExternalUrl, uploadFile, uploadFromUrl } from "@/lib/upload-client";
+import { RichEditor } from "@/components/editor";
+import { docToPlainText, emptyDoc, isDocEmpty, type PostDoc } from "@/lib/editor/doc-utils";
+import { legacyMarkdownToDoc, postDocOf } from "@/lib/editor/legacy-markdown";
 
 /** Kết quả trích xuất từ đường link */
 interface ImportedArticle {
   title: string;
   excerpt: string;
-  content: string;
   imageUrl?: string;
   sourceUrl: string;
 }
 
-/** Thanh công cụ soạn thảo phong phú: In đậm, In nghiêng, H2, H3, Chèn ảnh, Chèn link, Trích dẫn, Đếm từ & ký tự */
-function EditorToolbar({
-  textareaRef,
-  value,
-  onChange,
-}: {
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-  value: string;
-  onChange: (val: string) => void;
-}) {
-  const { toast } = useToast();
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const insertText = (before: string, after: string = "", placeholder: string = "") => {
-    const el = textareaRef.current;
-    if (!el) {
-      onChange(value + before + placeholder + after);
-      return;
-    }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = value.slice(start, end) || placeholder;
-    const next = value.slice(0, start) + before + selected + after + value.slice(end);
-    onChange(next);
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + before.length, start + before.length + selected.length);
-    }, 40);
-  };
-
-  /** Chèn ảnh đã lưu trên máy chủ tại con trỏ — đọc giá trị mới nhất vì tải ảnh mất thời gian */
-  const insertUploadedImage = (url: string, caption = "") => {
-    const el = textareaRef.current;
-    const current = el?.value ?? value;
-    const pos = el ? Math.min(el.selectionEnd, current.length) : current.length;
-    const snippet = `\n\n![${caption}](${url})` + (caption ? `\n*${caption}*\n\n` : "\n\n");
-    onChange(current.slice(0, pos) + snippet + current.slice(pos));
-  };
-
-  const uploadImages = async (files: File[]) => {
-    setUploadingImage(true);
-    try {
-      for (const file of files) {
-        if (!file.type.startsWith("image/")) {
-          toast(`"${file.name}" không phải hình ảnh — đã bỏ qua.`, "warning");
-          continue;
-        }
-        try {
-          insertUploadedImage((await uploadFile(file, "bai-viet")).url);
-        } catch (e) {
-          toast(e instanceof Error ? e.message : `Không tải được ảnh "${file.name}".`, "warning");
-        }
-      }
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const insertImageFromUrl = async () => {
-    const url = window.prompt("Nhập đường dẫn ảnh — máy chủ sẽ tải ảnh về lưu trữ riêng (URL https://):", "https://");
-    if (!url || url === "https://") return;
-    const caption = window.prompt("Nhập chú thích ảnh (tùy chọn):", "") || "";
-    setUploadingImage(true);
-    try {
-      insertUploadedImage((await uploadFromUrl(url.trim(), "bai-viet")).url, caption);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Không tải được ảnh từ đường link.", "warning");
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const insertLink = () => {
-    const url = window.prompt("Nhập địa chỉ liên kết (URL):", "https://");
-    if (!url || url === "https://") return;
-    const label = window.prompt("Nhập tên hiển thị cho liên kết:", "Xem chi tiết") || "Liên kết";
-    insertText(`[${label}](${url})`);
-  };
-
-  const words = value.trim() ? value.trim().split(/\s+/).length : 0;
-  const chars = value.length;
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-b-0 border-stone-200 bg-stone-50 px-3 py-1.5 text-xs text-stone-600">
-      <div className="flex flex-wrap items-center gap-1">
-        <button
-          type="button"
-          onClick={() => insertText("**", "**", "chữ đậm")}
-          title="In đậm (Bold)"
-          className="flex h-7 w-7 items-center justify-center rounded font-bold hover:bg-stone-200 text-stone-800"
-        >
-          B
-        </button>
-        <button
-          type="button"
-          onClick={() => insertText("*", "*", "chữ nghiêng")}
-          title="In nghiêng (Italic)"
-          className="flex h-7 w-7 items-center justify-center rounded italic font-serif hover:bg-stone-200 text-stone-800"
-        >
-          I
-        </button>
-        <span className="mx-1 h-4 w-px bg-stone-300" />
-        <button
-          type="button"
-          onClick={() => insertText("\n## ", "\n", "Tiêu đề mục lớn")}
-          title="Tiêu đề mục lớn (H2)"
-          className="rounded px-2 py-1 font-bold text-[11px] hover:bg-stone-200 text-stone-800"
-        >
-          H2
-        </button>
-        <button
-          type="button"
-          onClick={() => insertText("\n### ", "\n", "Tiêu đề phụ")}
-          title="Tiêu đề phụ (H3)"
-          className="rounded px-2 py-1 font-bold text-[11px] hover:bg-stone-200 text-stone-800"
-        >
-          H3
-        </button>
-        <span className="mx-1 h-4 w-px bg-stone-300" />
-        <button
-          type="button"
-          onClick={() => imageInputRef.current?.click()}
-          disabled={uploadingImage}
-          title="Chọn ảnh từ máy — ảnh được lưu trên máy chủ"
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800 disabled:opacity-60"
-        >
-          {uploadingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />} Chèn ảnh
-        </button>
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = "";
-            void uploadImages(files);
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => void insertImageFromUrl()}
-          disabled={uploadingImage}
-          title="Lấy ảnh từ một đường link về máy chủ rồi chèn vào bài"
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800 disabled:opacity-60"
-        >
-          <Globe className="h-3.5 w-3.5" /> Ảnh từ link
-        </button>
-        <button
-          type="button"
-          onClick={insertLink}
-          title="Chèn liên kết"
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium hover:bg-stone-200 text-stone-800"
-        >
-          <Link2 className="h-3.5 w-3.5" /> Chèn link
-        </button>
-        <button
-          type="button"
-          onClick={() => insertText("\n> ", "\n", "Nội dung trích dẫn")}
-          title="Trích dẫn (Quote)"
-          className="rounded px-2 py-1 font-mono text-[11px] hover:bg-stone-200 text-stone-800"
-        >
-          “ ”
-        </button>
-      </div>
-
-      <div className="font-mono text-[11px] text-stone-500">
-        Từ: <strong className="text-stone-800">{words}</strong> · Ký tự:{" "}
-        <strong className="text-stone-800">{chars}</strong>
-      </div>
-    </div>
-  );
+/** Nội dung soạn trong 1 hộp thoại: tài liệu + khoá nạp lại + số ảnh đang tải lên */
+interface DocDraft {
+  doc: PostDoc;
+  key: string;
+  uploading: number;
 }
+const newDraft = (doc: PostDoc, key: string): DocDraft => ({ doc, key, uploading: 0 });
 
 /** Chọn từ khóa sự kiện + chuyên mục trang chủ từ danh mục cố định */
 function KeywordPicker({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
@@ -279,30 +114,29 @@ export default function XuatBanPage() {
     activityId: "",
     title: "",
     excerpt: "",
-    content: "",
     coverUrl: "",
   });
+  const [createDraft, setCreateDraft] = useState<DocDraft>(() => newDraft(emptyDoc(), "create-0"));
   const [keywords, setKeywords] = useState<string[]>([]);
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   // Đang tải ảnh bìa / lấy ảnh link ngoài về máy chủ — khoá các nút lưu
   const [busyMedia, setBusyMedia] = useState(false);
-  const createTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Chỉnh sửa bài đã có
   const [editing, setEditing] = useState<PublishedPost | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", excerpt: "", content: "", coverUrl: "" });
+  const [editForm, setEditForm] = useState({ title: "", excerpt: "", coverUrl: "" });
+  const [editDraft, setEditDraft] = useState<DocDraft>(() => newDraft(emptyDoc(), "edit-0"));
   const [editKeywords, setEditKeywords] = useState<string[]>([]);
   const [editCover, setEditCover] = useState<string | null | undefined>(undefined);
   const editCoverInputRef = useRef<HTMLInputElement>(null);
-  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Nhập tin từ đường link
   const [importOpen, setImportOpen] = useState(false);
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState<ImportedArticle | null>(null);
-  const importTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [importDraft, setImportDraft] = useState<DocDraft>(() => newDraft(emptyDoc(), "import-0"));
 
   /** Ảnh bìa: tải thẳng lên máy chủ, giữ lại đường dẫn /uploads/... */
   const readCover = async (file: File | undefined, setter: (v: string | null) => void) => {
@@ -326,28 +160,26 @@ export default function XuatBanPage() {
   };
 
   /**
-   * Trước khi lưu: ảnh bìa nhập bằng link và ảnh trong nội dung còn trỏ ra web
-   * ngoài → máy chủ tải về lưu trữ riêng. Ảnh nào lỗi thì giữ link gốc và báo.
+   * Trước khi lưu: ảnh bìa nhập bằng link ngoài → máy chủ tải về lưu trữ riêng (lỗi thì giữ link
+   * gốc và báo). Ảnh trong nội dung do trình soạn thảo tự lấy về khi chèn/dán.
    */
-  const localizeMedia = async (cover: string | undefined, content: string) => {
+  const localizeCover = async (cover: string | undefined) => {
+    if (!isExternalUrl(cover)) return cover;
     setBusyMedia(true);
     try {
-      const localized = await localizeMarkdownImages(content, "bai-viet");
-      let finalCover = cover;
-      if (isExternalUrl(finalCover)) {
-        try {
-          finalCover = (await uploadFromUrl(finalCover, "bai-viet")).url;
-        } catch {
-          localized.failed++;
-        }
-      }
-      if (localized.failed > 0) {
-        toast(`${localized.failed} ảnh từ link ngoài không tải về được — ảnh đó vẫn dùng link gốc.`, "warning");
-      }
-      return { cover: finalCover, content: localized.content };
+      return (await uploadFromUrl(cover, "bai-viet")).url;
+    } catch {
+      toast("Ảnh bìa từ link ngoài không tải về được — ảnh vẫn dùng link gốc.", "warning");
+      return cover;
     } finally {
       setBusyMedia(false);
     }
+  };
+
+  /** Ảnh trong bài còn đang tải lên → chưa cho lưu */
+  const stillUploading = (d: DocDraft) => {
+    if (d.uploading > 0) toast("Ảnh trong bài đang được tải lên máy chủ — vui lòng đợi xong rồi lưu.", "warning");
+    return d.uploading > 0;
   };
 
   const pickCover = (file: File | undefined) => readCover(file, setCoverDataUrl);
@@ -374,9 +206,12 @@ export default function XuatBanPage() {
     UNPUBLISHED: store.publishedPosts.filter((p) => p.status === "UNPUBLISHED").length,
   };
 
+  const resetCreateDraft = () => setCreateDraft((d) => newDraft(emptyDoc(), `create-${Date.now()}-${d.key}`));
+
   const openManualCreate = () => {
     setCreateMode("manual");
-    setForm({ activityId: "", title: "", excerpt: "", content: "", coverUrl: "" });
+    setForm({ activityId: "", title: "", excerpt: "", coverUrl: "" });
+    resetCreateDraft();
     setKeywords([]);
     setCoverDataUrl(null);
     setCreateOpen(true);
@@ -384,7 +219,8 @@ export default function XuatBanPage() {
 
   const openActivityCreate = () => {
     setCreateMode("activity");
-    setForm({ activityId: "", title: "", excerpt: "", content: "", coverUrl: "" });
+    setForm({ activityId: "", title: "", excerpt: "", coverUrl: "" });
+    resetCreateDraft();
     setKeywords([]);
     setCoverDataUrl(null);
     setCreateOpen(true);
@@ -397,32 +233,36 @@ export default function XuatBanPage() {
       return;
     }
 
+    if (stillUploading(createDraft)) return;
+
     const actId = form.activityId ? Number(form.activityId) : null;
     const act = actId ? store.activities.find((a) => a.id === actId) : undefined;
+    // Chưa viết gì → lấy tóm tắt hoạt động làm nội dung khởi đầu
+    const contentDoc = isDocEmpty(createDraft.doc) && act?.summary ? legacyMarkdownToDoc(act.summary) : createDraft.doc;
+    const plainText = docToPlainText(contentDoc);
     const excerpt =
       form.excerpt.trim() ||
       act?.summary.slice(0, 200) ||
-      form.content.trim().slice(0, 180) ||
+      plainText.slice(0, 180) ||
       form.title.trim();
 
     const derived = act?.categoryIds.map((cid) => store.contentCategories.find((c) => c.id === cid)?.name ?? "").filter(Boolean) ?? [];
     const categoryNames = Array.from(new Set([...derived, ...keywords]));
 
-    const media = await localizeMedia(
-      form.coverUrl.trim() || coverDataUrl || undefined,
-      form.content.trim() || act?.summary || "",
-    );
+    const cover = await localizeCover(form.coverUrl.trim() || coverDataUrl || undefined);
 
     store.createPostFromActivity(session, actId, form.title.trim(), excerpt, {
-      content: media.content,
+      content: plainText,
+      contentDoc,
       categoryNames,
       metaDescription: excerpt.slice(0, 160),
-      coverDataUrl: media.cover,
+      coverDataUrl: cover,
     });
 
     toast(actId ? "Đã tạo bản nháp từ hoạt động." : "Đã tạo bài viết thủ công mới thành công!");
     setCreateOpen(false);
-    setForm({ activityId: "", title: "", excerpt: "", content: "", coverUrl: "" });
+    setForm({ activityId: "", title: "", excerpt: "", coverUrl: "" });
+    resetCreateDraft();
     setKeywords([]);
     setCoverDataUrl(null);
   };
@@ -450,10 +290,11 @@ export default function XuatBanPage() {
       setImported({
         title: data.title?.trim() || "Bài viết nhập từ đường link",
         excerpt: data.excerpt?.trim() ?? "",
-        content: data.content?.trim() ?? "",
         imageUrl: data.imageUrl,
         sourceUrl: url,
       });
+      // Nội dung trích xuất dạng Markdown → tài liệu; ảnh trong bài được trình soạn thảo lấy về máy chủ
+      setImportDraft(newDraft(legacyMarkdownToDoc(data.content?.trim() ?? ""), `import-${Date.now()}`));
     } catch (e) {
       toast(`Không trích xuất được nội dung từ đường link (${e instanceof Error ? e.message : "lỗi không rõ"}) — bạn hãy dán nội dung thủ công.`, "warning");
     } finally {
@@ -463,8 +304,9 @@ export default function XuatBanPage() {
 
   const saveImported = async () => {
     if (!session || !imported) return;
+    if (stillUploading(importDraft)) return;
     // Ảnh đại diện + ảnh trong bài gốc được tải về máy chủ, không trỏ sang trang nguồn
-    const media = await localizeMedia(imported.imageUrl, imported.content);
+    const cover = await localizeCover(imported.imageUrl);
     const id = Date.now();
     store.savePost({
       id,
@@ -472,9 +314,10 @@ export default function XuatBanPage() {
       slug: slugify(imported.title) || `bai-nhap-${id}`,
       title: imported.title.trim(),
       excerpt: imported.excerpt.trim(),
-      content: media.content,
+      content: docToPlainText(importDraft.doc),
+      contentDoc: importDraft.doc,
       coverSeed: 1,
-      coverDataUrl: media.cover,
+      coverDataUrl: cover,
       status: "DRAFT",
       isFeatured: false,
       viewCount: 0,
@@ -495,9 +338,9 @@ export default function XuatBanPage() {
     setEditForm({
       title: p.title,
       excerpt: p.excerpt,
-      content: p.content,
       coverUrl: p.coverDataUrl?.startsWith("http") ? p.coverDataUrl : "",
     });
+    setEditDraft(newDraft(postDocOf(p), `edit-${p.id}-${Date.now()}`));
     setEditKeywords(p.categoryNames);
     setEditCover(undefined);
   };
@@ -508,6 +351,7 @@ export default function XuatBanPage() {
       toast("Tiêu đề bài viết không được để trống.", "warning");
       return;
     }
+    if (stillUploading(editDraft)) return;
 
     let finalCover: string | undefined = undefined;
     if (editForm.coverUrl.trim()) {
@@ -519,16 +363,17 @@ export default function XuatBanPage() {
       finalCover = editCover ?? "";
     }
 
-    const media = await localizeMedia(finalCover, editForm.content);
+    const cover = await localizeCover(finalCover);
 
     store.savePost({
       ...editing,
       title: editForm.title.trim(),
       excerpt: editForm.excerpt.trim(),
-      content: media.content,
+      content: docToPlainText(editDraft.doc),
+      contentDoc: editDraft.doc,
       categoryNames: editKeywords,
       metaDescription: editForm.excerpt.trim().slice(0, 160),
-      coverDataUrl: media.cover,
+      coverDataUrl: cover,
     });
     toast("Đã cập nhật bài viết.");
     setEditing(null);
@@ -683,7 +528,7 @@ export default function XuatBanPage() {
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={() => void handleCreate()} disabled={busyMedia}>
+            <Button onClick={() => void handleCreate()} disabled={busyMedia || createDraft.uploading > 0}>
               <Megaphone className="h-4 w-4" /> Tạo bản nháp
             </Button>
           </>
@@ -755,23 +600,14 @@ export default function XuatBanPage() {
               Nội dung bài viết <span className="text-rose-500">*</span>
             </label>
             <div className="mt-1">
-              <EditorToolbar
-                textareaRef={createTextareaRef}
-                value={form.content}
-                onChange={(content) => setForm((f) => ({ ...f, content }))}
-              />
-              <textarea
-                ref={createTextareaRef}
-                value={form.content}
-                onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-                rows={10}
-                placeholder="Nhập nội dung bài viết. Bạn có thể sử dụng thanh công cụ bên trên để in đậm, in nghiêng, chèn ảnh, chèn liên kết, tiêu đề mục H2/H3..."
-                className="w-full rounded-b-xl border border-stone-200 bg-white p-3 text-sm text-stone-800 outline-none transition-all placeholder:text-stone-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              <RichEditor
+                initialDoc={createDraft.doc}
+                resetKey={createDraft.key}
+                onChange={(doc) => setCreateDraft((d) => ({ ...d, doc }))}
+                onPendingUploadsChange={(n) => setCreateDraft((d) => (d.uploading === n ? d : { ...d, uploading: n }))}
+                minHeight={260}
               />
             </div>
-            <p className="mt-1 text-[11px] text-stone-400">
-              * Hỗ trợ định dạng Markdown, chèn ảnh bằng cú pháp ![chú thích](url), tiêu đề ## mục lớn.
-            </p>
           </div>
 
           <Field label="Từ khóa &amp; chuyên mục trang chủ" hint="Chọn để bài viết hiển thị ở chuyên mục tương ứng trên website.">
@@ -846,7 +682,7 @@ export default function XuatBanPage() {
             <Button variant="secondary" onClick={() => setImportOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={() => void saveImported()} disabled={!imported || importing || busyMedia}>
+            <Button onClick={() => void saveImported()} disabled={!imported || importing || busyMedia || importDraft.uploading > 0}>
               <Megaphone className="h-4 w-4" /> Tạo bản nháp
             </Button>
           </>
@@ -894,17 +730,12 @@ export default function XuatBanPage() {
               <div>
                 <label className="text-xs font-medium text-stone-600">Nội dung bài viết</label>
                 <div className="mt-1">
-                  <EditorToolbar
-                    textareaRef={importTextareaRef}
-                    value={imported.content}
-                    onChange={(content) => setImported((prev) => (prev ? { ...prev, content } : prev))}
-                  />
-                  <textarea
-                    ref={importTextareaRef}
-                    value={imported.content}
-                    onChange={(e) => setImported((prev) => (prev ? { ...prev, content: e.target.value } : prev))}
-                    rows={10}
-                    className="w-full rounded-b-xl border border-stone-200 bg-white p-3 text-sm text-stone-800 outline-none transition-all focus:border-cyan-400"
+                  <RichEditor
+                    initialDoc={importDraft.doc}
+                    resetKey={importDraft.key}
+                    onChange={(doc) => setImportDraft((d) => ({ ...d, doc }))}
+                    onPendingUploadsChange={(n) => setImportDraft((d) => (d.uploading === n ? d : { ...d, uploading: n }))}
+                    minHeight={260}
                   />
                 </div>
               </div>
@@ -945,7 +776,7 @@ export default function XuatBanPage() {
             <Button variant="secondary" onClick={() => setEditing(null)}>
               Hủy
             </Button>
-            <Button onClick={() => void saveEdit()} disabled={busyMedia}>
+            <Button onClick={() => void saveEdit()} disabled={busyMedia || editDraft.uploading > 0}>
               <Pencil className="h-4 w-4" /> Lưu thay đổi
             </Button>
           </>
@@ -969,17 +800,12 @@ export default function XuatBanPage() {
           <div>
             <label className="text-xs font-medium text-stone-600">Nội dung bài viết</label>
             <div className="mt-1">
-              <EditorToolbar
-                textareaRef={editTextareaRef}
-                value={editForm.content}
-                onChange={(content) => setEditForm((f) => ({ ...f, content }))}
-              />
-              <textarea
-                ref={editTextareaRef}
-                value={editForm.content}
-                onChange={(e) => setEditForm((f) => ({ ...f, content: e.target.value }))}
-                rows={10}
-                className="w-full rounded-b-xl border border-stone-200 bg-white p-3 text-sm text-stone-800 outline-none transition-all focus:border-cyan-400"
+              <RichEditor
+                initialDoc={editDraft.doc}
+                resetKey={editDraft.key}
+                onChange={(doc) => setEditDraft((d) => ({ ...d, doc }))}
+                onPendingUploadsChange={(n) => setEditDraft((d) => (d.uploading === n ? d : { ...d, uploading: n }))}
+                minHeight={260}
               />
             </div>
           </div>

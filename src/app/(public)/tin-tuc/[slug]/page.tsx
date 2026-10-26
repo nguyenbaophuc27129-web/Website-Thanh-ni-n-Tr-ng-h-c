@@ -78,8 +78,8 @@ export default function ChiTietTinPage() {
         </p>
       ) : null}
 
-      <div className="mt-6 space-y-4 text-[15px] leading-8 text-stone-700">
-        <PostContent content={post.content} />
+      <div className="mt-6 text-[15px] leading-8 text-stone-700">
+        <PostContent doc={post.contentDoc} content={post.content} />
       </div>
 
       {post.contributorAccountId ? (

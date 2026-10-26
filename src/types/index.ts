@@ -236,7 +236,10 @@ export interface PublishedPost {
   slug: string;
   title: string;
   excerpt: string;
+  /** Văn bản thuần (máy chủ rút từ contentDoc) — bài cũ: Markdown rút gọn */
   content: string;
+  /** Nội dung có định dạng (Tiptap JSON, src/lib/editor/schema.ts) — có thì hiển thị theo đây */
+  contentDoc?: import("@tiptap/core").JSONContent | null;
   coverSeed: number;
   /** Ảnh bìa thật — đường dẫn /uploads/... trên máy chủ (dữ liệu cũ có thể là link ngoài), ưu tiên hơn coverSeed */
   coverDataUrl?: string;

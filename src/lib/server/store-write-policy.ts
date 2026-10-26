@@ -1,6 +1,7 @@
 import { effectivePermissions, hasPerm } from "@/lib/permissions";
 import { isSafeYoutubeUrl } from "@/lib/safe-urls";
-import { RESOURCE_EXTS, VAN_BAN_EXTS, isUploadPath } from "@/lib/server/upload-path";
+import { RESOURCE_EXTS, VAN_BAN_EXTS, extsForKind, isUploadPath } from "@/lib/server/upload-path";
+import { validatePostDoc } from "@/lib/editor/doc-validate";
 import { CONTRIBUTION_POINTS } from "@/types";
 
 /**
@@ -154,6 +155,8 @@ const forumViaApiPolicy = (label: string): EntityPolicy => ({
 });
 
 /** Cột có được ghi trong lần này không (thêm mới: mọi cột client gửi; sửa: cột đổi so với DB) */
+const POST_IMAGE_EXTS = extsForKind("bai-viet");
+
 const touches = (ch: RowChange, col: string) => ch.op === "insert" || ch.changed.includes(col);
 const isEmpty = (v: unknown) => v === null || v === undefined || v === "";
 
@@ -383,6 +386,14 @@ export const WRITE_POLICIES: Record<string, EntityPolicy> = {
   /* ===== Truyền thông ===== */
   publishedPosts: {
     label: "Bài viết xuất bản",
+    // Nội dung định dạng: chỉ khối/định dạng trong danh sách trắng, ảnh phải là tệp đã tải lên
+    // /uploads/bai-viet/…, link/video đúng dạng an toàn (src/lib/editor/doc-validate.ts)
+    content(ch) {
+      const n = ch.next;
+      if (!n || !touches(ch, "content_doc") || isEmpty(n.content_doc)) return null;
+      const err = validatePostDoc(n.content_doc, { isImageSrc: (v) => isUploadPath(v, "bai-viet", POST_IMAGE_EXTS) });
+      return err ? `nội dung bài: ${err}` : null;
+    },
     async check(ch, env) {
       const s = env.subject;
       const editor = anyPerm(s, "post.manage", "post.publish");

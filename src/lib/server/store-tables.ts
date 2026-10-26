@@ -1,4 +1,5 @@
 import { query } from "../db.ts";
+import { asPostDoc, docToPlainText } from "../editor/doc-utils.ts";
 
 /**
  * Lớp truy cập dữ liệu store ↔ PostgreSQL (bước chuyển localStorage → DB).
@@ -197,7 +198,14 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
     table: "published_posts",
     fields: {
       id: f("id", "int"), activityId: f("activity_id", "int"), slug: f("slug", "str"),
-      title: f("title", "str"), excerpt: f("excerpt", "str"), content: f("content", "str"),
+      title: f("title", "str"), excerpt: f("excerpt", "str"),
+      // Có nội dung định dạng → cột content luôn là văn bản thuần rút từ đó (tìm kiếm, đoạn trích),
+      // không tin bản client gửi kèm
+      content: f("content", "str", (o) => {
+        const doc = asPostDoc(o.contentDoc);
+        return doc ? docToPlainText(doc) : o.content;
+      }),
+      contentDoc: f("content_doc", "json"),
       coverSeed: f("cover_seed", "int"), coverDataUrl: f("cover_data_url", "str"),
       status: f("status", "str"), isFeatured: f("is_featured", "bool"),
       // published_at bắt buộc khi status PUBLISHED (CHECK của DB) — neo vào now() nếu thiếu

@@ -1,140 +1,197 @@
+"use client";
+
+import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { ImageLightbox, type LightboxImage } from "@/components/ui/image-lightbox";
+import { IMAGE_ALIGNS, IMAGE_WIDTHS, TEXT_ALIGNS, asPostDoc, type PostDoc } from "@/lib/editor/doc-utils";
+import { legacyMarkdownToDoc } from "@/lib/editor/legacy-markdown";
+import { isSafeFileUrl, isSafeLinkHref, youtubeVideoId } from "@/lib/safe-urls";
+
 /**
- * Hiển thị nội dung bài viết dạng Markdown rút gọn (H2/H3, ảnh, trích dẫn,
- * in đậm, liên kết). Dùng chung cho trang chi tiết tin và khung xem trước
- * ở trang đăng bài.
+ * Hiển thị nội dung bài viết — dùng chung cho trang chi tiết tin và khung xem trước ở trang đăng bài.
+ * Bài mới: content_doc (tài liệu JSON của trình soạn thảo); bài cũ: content Markdown được chuyển
+ * sang cùng dạng. Dựng thẳng thành phần React theo danh sách khối đã biết — không chèn HTML thô,
+ * không cần thư viện soạn thảo (trang tin nhẹ); khối lạ bị bỏ qua, ảnh/link/video được kiểm lại.
+ * Bọc ngoài bằng class "post-body" (globals.css) để giống hệt ô soạn thảo.
  */
 
-function renderBold(text: string): React.ReactNode {
-  const parts: React.ReactNode[] = [];
-  const boldRegex = /\*\*([^*]+)\*\*/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+/** Ảnh hiển thị được: tệp trên máy chủ, hoặc https (bài cũ còn ảnh link ngoài) */
+const isRenderableImage = (src: unknown): src is string =>
+  isSafeFileUrl(src) || (typeof src === "string" && /^https:\/\/[^\s"'<>]+$/.test(src));
 
-  while ((match = boldRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
-    parts.push(
-      <strong key={match.index} className="font-semibold text-stone-900">
-        {match[1]}
-      </strong>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-  return parts.length > 0 ? parts : text;
-}
+const pick = <T extends string>(list: readonly T[], v: unknown, fallback: T): T => (list.includes(v as T) ? (v as T) : fallback);
 
-function renderInline(text: string): React.ReactNode {
-  const parts: React.ReactNode[] = [];
-  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+const alignStyle = (node: PostDoc): CSSProperties | undefined => {
+  const a = node.attrs?.textAlign;
+  return a && a !== "left" && TEXT_ALIGNS.includes(a) ? { textAlign: a } : undefined;
+};
 
-  while ((match = linkRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(renderBold(text.slice(lastIndex, match.index)));
-    }
-    parts.push(
-      <a
-        key={match.index}
-        href={match[2]}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-medium text-blue-600 underline underline-offset-2 hover:text-blue-800"
-      >
-        {match[1]}
-      </a>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    parts.push(renderBold(text.slice(lastIndex)));
-  }
-  return parts.length > 0 ? parts : text;
-}
+const cellSpan = (v: unknown) => (Number.isInteger(v) && (v as number) > 1 && (v as number) <= 50 ? (v as number) : undefined);
 
-function renderBlock(block: string, key: number): React.ReactNode {
-  const trimmed = block.trim();
-  if (!trimmed) return null;
+const OpenImageContext = createContext<(src: string) => void>(() => {});
 
-  // Heading 2
-  if (trimmed.startsWith("## ")) {
-    return (
-      <h2
-        key={key}
-        className="mt-8 mb-3 border-l-4 border-doan-600 pl-3.5 font-serif-display text-xl font-bold tracking-tight text-stone-900 sm:text-2xl"
-      >
-        {trimmed.slice(3)}
-      </h2>
-    );
-  }
-
-  // Heading 3
-  if (trimmed.startsWith("### ")) {
-    return (
-      <h3 key={key} className="mt-6 mb-2.5 text-base font-bold text-stone-800 sm:text-lg">
-        {trimmed.slice(4)}
-      </h3>
-    );
-  }
-
-  // Markdown Image: ![caption](url) + optional caption line — url ngoài hoặc ảnh lưu trên máy chủ (/uploads/...)
-  const imgMatch = trimmed.match(/^!\[(.*?)\]\(((?:https?:\/\/|\/uploads\/)[^\s)]+)\)(?:\s*\n\*([\s\S]*?)\*)?$/);
-  if (imgMatch) {
-    const caption = imgMatch[3] || imgMatch[1];
-    const url = imgMatch[2];
-    return (
-      <figure
-        key={key}
-        className="my-6 overflow-hidden rounded-2xl border border-stone-200/80 bg-stone-50/60 shadow-sm"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={url}
-          alt={caption || "Hình ảnh bài viết"}
-          className="max-h-[540px] w-full object-cover"
-        />
-        {caption ? (
-          <figcaption className="border-t border-stone-100 bg-stone-100/50 px-4 py-2.5 text-center text-xs italic text-stone-500">
-            {caption}
-          </figcaption>
-        ) : null}
-      </figure>
-    );
-  }
-
-  // Standalone italic caption
-  if (/^\*[^*]+\*$/.test(trimmed)) {
-    return (
-      <p key={key} className="-mt-3 mb-5 text-center text-xs italic text-stone-500">
-        {trimmed.slice(1, -1)}
-      </p>
-    );
-  }
-
-  // Blockquote: > text
-  if (trimmed.startsWith("> ")) {
-    return (
-      <blockquote
-        key={key}
-        className="my-4 border-l-4 border-cyan-500 bg-cyan-50/50 px-4 py-3 text-sm italic text-stone-700"
-      >
-        {renderInline(trimmed.slice(2))}
-      </blockquote>
-    );
-  }
-
-  // Standard paragraph
+function Figure({ node }: { node: PostDoc }) {
+  const open = useContext(OpenImageContext);
+  const a = node.attrs ?? {};
+  if (!isRenderableImage(a.src)) return null;
+  const caption = typeof a.caption === "string" ? a.caption : "";
+  const alt = typeof a.alt === "string" && a.alt ? a.alt : caption || "Hình ảnh bài viết";
   return (
-    <p key={key} className="leading-relaxed text-stone-700">
-      {renderInline(trimmed)}
-    </p>
+    <figure data-width={pick(IMAGE_WIDTHS, a.width, "100")} data-align={pick(IMAGE_ALIGNS, a.align, "center")}>
+      <button type="button" onClick={() => open(a.src)} className="block w-full cursor-zoom-in" aria-label={`Phóng to ảnh: ${alt}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={a.src} alt={alt} loading="lazy" />
+      </button>
+      {caption ? <figcaption>{caption}</figcaption> : null}
+    </figure>
   );
 }
 
-export function PostContent({ content }: { content: string }) {
-  return <>{content.split("\n\n").map((para, i) => renderBlock(para, i))}</>;
+function renderText(node: PostDoc, key: number): ReactNode {
+  let out: ReactNode = node.text ?? "";
+  for (const mark of [...(node.marks ?? [])].reverse()) {
+    switch (mark.type) {
+      case "bold":
+        out = <strong>{out}</strong>;
+        break;
+      case "italic":
+        out = <em>{out}</em>;
+        break;
+      case "underline":
+        out = <u>{out}</u>;
+        break;
+      case "strike":
+        out = <s>{out}</s>;
+        break;
+      case "link": {
+        const href = mark.attrs?.href;
+        if (!isSafeLinkHref(href)) break;
+        out =
+          href.startsWith("/") || href.startsWith("#") ? (
+            <a href={href}>{out}</a>
+          ) : (
+            <a href={href} target="_blank" rel="noopener noreferrer nofollow">
+              {out}
+            </a>
+          );
+        break;
+      }
+    }
+  }
+  return <span key={key}>{out}</span>;
+}
+
+function renderNode(node: PostDoc, key: number): ReactNode {
+  const kids = () => (node.content ?? []).map(renderNode);
+  switch (node.type) {
+    case "doc":
+      return <>{kids()}</>;
+    case "text":
+      return renderText(node, key);
+    case "paragraph":
+      return (
+        <p key={key} style={alignStyle(node)}>
+          {node.content?.length ? kids() : <br />}
+        </p>
+      );
+    case "heading":
+      return node.attrs?.level === 3 ? (
+        <h3 key={key} style={alignStyle(node)}>
+          {kids()}
+        </h3>
+      ) : (
+        <h2 key={key} style={alignStyle(node)}>
+          {kids()}
+        </h2>
+      );
+    case "bulletList":
+      return <ul key={key}>{kids()}</ul>;
+    case "orderedList": {
+      const start = Number.isInteger(node.attrs?.start) ? node.attrs!.start : 1;
+      return (
+        <ol key={key} start={start !== 1 ? start : undefined}>
+          {kids()}
+        </ol>
+      );
+    }
+    case "listItem":
+      return <li key={key}>{kids()}</li>;
+    case "blockquote":
+      return <blockquote key={key}>{kids()}</blockquote>;
+    case "hardBreak":
+      return <br key={key} />;
+    case "horizontalRule":
+      return <hr key={key} />;
+    case "figureImage":
+      return <Figure key={key} node={node} />;
+    case "youtube": {
+      const id = youtubeVideoId(node.attrs?.src);
+      return id ? (
+        <div key={key} className="post-video">
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${id}?rel=0`}
+            title="Video YouTube"
+            loading="lazy"
+            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+      ) : null;
+    }
+    case "table":
+      return (
+        <div key={key} className="post-table">
+          <table>
+            <tbody>{kids()}</tbody>
+          </table>
+        </div>
+      );
+    case "tableRow":
+      return <tr key={key}>{kids()}</tr>;
+    case "tableHeader":
+    case "tableCell": {
+      const Cell = node.type === "tableHeader" ? "th" : "td";
+      return (
+        <Cell key={key} colSpan={cellSpan(node.attrs?.colspan)} rowSpan={cellSpan(node.attrs?.rowspan)}>
+          {kids()}
+        </Cell>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+function collectImages(doc: PostDoc): LightboxImage[] {
+  const out: LightboxImage[] = [];
+  const walk = (n: PostDoc) => {
+    if (n.type === "figureImage" && isRenderableImage(n.attrs?.src)) {
+      out.push({ url: n.attrs.src, name: String(n.attrs.caption || n.attrs.alt || "") });
+    }
+    n.content?.forEach(walk);
+  };
+  walk(doc);
+  return out;
+}
+
+export function PostContent({ doc, content }: { doc?: unknown; content?: string | null }) {
+  const source = useMemo(() => asPostDoc(doc) ?? legacyMarkdownToDoc(content), [doc, content]);
+  const images = useMemo(() => collectImages(source), [source]);
+  const body = useMemo(() => renderNode(source, 0), [source]);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+
+  const openImage = useMemo(
+    () => (src: string) => {
+      const i = images.findIndex((img) => img.url === src);
+      if (i >= 0) setLightbox(i);
+    },
+    [images],
+  );
+
+  return (
+    <OpenImageContext.Provider value={openImage}>
+      <div className="post-body">{body}</div>
+      <ImageLightbox images={images} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)} />
+    </OpenImageContext.Provider>
+  );
 }
