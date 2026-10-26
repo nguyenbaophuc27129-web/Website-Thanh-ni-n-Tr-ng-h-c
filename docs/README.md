@@ -35,6 +35,8 @@ Thư mục [xuat-van-ban-theo-the-thuc/](./xuat-van-ban-theo-the-thuc/README.md)
 
 ## Tóm tắt nhanh
 
+- **Việc còn tồn đọng (kỹ thuật & nghiệp vụ):** [VIEC-TON-DONG.md](./VIEC-TON-DONG.md) — đọc trước khi sửa đồng bộ dữ liệu / phân quyền.
+
 - **Tham chiếu CSDL:** `THIET-KE-SCHEMA (1).md` — đặc tả 43 bảng, 8 phân hệ (nguồn sự thật).
 - **Prototype:** Next.js 16 + TypeScript + Tailwind 4, chạy 100% mock data, không cần backend.
 - **Tài khoản demo:** 5 vai trò × 4 cấp — xem [03](./03-tai-khoan-phan-quyen.md#63-tài-khoản-demo).
