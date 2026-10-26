@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbEnabled, query } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken, hashPassword, type RoleCode } from "@/lib/server/auth";
 import { ACCOUNT_ADMIN_ROLES } from "@/lib/permissions";
+import { accountScopeDenial } from "@/lib/server/account-scope";
 
 export const runtime = "nodejs";
 
@@ -22,48 +23,8 @@ async function checkManageScope(
   target: TargetAccount,
   verb: "THAY ĐỔI" | "XÓA",
 ): Promise<NextResponse | null> {
-  if (!ALLOWED_ADMIN_ROLES.includes(session.role as RoleCode)) {
-    return NextResponse.json(
-      { ok: false, error: `BẠN KHÔNG CÓ QUYỀN ${verb} TÀI KHOẢN KHÁC` },
-      { status: 403 },
-    );
-  }
-  // Chỉ QUAN_TRI_TW mới được tác động lên tài khoản QUAN_TRI_TW khác
-  if (session.role === "QUAN_TRI_TW") return null;
-  if (target.role_code === "QUAN_TRI_TW") {
-    return NextResponse.json(
-      { ok: false, error: `BẠN KHÔNG CÓ QUYỀN ${verb} TÀI KHOẢN CẤP TRUNG ƯƠNG` },
-      { status: 403 },
-    );
-  }
-  // Cấp tỉnh và cấp 3 chỉ được tác động tài khoản thuộc phạm vi cây đơn vị của mình
-  if (session.role === "QUAN_TRI_CAP3" && target.role_code === "QUAN_TRI_TINH") {
-    return NextResponse.json(
-      { ok: false, error: `QUẢN TRỊ CẤP 3 KHÔNG THỂ ${verb} TÀI KHOẢN CẤP TỈNH` },
-      { status: 403 },
-    );
-  }
-  const callerUnits = await query<{ path: string }>(
-    "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
-    [session.orgUnitId],
-  );
-  const targetUnits = await query<{ path: string }>(
-    "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
-    [target.org_unit_id],
-  );
-  const callerPath = callerUnits[0]?.path;
-  const targetPath = targetUnits[0]?.path;
-  if (
-    !callerPath ||
-    !targetPath ||
-    (!targetPath.startsWith(callerPath) && target.org_unit_id !== session.orgUnitId)
-  ) {
-    return NextResponse.json(
-      { ok: false, error: "TÀI KHOẢN NẰM NGOÀI PHẠM VI QUẢN LÝ CỦA BẠN" },
-      { status: 403 },
-    );
-  }
-  return null;
+  const denial = await accountScopeDenial(session, target, verb);
+  return denial ? NextResponse.json({ ok: false, error: denial }, { status: 403 }) : null;
 }
 
 /** PATCH /api/accounts/[id] — đổi trạng thái (status) hoặc sửa thông tin

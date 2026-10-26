@@ -1593,9 +1593,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateAccountPermissions = useCallback(
     async (accountId: number, perms: string[]) => {
-      setAccounts((prev) =>
-        prev.map((a) => (a.id === accountId ? { ...a, grantedPerms: perms, permCount: perms.length } : a))
-      );
       try {
         const r = await fetch(`/api/accounts/${accountId}/permissions`, {
           method: "PUT",
@@ -1604,9 +1601,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
         const j = await r.json().catch(() => null);
         if (!r.ok) return { ok: false, error: j?.error ?? "Lỗi cập nhật quyền" };
+        // Chỉ cập nhật danh sách sau khi server nhận — bị từ chối thì giữ nguyên quyền cũ
+        setAccounts((prev) =>
+          prev.map((a) => (a.id === accountId ? { ...a, grantedPerms: perms, permCount: perms.length } : a))
+        );
         return { ok: true };
       } catch {
-        return { ok: true };
+        return { ok: false, error: "Không kết nối được máy chủ, chưa lưu phân quyền." };
       }
     },
     []

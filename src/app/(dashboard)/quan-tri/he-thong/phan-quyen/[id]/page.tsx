@@ -25,7 +25,7 @@ import { useToast } from "@/lib/toast-context";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PERM_CATALOG, permNameOf } from "@/lib/permissions";
+import { PERM_CATALOG, effectivePermissions, hasPerm, permNameOf } from "@/lib/permissions";
 import { permissionsList } from "@/data/org-units";
 import { ROLE_PERMISSIONS } from "@/types";
 
@@ -123,6 +123,8 @@ export default function PhanQuyenTaiKhoanPage({
   }, [accountId, targetAccount]);
 
   const isAllStar = selectedPerms.includes("*");
+  // Chỉ người có toàn quyền mới cấp được `*` (server cũng chặn)
+  const canGrantAll = Boolean(session && hasPerm(effectivePermissions(session), "*"));
 
   // Kiểm tra 1 mã quyền có được tick hay không
   const isChecked = (code: string) => isAllStar || selectedPerms.includes(code);
@@ -314,9 +316,11 @@ export default function PhanQuyenTaiKhoanPage({
             </span>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" onClick={handleGrantSuperadmin} className="border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-100">
-                <Crown className="h-3.5 w-3.5 text-amber-600" /> Cấp toàn quyền (*)
-              </Button>
+              {canGrantAll && (
+                <Button size="sm" variant="outline" onClick={handleGrantSuperadmin} className="border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-100">
+                  <Crown className="h-3.5 w-3.5 text-amber-600" /> Cấp toàn quyền (*)
+                </Button>
+              )}
               <Button size="sm" variant="secondary" onClick={handleSelectAll}>
                 <CheckSquare2 className="h-3.5 w-3.5 text-stone-600" /> Chọn tất cả (31 quyền)
               </Button>

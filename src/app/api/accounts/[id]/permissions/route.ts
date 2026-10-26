@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbEnabled, query, withTransaction } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
-import { ACCOUNT_ADMIN_ROLES, effectivePermissions, hasPerm } from "@/lib/permissions";
+import { effectivePermissions, hasPerm, permNameOf } from "@/lib/permissions";
+import { accountScopeDenial } from "@/lib/server/account-scope";
+import { writeAuditLogs } from "@/lib/server/audit";
+import { clientIpOf } from "@/lib/server/client-ip";
 import { permissionsList } from "@/data/org-units";
+import { ROLE_PERMISSIONS } from "@/types";
 
 export const runtime = "nodejs";
 
 /**
  * Quyền RIÊNG của 1 tài khoản (bảng account_permissions):
  * - GET: xem các quyền được gán.
- * - PUT: Admin phân quyền trực tiếp cho các tài khoản — tick mục nào xem mục đó.
+ * - PUT: cấp trên phân quyền trực tiếp — tick mục nào xem mục đó (luật ở grantScopeDenial + PUT).
  *   Danh sách rỗng = xoá hết quyền riêng → trở lại quyền mặc định theo vai trò.
  */
 
@@ -25,37 +29,35 @@ async function callerPerms(request: NextRequest) {
   return { session, perms };
 }
 
-/** Admin có thẩm quyền phân quyền trực tiếp cho mọi tài khoản */
-async function canGrantPermissions(
-  callerRole: string,
-  callerAccountId: number,
-  callerUnitId: number,
-  callerPerms: string[],
-  targetAccountId: number,
-  targetUnitId: number,
-): Promise<boolean> {
-  // Quản trị viên Trung ương hoặc tài khoản có quyền toàn phần / quản lý tài khoản được phân quyền cho bất kỳ ai, bao gồm chính mình
-  const isAdmin =
-    callerRole === "QUAN_TRI_TW" ||
-    hasPerm(callerPerms, "*") ||
-    hasPerm(callerPerms, "system.account.manage");
-  if (isAdmin) {
-    return true;
-  }
+type Caller = NonNullable<Awaited<ReturnType<typeof callerPerms>>>;
+interface TargetAccount {
+  id: number;
+  org_unit_id: number;
+  role_code: string;
+  contact_position: string | null;
+}
 
-  // Chỉ vai trò quản trị tài khoản (TW/Tỉnh/cấp 3) mới phân quyền cho cấp dưới — đoàn viên,
-  // DON_VI, BIEN_TAP_VIEN không được (trước đây chỉ cần cùng đơn vị là qua)
-  if (!ACCOUNT_ADMIN_ROLES.includes(callerRole)) return false;
-  // Các tài khoản khác không được tự phân quyền cho chính mình
-  if (callerAccountId === targetAccountId) return false;
-  if (callerUnitId === targetUnitId) return true;
-  const [cPath, tPath] = await Promise.all([
-    query<{ path: string }>("SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL", [callerUnitId]),
-    query<{ path: string }>("SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL", [targetUnitId]),
-  ]);
-  const c = cPath[0]?.path;
-  const t = tPath[0]?.path;
-  return Boolean(c && t && t.startsWith(c));
+async function loadTarget(accountId: number): Promise<TargetAccount | undefined> {
+  const rows = await query<TargetAccount>(
+    "SELECT id, org_unit_id, role_code, contact_position FROM accounts WHERE id = $1 AND deleted_at IS NULL",
+    [accountId],
+  );
+  return rows[0];
+}
+
+/**
+ * Ai được xem/sửa quyền riêng của `target` (null = được, chuỗi = lý do từ chối):
+ * - Có toàn quyền (`*`): mọi tài khoản, kể cả chính mình.
+ * - Có `system.account.manage`: tài khoản trong phạm vi quản lý (cùng luật sửa/xoá tài khoản),
+ *   KHÔNG tự phân quyền cho chính mình. Quyền được thêm/bớt còn bị giới hạn ở PUT.
+ * Trước đây có `system.account.manage` là được coi như toàn quyền → tài khoản Tỉnh
+ * (vai trò mặc định có quyền này) tự gán `*` cho mình.
+ */
+async function grantScopeDenial(ctx: Caller, target: TargetAccount): Promise<string | null> {
+  if (hasPerm(ctx.perms, "*")) return null;
+  if (!hasPerm(ctx.perms, "system.account.manage")) return "BẠN KHÔNG CÓ QUYỀN PHÂN QUYỀN TÀI KHOẢN";
+  if (Number(target.id) === ctx.session.accountId) return "BẠN KHÔNG THỂ TỰ PHÂN QUYỀN CHO CHÍNH MÌNH";
+  return accountScopeDenial(ctx.session, target, "PHÂN QUYỀN");
 }
 
 /** GET /api/accounts/[id]/permissions */
@@ -68,26 +70,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const accountId = Number(id);
   if (!accountId) return NextResponse.json({ ok: false, error: "DỮ LIỆU KHÔNG HỢP LỆ" }, { status: 400 });
 
-  // Quyền gán riêng là thông tin quản trị: chỉ xem của chính mình, hoặc của tài khoản trong
-  // phạm vi mình được phân quyền (cùng điều kiện với PUT) — không cho tài khoản bất kỳ dò id.
+  // Quyền gán riêng là thông tin quản trị: chỉ xem của chính mình, hoặc của tài khoản mình
+  // được phân quyền — không cho tài khoản bất kỳ dò id.
   if (ctx.session.accountId !== accountId) {
-    const targets = await query<{ org_unit_id: number }>(
-      "SELECT org_unit_id FROM accounts WHERE id = $1 AND deleted_at IS NULL",
-      [accountId],
-    );
-    const target = targets[0];
+    const target = await loadTarget(accountId);
     if (!target) return NextResponse.json({ ok: false, error: "KHÔNG TÌM THẤY TÀI KHOẢN" }, { status: 404 });
-    const allowed = await canGrantPermissions(
-      ctx.session.role,
-      ctx.session.accountId,
-      ctx.session.orgUnitId,
-      ctx.perms,
-      accountId,
-      Number(target.org_unit_id),
-    );
-    if (!allowed) {
-      return NextResponse.json({ ok: false, error: "BẠN KHÔNG CÓ QUYỀN XEM PHÂN QUYỀN CỦA TÀI KHOẢN NÀY" }, { status: 403 });
-    }
+    const denial = await grantScopeDenial(ctx, target);
+    if (denial) return NextResponse.json({ ok: false, error: denial }, { status: 403 });
   }
 
   const rows = await query<{ perm_code: string }>(
@@ -107,34 +96,41 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const accountId = Number(id);
   if (!accountId) return NextResponse.json({ ok: false, error: "DỮ LIỆU KHÔNG HỢP LỆ" }, { status: 400 });
 
-  const body = (await request.json().catch(() => null)) as { perms?: string[] } | null;
-  const perms = Array.isArray(body?.perms) ? body!.perms.map(String) : [];
+  const body = (await request.json().catch(() => null)) as { perms?: unknown } | null;
+  const perms = Array.isArray(body?.perms) ? [...new Set(body.perms.map(String))] : [];
   const validCodes = new Set(permissionsList.map((p) => p.code));
   if (perms.some((p) => p !== "*" && !validCodes.has(p))) {
     return NextResponse.json({ ok: false, error: "CÓ MÃ QUYỀN KHÔNG HỢP LỆ" }, { status: 400 });
   }
 
-  const targets = await query<{ id: number; org_unit_id: number; role_code: string }>(
-    "SELECT id, org_unit_id, role_code FROM accounts WHERE id = $1 AND deleted_at IS NULL",
-    [accountId],
-  );
-  const target = targets[0];
+  const target = await loadTarget(accountId);
   if (!target) return NextResponse.json({ ok: false, error: "KHÔNG TÌM THẤY TÀI KHOẢN" }, { status: 404 });
+  const denial = await grantScopeDenial(ctx, target);
+  if (denial) return NextResponse.json({ ok: false, error: denial }, { status: 403 });
 
-  if (
-    !(await canGrantPermissions(
-      ctx.session.role,
-      ctx.session.accountId,
-      ctx.session.orgUnitId,
-      ctx.perms,
-      accountId,
-      Number(target.org_unit_id),
-    ))
-  ) {
-    return NextResponse.json(
-      { ok: false, error: "BẠN KHÔNG CÓ THẨM QUYỀN PHÂN QUYỀN CHO TÀI KHOẢN NÀY" },
-      { status: 403 },
-    );
+  const current = (
+    await query<{ perm_code: string }>("SELECT perm_code FROM account_permissions WHERE account_id = $1", [accountId])
+  ).map((r) => r.perm_code);
+
+  // Không có toàn quyền: chỉ được THÊM/BỚT quyền mình đang có hoặc quyền mặc định của vai trò
+  // người được gán (để còn khôi phục mặc định); không bao giờ được động tới `*`.
+  // So trên quyền HIỆU LỰC trước/sau (danh sách rỗng = về mặc định theo vai trò).
+  if (!hasPerm(ctx.perms, "*")) {
+    const subject = { role: target.role_code, contactPosition: target.contact_position ?? undefined };
+    const before = new Set(effectivePermissions({ ...subject, grantedPerms: current }));
+    const after = new Set(effectivePermissions({ ...subject, grantedPerms: perms }));
+    const grantable = new Set([...ctx.perms, ...(ROLE_PERMISSIONS[target.role_code] ?? [])]);
+    const changed = [...before].filter((p) => !after.has(p)).concat([...after].filter((p) => !before.has(p)));
+    const forbidden = changed.filter((p) => p === "*" || !grantable.has(p));
+    if (forbidden.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `BẠN KHÔNG ĐƯỢC THÊM/BỚT QUYỀN MÌNH KHÔNG CÓ: ${forbidden.map((p) => (p === "*" ? "Toàn quyền (*)" : permNameOf(p))).join(", ")}`,
+        },
+        { status: 403 },
+      );
+    }
   }
 
   await withTransaction(async (client) => {
@@ -145,6 +141,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         [accountId, code, ctx.session.accountId],
       );
     }
+    await writeAuditLogs(
+      client,
+      [
+        {
+          accountId: ctx.session.accountId,
+          action: "ACCOUNT_PERMISSIONS_SET",
+          entityType: "account_permissions",
+          entityId: accountId,
+          oldValues: { perms: current },
+          newValues: { perms },
+          ip: clientIpOf(request),
+          userAgent: request.headers.get("user-agent"),
+        },
+      ],
+      "PERMISSIONS",
+    );
   });
 
   return NextResponse.json({ ok: true, perms });

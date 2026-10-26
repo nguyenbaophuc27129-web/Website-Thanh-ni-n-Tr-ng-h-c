@@ -18,33 +18,33 @@ DB chính thức vẫn là `tnth_dev` — chủ dự án quyết định **khôn
 - Chat AI của khách: 10 lượt/IP/10 phút + trần chung 150. IP thật lấy từ header `X-Client-Ip` do Caddy ghi (`deploy/Caddyfile`, `src/lib/server/client-ip.ts`); đăng nhập và đếm lượt tải cũng dùng IP này.
 - Giới hạn dung lượng theo loại tệp (`KIND_RULES.maxBytesByClass`; diễn đàn: ảnh ≤2MB, video ≤15MB, kiểm ở server).
 - Sửa 12 lỗi `rules-of-hooks` (5 trang quản trị); ESLint còn 32 lỗi, 100 cảnh báo (trước 44 lỗi).
+- **Sửa leo thang quyền** ở `/api/accounts/[id]/permissions` (trước đây tài khoản Tỉnh tự gán được `*`): chỉ người có toàn quyền `*` mới gán `*` / tự phân quyền cho mình; người có `system.account.manage` chỉ phân quyền cho tài khoản trong phạm vi quản lý (cùng luật sửa/xoá — `src/lib/server/account-scope.ts`), không tự phân quyền, và chỉ được thêm/bớt quyền mình đang có hoặc quyền mặc định của vai trò người được gán; mỗi lần đổi ghi `audit_logs` (`ACCOUNT_PERMISSIONS_SET`). Ảnh hưởng: tài khoản TW được gán quyền riêng mà không có `*` (vd. `phanbaoanh`) không còn tự gán `*`; `QUAN_TRI_CAP3` mặc định không có `system.account.manage` nên không phân quyền được (trang phân quyền vốn đã yêu cầu quyền này). Kịch bản `e2e/h-phan-quyen.mjs` 28/28.
 - Tài liệu: `DOCS_HE_THONG_LOGIC_VA_DB.md` mục 4.4 (đồng bộ + phân quyền), `docs/de-xuat-luu-tru-file.md` thành ghi chú "đã triển khai".
-- Kiểm thử trên `tnth_test` (code đã gộp): p0 6/6, a-api 60/60, a-ui 23/23, b-api 56/56, b-forum 22/22, c-api 53/53, c-ui 24/24, d-snapshot 81/81, d-pages 160/160, e-api 28/28, e-chat-widget 7/7, f-tai-nguyen 115/115, g-kiem-duyet-diem-danh 90/90, sec-smoke 35/35, kiem-chinh-sach 37/37.
+- Kiểm thử trên `tnth_test` (code đã gộp): p0 6/6, a-api 60/60, a-ui 23/23, b-api 56/56, b-forum 22/22, c-api 53/53, c-ui 24/24, d-snapshot 81/81, d-pages 160/160, e-api 28/28, e-chat-widget 7/7, f-tai-nguyen 115/115, g-kiem-duyet-diem-danh 90/90, sec-smoke 35/35, h-phan-quyen 28/28, kiem-chinh-sach 37/37.
 
 **Khi triển khai đợt 2:** sao lưu (`deploy/db-backup.sh`) → áp `0028` vào `tnth_dev` (`scripts/db-migrate.mjs` hoặc psql với `SET ROLE coder_dev`) → `deploy/deploy.sh` → `docker compose restart proxy` (Caddy nhận header `X-Client-Ip`; chưa restart thì mọi khách bị gộp chung một hạn mức chat AI). Báo lập trình viên: `moderateForumItem` và `toggleAttendance` đổi chữ ký (async, gọi API riêng); diễn đàn không ghi qua `/api/store` nữa.
 
 ## Ưu tiên cao
-1. **Leo thang quyền ở `/api/accounts/[id]/permissions` (đã kiểm chứng trên `tnth_test`)**: `canGrantPermissions` coi ai có `system.account.manage` là quản trị toàn phần — mà `QUAN_TRI_TINH` có quyền này mặc định → tài khoản Tỉnh tự gán `["*"]` cho chính mình (hoặc bất kỳ tài khoản nào, kể cả ngoài tỉnh) và thành quản trị toàn quyền. Cần: chỉ TW (`*`) được gán `*`/tự gán; người khác chỉ gán cho tài khoản trong cây đơn vị, không tự gán, và chỉ gán quyền mình đang có.
-2. **Trang quản trị `quan-tri/tai-nguyen`** (để sau theo quyết định chủ dự án): vẫn tách mỗi tệp thành một tài nguyên; nên chuyển sang dùng `useMultiUpload` + `attachments` như trang đóng góp.
-3. **Cấp 3 chấm điểm**: server cho `QUAN_TRI_CAP3` chấm đơn vị cấp dưới, giao diện `quan-tri/nhiem-vu/cham-diem` chỉ hiện nút "Lưu điểm" cho TW/Tỉnh/`score.manage`. Cần quyết nghiệp vụ: mở nút cho cấp 3 hay siết server.
-4. **Xác nhận nghiệp vụ các chỗ cố ý thu hẹp quyền đọc**: biểu đồ xu hướng `/quan-tri/thong-ke` chỉ tính trong cây đơn vị; cán bộ cấp dưới không thấy thông báo người khác, phân công ông/bà, xếp hạng nháp của TW, danh bạ ngoài cây; `DON_VI`/`BIEN_TAP_VIEN` không nhận phản ánh. Thêm: kiểm duyệt diễn đàn chỉ người có `forum.manage` (mặc định chỉ TW), không phân theo đơn vị; `/api/dien-dan/thich|binh-luan` trên bài đang ẩn nay chỉ cho người có `forum.manage`.
-5. `accountByOrgUnit` vẫn không tìm được tài khoản với `DON_VI`/`BTV` (họ không đọc `/api/accounts`) → thao tác của họ không sinh thông báo. Giải cùng mục 6.
+1. **Trang quản trị `quan-tri/tai-nguyen`** (để sau theo quyết định chủ dự án): vẫn tách mỗi tệp thành một tài nguyên; nên chuyển sang dùng `useMultiUpload` + `attachments` như trang đóng góp.
+2. **Cấp 3 chấm điểm**: server cho `QUAN_TRI_CAP3` chấm đơn vị cấp dưới, giao diện `quan-tri/nhiem-vu/cham-diem` chỉ hiện nút "Lưu điểm" cho TW/Tỉnh/`score.manage`. Cần quyết nghiệp vụ: mở nút cho cấp 3 hay siết server.
+3. **Xác nhận nghiệp vụ các chỗ cố ý thu hẹp quyền đọc**: biểu đồ xu hướng `/quan-tri/thong-ke` chỉ tính trong cây đơn vị; cán bộ cấp dưới không thấy thông báo người khác, phân công ông/bà, xếp hạng nháp của TW, danh bạ ngoài cây; `DON_VI`/`BIEN_TAP_VIEN` không nhận phản ánh. Thêm: kiểm duyệt diễn đàn chỉ người có `forum.manage` (mặc định chỉ TW), không phân theo đơn vị; `/api/dien-dan/thich|binh-luan` trên bài đang ẩn nay chỉ cho người có `forum.manage`.
+4. `accountByOrgUnit` vẫn không tìm được tài khoản với `DON_VI`/`BTV` (họ không đọc `/api/accounts`) → thao tác của họ không sinh thông báo. Giải cùng mục 5.
 
 ## Bảo mật còn hở
-6. **Thông báo**: cán bộ tạo được thông báo gửi cho bất kỳ tài khoản nào. Nên chuyển việc sinh thông báo về server.
-7. **Phản ánh không có cột đơn vị** → không kiểm được phạm vi ghi; quyền đọc của cán bộ suy theo người được giao / địa bàn / ô "Đoàn tỉnh" người gửi tự gõ. Nên thêm cột đơn vị tiếp nhận.
-8. **Bộ đếm giới hạn tần suất + chống đếm trùng lượt tải nằm trong bộ nhớ** (về 0 khi khởi động lại web). Nên chuyển sang Postgres nếu cần chính xác.
-9. Danh sách IP máy chủ OneShield ghi cứng trong `deploy/Caddyfile` (`@oneshield`): OneShield thêm máy chủ mới thì người dùng qua máy đó bị gộp theo IP OneShield (chặt hơn, không lỏng hơn) cho tới khi bổ sung.
-10. **Id do trình duyệt sinh** (thời gian + ngẫu nhiên) — về lâu dài nên để server sinh id.
+5. **Thông báo**: cán bộ tạo được thông báo gửi cho bất kỳ tài khoản nào. Nên chuyển việc sinh thông báo về server.
+6. **Phản ánh không có cột đơn vị** → không kiểm được phạm vi ghi; quyền đọc của cán bộ suy theo người được giao / địa bàn / ô "Đoàn tỉnh" người gửi tự gõ. Nên thêm cột đơn vị tiếp nhận.
+7. **Bộ đếm giới hạn tần suất + chống đếm trùng lượt tải nằm trong bộ nhớ** (về 0 khi khởi động lại web). Nên chuyển sang Postgres nếu cần chính xác.
+8. Danh sách IP máy chủ OneShield ghi cứng trong `deploy/Caddyfile` (`@oneshield`): OneShield thêm máy chủ mới thì người dùng qua máy đó bị gộp theo IP OneShield (chặt hơn, không lỏng hơn) cho tới khi bổ sung.
+9. **Id do trình duyệt sinh** (thời gian + ngẫu nhiên) — về lâu dài nên để server sinh id.
 
 ## Lỗi / kỹ thuật
-11. **Gửi lại 39 dòng `tasks` một lần** khi mở vài trang (`/quan-tri/nhiem-vu`, `cham-diem`, `truc-tiep`) — chưa rõ nguyên nhân (có thể lệch định dạng một trường); server bỏ qua dòng không đổi nên vô hại.
-12. **Vòng nạp lại 4 giây vẫn tải toàn bộ snapshot** (đã dừng khi tab ẩn). Nên đổi sang chỉ tải phần thay đổi (`?since=`) khi dữ liệu lớn.
-13. ESLint còn 32 lỗi (chủ yếu `set-state-in-effect` 19, `no-unescaped-entities` 4), không gây lỗi chạy; sửa dần.
-14. Chưa thử nhánh "tạo hồ sơ HS3T mới" trên DB thử (các tài khoản thử đã có hồ sơ).
-15. Lượt thi đang làm dở trước lần triển khai 26/10 sáng không nộp được (không có mã bí mật) — chỉ ảnh hưởng một lần.
+10. **Gửi lại 39 dòng `tasks` một lần** khi mở vài trang (`/quan-tri/nhiem-vu`, `cham-diem`, `truc-tiep`) — chưa rõ nguyên nhân (có thể lệch định dạng một trường); server bỏ qua dòng không đổi nên vô hại.
+11. **Vòng nạp lại 4 giây vẫn tải toàn bộ snapshot** (đã dừng khi tab ẩn). Nên đổi sang chỉ tải phần thay đổi (`?since=`) khi dữ liệu lớn.
+12. ESLint còn 32 lỗi (chủ yếu `set-state-in-effect` 19, `no-unescaped-entities` 4), không gây lỗi chạy; sửa dần.
+13. Chưa thử nhánh "tạo hồ sơ HS3T mới" trên DB thử (các tài khoản thử đã có hồ sơ).
+14. Lượt thi đang làm dở trước lần triển khai 26/10 sáng không nộp được (không có mã bí mật) — chỉ ảnh hưởng một lần.
 
 ## Vận hành
-16. **Dọn tệp mồ côi** (`scripts/clean-orphan-media.mts`) chưa đặt lịch. Chỉ chạy với `DATABASE_URL` của `tnth_dev`; có chốt chặn 50%, không dùng `--force` khi chưa hiểu vì sao bị chặn.
-17. **Bản sao lưu nằm cùng ổ đĩa** với DB và tệp — cần chép ra nơi khác (cần chọn nơi lưu: Drive/S3/VPS khác).
-18. **SEO**: `deploy/Caddyfile` vẫn gắn `noindex` mọi trang trừ trang chủ (chờ nội dung thật); `src/lib/seo.ts` chưa đọc bài từ DB cho sitemap.
+15. **Dọn tệp mồ côi** (`scripts/clean-orphan-media.mts`) chưa đặt lịch. Chỉ chạy với `DATABASE_URL` của `tnth_dev`; có chốt chặn 50%, không dùng `--force` khi chưa hiểu vì sao bị chặn.
+16. **Bản sao lưu nằm cùng ổ đĩa** với DB và tệp — cần chép ra nơi khác (cần chọn nơi lưu: Drive/S3/VPS khác).
+17. **SEO**: `deploy/Caddyfile` vẫn gắn `noindex` mọi trang trừ trang chủ (chờ nội dung thật); `src/lib/seo.ts` chưa đọc bài từ DB cho sitemap.

@@ -23,6 +23,7 @@ Tài khoản thử (mật khẩu chung trong `$TNTH_TEST_DIR/test-password.txt`,
 | `e-api.sh` (`BASE=… bash e-api.sh`), `e2e/e-chat-widget.mjs` | fetch-article / AI: đăng nhập + giới hạn tần suất | 28/28, 7/7 |
 | `e2e/f-tai-nguyen.mjs` | Kho tài nguyên nhiều tệp: đóng góp 3–10 tệp (tải song song ≤3), từ chối 11 tệp/url giả/url ngoài, duyệt, trang chi tiết (ảnh, PDF, 360px), tải `.zip` (CRC, tên tiếng Việt, trùng tên, thiếu tệp), đếm lượt tải chống trùng, chặn XSS ở luật ghi cán bộ, `/van-ban` tải thật. Cần áp migration 0028; ghi gói zip vào `e2e/out/` để chạy `unzip -t` | 115/115 |
 | `e2e/sec-smoke.mjs` | Tổng hợp ~35 kịch bản tấn công | 35/35 |
+| `e2e/h-phan-quyen.mjs` | Phân quyền tài khoản: tỉnh không tự gán `*`/tự phân quyền, không gán ngoài cây, không thêm/bớt quyền mình không có; cấp 3/đơn vị/BTV bị 403; TW toàn quyền vẫn gán được; mã trùng/mã sai | 28/28 |
 | `e2e/g-kiem-duyet-diem-danh.mjs` | Cán bộ: kiểm duyệt diễn đàn qua `/api/dien-dan/kiem-duyet` (TW được, tỉnh/cấp 3/đơn vị không có `forum.manage` bị 403), cán bộ ngoài TW không thấy `authorAccountId`/`likedByAccountIds`, `/api/store` từ chối UPSERT diễn đàn; bật/tắt điểm danh từng hoạt động qua `/api/diem-danh/mo-dong` (3 bên cùng lúc không đè nhau, ngoài phạm vi 403); `created_by` của tasks/reports/documents mới = người tạo | 90/90 |
 
 Web thử không đi qua Caddy nên không có header `X-Client-Ip`: mọi khách gộp chung khoá "unknown" (chat khách 10 lượt/10 phút) — `e-api.sh` đã tính theo cách này.
