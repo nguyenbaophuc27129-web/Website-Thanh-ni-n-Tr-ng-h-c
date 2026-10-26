@@ -152,7 +152,12 @@ function renderNode(node: PostDoc, key: number): ReactNode {
     case "tableCell": {
       const Cell = node.type === "tableHeader" ? "th" : "td";
       return (
-        <Cell key={key} colSpan={cellSpan(node.attrs?.colspan)} rowSpan={cellSpan(node.attrs?.rowspan)}>
+        <Cell
+          key={key}
+          colSpan={cellSpan(node.attrs?.colspan)}
+          rowSpan={cellSpan(node.attrs?.rowspan)}
+          style={TEXT_ALIGNS.includes(node.attrs?.align) ? { textAlign: node.attrs!.align } : undefined}
+        >
           {kids()}
         </Cell>
       );

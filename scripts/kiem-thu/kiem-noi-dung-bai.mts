@@ -94,7 +94,7 @@ const good = p([
   { type: "horizontalRule" },
   { type: "youtube", attrs: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", start: 0, width: 640, height: 480 } },
   { type: "table", content: [
-    { type: "tableRow", content: [{ type: "tableHeader", attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: "paragraph", content: [t("A")] }] }] },
+    { type: "tableRow", content: [{ type: "tableHeader", attrs: { colspan: 1, rowspan: 1, colwidth: null, align: "center" }, content: [{ type: "paragraph", content: [t("A")] }] }] },
     { type: "tableRow", content: [{ type: "tableCell", attrs: { colspan: 1, rowspan: 1, colwidth: [120] }, content: [{ type: "paragraph", content: [t("1")] }] }] },
   ] },
 ]);

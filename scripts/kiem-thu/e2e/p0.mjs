@@ -3,7 +3,8 @@ const title = `Bài thử đồng bộ ${Date.now()}`;
 const { browser, ctx, page } = await browserAs("t.btv");
 await page.goto("/quan-tri/xuat-ban/dang-bai");
 await page.getByPlaceholder(/Nhập tiêu đề chính/).fill(title);
-await page.locator("textarea").nth(1).fill("Nội dung thử nghiệm đồng bộ dữ liệu sau khi sửa giai đoạn 0. ".repeat(3));
+await page.locator(".tnth-editor").click();
+await page.keyboard.insertText("Nội dung thử nghiệm đồng bộ dữ liệu sau khi sửa giai đoạn 0. ".repeat(3));
 await page.getByRole("button", { name: /Lưu nháp/ }).first().click();
 await page.waitForTimeout(6000); // debounce 1.2s + vòng nạp lại 4s
 let snap = await (await ctx.request.get("/api/store")).json();

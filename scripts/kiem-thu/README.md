@@ -23,6 +23,7 @@ Tài khoản thử (mật khẩu chung trong `$TNTH_TEST_DIR/test-password.txt`,
 | `e-api.sh` (`BASE=… bash e-api.sh`), `e2e/e-chat-widget.mjs` | fetch-article / AI: đăng nhập + giới hạn tần suất | 28/28, 7/7 |
 | `e2e/f-tai-nguyen.mjs` | Kho tài nguyên nhiều tệp: đóng góp 3–10 tệp (tải song song ≤3), từ chối 11 tệp/url giả/url ngoài, duyệt, trang chi tiết (ảnh, PDF, 360px), tải `.zip` (CRC, tên tiếng Việt, trùng tên, thiếu tệp), đếm lượt tải chống trùng, chặn XSS ở luật ghi cán bộ, `/van-ban` tải thật. Cần áp migration 0028; ghi gói zip vào `e2e/out/` để chạy `unzip -t` | 115/115 |
 | `e2e/sec-smoke.mjs` | Tổng hợp ~35 kịch bản tấn công | 35/35 |
+| `e2e/i-trinh-soan-thao.mjs` | Trình soạn thảo bài viết: chốt chặn `content_doc` ở `/api/store` (link `javascript:`, ảnh ngoài/data:, thuộc tính/khối lạ — chặn cả TW), soạn bằng giao diện (H2, đậm, canh đều, gõ `/` chèn bảng, ảnh hiện ngay rồi tải lên, độ rộng/vị trí/chú thích, ảnh dài vẫn chỉnh được), dán Word (danh sách `mso-list`, canh giữa, bỏ ảnh `file://`) và Google Docs, link; trang tin (ảnh không cắt/không kéo giãn, canh lề, bảng, phóng to, 360px), bài Markdown cũ hiển thị + mở sửa chuyển sang tài liệu. Cần migration 0029 | 56/56 |
 | `e2e/h-phan-quyen.mjs` | Phân quyền tài khoản: tỉnh không tự gán `*`/tự phân quyền, không gán ngoài cây, không thêm/bớt quyền mình không có; cấp 3/đơn vị/BTV bị 403; TW toàn quyền vẫn gán được; mã trùng/mã sai | 28/28 |
 | `e2e/g-kiem-duyet-diem-danh.mjs` | Cán bộ: kiểm duyệt diễn đàn qua `/api/dien-dan/kiem-duyet` (TW được, tỉnh/cấp 3/đơn vị không có `forum.manage` bị 403), cán bộ ngoài TW không thấy `authorAccountId`/`likedByAccountIds`, `/api/store` từ chối UPSERT diễn đàn; bật/tắt điểm danh từng hoạt động qua `/api/diem-danh/mo-dong` (3 bên cùng lúc không đè nhau, ngoài phạm vi 403); `created_by` của tasks/reports/documents mới = người tạo | 90/90 |
 
@@ -38,6 +39,13 @@ Web thử không đi qua Caddy nên không có header `X-Client-Ip`: mọi khác
 docker build --target builder -t tnth-builder:chinhsach .
 docker run --rm -v "$PWD/scripts:/app/scripts:ro" tnth-builder:chinhsach \
   node --no-warnings --import ./scripts/kiem-thu/alias-loader.mjs scripts/kiem-thu/kiem-chinh-sach.mts
+```
+
+`kiem-noi-dung-bai.mts` kiểm lõi trình soạn thảo (`src/lib/editor/`): chuyển Markdown cũ, rút văn bản thuần, chốt chặn `validatePostDoc`; thêm tệp JSON bài thật (`[{id, content}]`, gắn vào `/bai-cu.json` và truyền làm tham số) để kiểm bài đang có chuyển được không mất chữ/ảnh:
+
+```bash
+docker run --rm -v "$PWD/scripts:/app/scripts:ro" tnth-builder:chinhsach \
+  node --no-warnings --import ./scripts/kiem-thu/alias-loader.mjs scripts/kiem-thu/kiem-noi-dung-bai.mts
 ```
 
 (Thư mục `scripts/` bị `.dockerignore` loại khỏi image nên phải gắn vào.) `alias-loader.mjs` chỉ để node thuần giải được alias `@/` và import không ghi đuôi của mã trong `src/`. **Chạy mỗi khi thêm/sửa entity** (hoặc thêm vào bước kiểm trước khi triển khai). Ngoài ra route `/api/store` cũng ghi cảnh báo `[TNTH][STORE] Thiếu chính sách: …` vào log một lần khi nạp module nếu còn thiếu.

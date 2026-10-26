@@ -27,6 +27,7 @@ const cellAttrs = {
   colspan: intIn(1, 50),
   rowspan: intIn(1, 50),
   colwidth: nullOr((v) => Array.isArray(v) && v.length <= 50 && v.every(intIn(1, 5000))),
+  align: textAlign,
 };
 
 export interface ValidateOptions {

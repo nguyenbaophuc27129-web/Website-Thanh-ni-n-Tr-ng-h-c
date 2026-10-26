@@ -147,7 +147,8 @@ if (await readBtn.count()) {
 await btv.page.goto("/quan-tri/xuat-ban/dang-bai");
 await btv.page.waitForTimeout(2500);
 await btv.page.getByPlaceholder(/Nhập tiêu đề chính/).fill(`${tag} Bài thử`);
-await btv.page.locator("textarea").nth(1).fill("Nội dung thử nghiệm phân quyền ghi của nhóm C. ".repeat(3));
+await btv.page.locator(".tnth-editor").click();
+await btv.page.keyboard.insertText("Nội dung thử nghiệm phân quyền ghi của nhóm C. ".repeat(3));
 await btv.page.getByRole("button", { name: /Lưu nháp/ }).first().click();
 await settle(btv);
 d = await snap(btv);

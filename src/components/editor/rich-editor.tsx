@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Extension, type JSONContent } from "@tiptap/core";
+import { Slice } from "@tiptap/pm/model";
 import { EditorContent, ReactNodeViewRenderer, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { CharacterCount, Placeholder } from "@tiptap/extensions";
@@ -105,6 +106,11 @@ export default function RichEditor({
         "aria-label": "Nội dung bài viết",
         spellcheck: "false",
       },
+      // Dán vào dòng trống: đoạn đầu tiên giữ canh lề/kiểu của chính nó thay vì nhập vào dòng trống
+      transformPasted: (slice, view) =>
+        slice.openStart > 0 && view.state.selection.empty && view.state.selection.$from.parent.content.size === 0
+          ? new Slice(slice.content, 0, slice.openEnd)
+          : slice,
       transformPastedHTML: (html, view) => {
         const { html: clean, droppedImages } = cleanPastedHtml(html);
         if (droppedImages > 0) {
@@ -215,7 +221,7 @@ export default function RichEditor({
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
       <EditorToolbar editor={editor} pendingUploads={pending} stickyTop={stickyTop} />
-      <ImageBubble editor={editor} />
+      <ImageBubble editor={editor} stickyTop={stickyTop} />
       <TextBubble editor={editor} />
       <EditorContent editor={editor} />
 
@@ -244,7 +250,7 @@ export default function RichEditor({
 }
 
 /** Thanh nổi khi chọn ảnh: độ rộng, vị trí, mô tả (alt), xoá */
-function ImageBubble({ editor }: { editor: Editor }) {
+function ImageBubble({ editor, stickyTop }: { editor: Editor; stickyTop: number }) {
   const img = useEditorState({
     editor,
     selector: ({ editor: e }) => {
@@ -258,6 +264,8 @@ function ImageBubble({ editor }: { editor: Editor }) {
       editor={editor}
       pluginKey="imageMenu"
       shouldShow={({ editor: e }) => e.isActive("figureImage")}
+      // Ảnh dài hơn màn hình: thanh vẫn trượt vào vùng nhìn thấy, ngay dưới thanh công cụ dính
+      options={{ placement: "top", flip: true, shift: { crossAxis: true, padding: { top: stickyTop + 100, bottom: 8 } } }}
       className="flex flex-wrap items-center gap-0.5 rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
     >
       <span className="px-1.5 text-[11px] font-semibold text-slate-500">Rộng</span>

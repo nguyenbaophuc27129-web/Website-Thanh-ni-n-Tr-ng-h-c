@@ -135,6 +135,7 @@ Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<
   # xoá thật: thêm --delete (tự dừng nếu sắp xoá > 50% tệp/dòng; chắc chắn đúng thì thêm --force)
   ```
 - **Kho tài nguyên nhiều tệp** (migration 0028): mỗi tài nguyên ≤ 10 tệp (`resources.attachments`), `GET /api/tai-nguyen/<id>/zip` đọc thẳng từ thư mục tải lên và phát gói `.zip` dạng stream; `POST /api/tai-nguyen/<id>/luot-tai` đếm lượt tải (chống trùng 30 phút theo IP + User-Agent, bộ đếm nằm trong bộ nhớ).
+- **Ảnh trong bài viết** (migration 0029): nội dung bài lưu ở `published_posts.content_doc` (tài liệu JSON của trình soạn thảo Tiptap, `src/lib/editor/`); ảnh trong bài luôn là tệp `/uploads/bai-viet/…` (trình soạn thảo tự tải lên / lấy ảnh link ngoài về, luật ghi từ chối ảnh khác). Script dọn tệp mồ côi đã quét cả cột `jsonb` nên ảnh trong `content_doc` được giữ.
 - Chạy `next dev` trên máy lập trình viên: tệp ghi vào `./uploads` và được phục vụ qua `src/app/uploads/[...path]/route.ts`.
 - **Chuyển máy:** chép cả thư mục `/srv/tnth/uploads` (giữ quyền `1000:1000`), không chỉ database.
 

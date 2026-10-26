@@ -633,18 +633,19 @@ body {
 .post-body td > p,
 .post-body th > p { margin: 0; }
 .post-body .post-table { overflow-x: auto; }
-/* Ảnh: không cắt, theo độ rộng/vị trí đã chọn; điện thoại luôn rộng hết khung */
-.post-body figure[data-width] { margin-left: auto; margin-right: auto; }
-.post-body figure[data-width="25"] { width: 25%; }
-.post-body figure[data-width="50"] { width: 50%; }
-.post-body figure[data-width="75"] { width: 75%; }
-.post-body figure[data-width="100"] { width: 100%; }
+/* Ảnh: không cắt, không phóng to quá kích thước thật; độ rộng đã chọn là mức tối đa so với khung;
+   vị trí trái/giữa/phải; điện thoại tối đa rộng hết khung */
+.post-body figure[data-width] { width: fit-content; margin-left: auto; margin-right: auto; }
+.post-body figure[data-width="25"] { max-width: 25%; }
+.post-body figure[data-width="50"] { max-width: 50%; }
+.post-body figure[data-width="75"] { max-width: 75%; }
+.post-body figure[data-width="100"] { max-width: 100%; }
 .post-body figure[data-align="left"] { margin-left: 0; }
 .post-body figure[data-align="right"] { margin-right: 0; }
 @media (max-width: 639px) {
-  .post-body figure[data-width] { width: 100%; }
+  .post-body figure[data-width] { max-width: 100%; }
 }
-.post-body figure img { display: block; width: 100%; height: auto; border-radius: 0.75rem; }
+.post-body figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 0.75rem; }
 .post-body figcaption {
   margin-top: 0.5rem;
   text-align: center;
