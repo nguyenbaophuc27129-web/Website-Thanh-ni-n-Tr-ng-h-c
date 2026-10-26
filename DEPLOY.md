@@ -15,7 +15,7 @@ SSH tunnel (cổng 24700) ──────────────────
 | Thư mục mã nguồn | `/root/Website-Thanh-ni-n-Tr-ng-h-c` |
 | `web` | Image `tnth-web:current`, build từ `Dockerfile` (Next.js `output: "standalone"`), chạy bằng user `node`, hệ thống file chỉ đọc |
 | `proxy` | `caddy:2-alpine`, cấu hình tại `deploy/Caddyfile`, là dịch vụ duy nhất mở cổng ra ngoài |
-| `db` | `postgres:16-alpine`, chỉ nghe ở `127.0.0.1:5432`. **Web hiện chưa dùng database**: bản demo vẫn lưu dữ liệu trên trình duyệt người dùng |
+| `db` | `postgres:16-alpine`, chỉ nghe ở `127.0.0.1:5432` (cho SSH tunnel của nhóm dev). Web thật dùng DB `tnth_dev` qua `.env.production` |
 
 Cả hai container có `restart: unless-stopped` và Docker tự bật cùng máy, nên web tự lên lại sau khi máy khởi động lại hoặc tiến trình bị lỗi.
 
@@ -105,7 +105,9 @@ Sao lưu:
 
 Schema: `db/schema_v1.sql` (43 bảng), kiểm thử `db/test_schema.sql`. Hướng dẫn cho lập trình viên: `docs/huong-dan-ket-noi-db.md`.
 
-Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<mật khẩu>@db:5432/tnth_prod` vào `.env.production` (trong mạng Compose, host là `db`).
+Web đọc `DATABASE_URL` trong `.env.production` (trong mạng Compose, host là `db`); hiện trỏ tới `tnth_dev`. Muốn chuyển sang `tnth_prod`: xem `db/DEPLOY-PROD.md`.
+
+Cài mới từ đầu: `db/schema_hien_tai.sql` là cấu trúc hiện tại (đã gồm migration tới `0029`), nạp bằng `psql -f` rồi ghi các migration đã áp vào `schema_migrations`; các tệp `db/migrations/` giữ làm lịch sử, không sửa.
 
 ## Tệp tải lên (ảnh, video, văn bản)
 
@@ -141,7 +143,7 @@ Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<
 
 ## Bảo mật đã thiết lập
 
-- `ufw`: chỉ mở `24700/tcp`, `80/tcp`, `443/tcp`, `443/udp`.
+- `ufw`: chỉ mở `24700/tcp`, `80/tcp`, `443/tcp` (đã bỏ `443/udp`/HTTP3: OneShield vào bằng TCP, log Caddy không có request HTTP/3).
 - `fail2ban`: khoá IP 1 giờ sau 5 lần đăng nhập SSH sai trong 10 phút.
 - Cập nhật bảo mật Ubuntu tự động (`unattended-upgrades`).
 - Container `web`: không phải root, hệ thống file chỉ đọc, bỏ toàn bộ capability.

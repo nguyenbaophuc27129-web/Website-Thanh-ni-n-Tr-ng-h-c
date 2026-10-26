@@ -4,6 +4,7 @@
 
 - `schema_v1.sql` — baseline 43 bảng đã có trên server (bản replicate của `tnth_dev`).
   **Không sửa file này** — nó chỉ là mốc gốc.
+- `schema_hien_tai.sql` — cấu trúc hiện tại (xuất từ `tnth_dev`, đã gồm migration tới `0029`, 76 bảng kể cả phân vùng) để **cài mới**; không chứa dữ liệu. Xuất lại sau mỗi migration mới: `docker compose exec -T db pg_dump -U postgres -d tnth_dev --schema-only --no-owner --no-privileges`.
 - `migrations/` — mọi thay đổi cấu trúc về sau, đánh số tăng dần, chạy theo thứ tự tên file.
 
 ## Quy tắc
