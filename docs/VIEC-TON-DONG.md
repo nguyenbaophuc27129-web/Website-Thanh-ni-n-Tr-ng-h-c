@@ -8,7 +8,7 @@ DB chính thức vẫn là `tnth_dev` — chủ dự án quyết định **khôn
 - Client chỉ gửi **dòng mới/đổi** (`src/lib/store-context.tsx`); khách & đoàn viên ghi qua API riêng; cán bộ ghi qua `/api/store` bị kiểm quyền + phạm vi từng dòng (`store-write-policy.ts`), ghi `audit_logs`; dữ liệu đọc lọc theo người xem (`store-read-policy.ts`).
 - `fetch-article` chỉ cán bộ; `/api/ai/*` bắt buộc đăng nhập + giới hạn tần suất.
 
-## Đợt 2 (chiều 26/10, CHƯA triển khai — cần migration `0028` + khởi động lại Caddy)
+## Đợt 2 (chiều 26/10, đã triển khai 26/10 ~15:00 — commit `18fa94b`, migration tới `0028`, đã khởi động lại Caddy; bản sao lưu trước triển khai: `/var/backups/tnth/*-20261026-145851*`)
 - **Kho tài nguyên**: một tài nguyên gồm tối đa 10 tệp (`resources.attachments jsonb`, `contributor_name` — migration `0028`); đóng góp nhiều tệp (hook `src/lib/use-multi-upload.ts` + `src/components/ui/multi-upload.tsx`); trang chi tiết `/tai-nguyen/[id]` (và `/tai-nguyen/vb-<id>` cho văn bản) hiện người đóng góp, xem trước ảnh/PDF/video; tải tất cả `.zip` (`/api/tai-nguyen/[id]/zip`, `src/lib/server/zip-stream.ts`); đếm lượt tải thật (`/api/tai-nguyen/[id]/luot-tai`); `/van-ban` tải tệp thật; luật ghi chặn `javascript:`/URL ngoài ở `file_data_url`, `video_url`, `attachments`.
 - Chốt chặn chính sách: `scripts/kiem-thu/kiem-chinh-sach.mts` (mọi entity phải có luật đọc + ghi hoặc khai rõ cố ý không); `/api/store` cảnh báo khi nạp nếu thiếu.
 - `/api/accounts` chỉ được gọi/poll với TW/Tỉnh/Cấp 3 (`ACCOUNT_ADMIN_ROLES`); GET quyền gán riêng chỉ cho chính mình hoặc người có quyền phân quyền tài khoản đó.
@@ -22,7 +22,7 @@ DB chính thức vẫn là `tnth_dev` — chủ dự án quyết định **khôn
 - Tài liệu: `DOCS_HE_THONG_LOGIC_VA_DB.md` mục 4.4 (đồng bộ + phân quyền), `docs/de-xuat-luu-tru-file.md` thành ghi chú "đã triển khai".
 - Kiểm thử trên `tnth_test` (code đã gộp): p0 6/6, a-api 60/60, a-ui 23/23, b-api 56/56, b-forum 22/22, c-api 53/53, c-ui 24/24, d-snapshot 81/81, d-pages 160/160, e-api 28/28, e-chat-widget 7/7, f-tai-nguyen 115/115, g-kiem-duyet-diem-danh 90/90, sec-smoke 35/35, h-phan-quyen 28/28, kiem-chinh-sach 37/37.
 
-**Khi triển khai đợt 2:** sao lưu (`deploy/db-backup.sh`) → áp `0028` vào `tnth_dev` (`scripts/db-migrate.mjs` hoặc psql với `SET ROLE coder_dev`) → `deploy/deploy.sh` → `docker compose restart proxy` (Caddy nhận header `X-Client-Ip`; chưa restart thì mọi khách bị gộp chung một hạn mức chat AI). Báo lập trình viên: `moderateForumItem` và `toggleAttendance` đổi chữ ký (async, gọi API riêng); diễn đàn không ghi qua `/api/store` nữa.
+**Các bước đã làm khi triển khai đợt 2** (dùng lại cho lần sau): sao lưu (`deploy/db-backup.sh`) → áp `0028` vào `tnth_dev` (`scripts/db-migrate.mjs` hoặc psql với `SET ROLE coder_dev`) → `deploy/deploy.sh` → `docker compose restart proxy` (Caddy nhận header `X-Client-Ip`; chưa restart thì mọi khách bị gộp chung một hạn mức chat AI). Báo lập trình viên: `moderateForumItem` và `toggleAttendance` đổi chữ ký (async, gọi API riêng); diễn đàn không ghi qua `/api/store` nữa.
 
 ## Ưu tiên cao
 1. **Trang quản trị `quan-tri/tai-nguyen`** (để sau theo quyết định chủ dự án): vẫn tách mỗi tệp thành một tài nguyên; nên chuyển sang dùng `useMultiUpload` + `attachments` như trang đóng góp.
