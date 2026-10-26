@@ -13,7 +13,7 @@ import {
   type SetStateAction,
 } from "react";
 import type {
-  Activity, Account, AdaptiveStep, AssignmentReview, AssignmentTarget, Attendance,
+  Activity, Account, AssignmentReview, AssignmentTarget, Attendance,
   ContributionKind, ContributionLog, CriteriaSet,
   DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, ForumComment, ForumMedia, ForumThread,
   Hs3tAchievement, Hs3tCategory, Hs3tProfile, Hs3tUnitStandard, LiveEvent, MemberContribution, ModerationResult, Notification,
@@ -45,10 +45,34 @@ import { quizQuestions as seedQuizQuestions } from "@/data/quiz-bank";
 import { quizExams as seedQuizExams } from "@/data/quiz-exams";
 import { hs3tProfiles as seedHs3tProfiles, hs3tAchievements as seedHs3tAchievements, hs3tUnitStandards as seedHs3tUnitStandards } from "@/data/hs3t";
 import { generateUniqueAlias } from "@/lib/forum-alias";
+import { callPublicApi, type ApiResult } from "@/lib/public-api-client";
 import { useAuth, type Session } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 
 /* ---------------- Input types ---------------- */
+
+/** Thông tin người gửi phản ánh — mã tra cứu, tài khoản, trạng thái do máy chủ quyết định */
+export interface FeedbackSubmitInput {
+  senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string;
+  senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[];
+  feedbackTopicId: number; title: string; content: string;
+}
+
+/** Kết quả bắt đầu lượt thi: lượt thi + mã bí mật của lượt (chỉ người giữ mã mới nộp được) */
+export interface QuizStartResult {
+  attempt: QuizAttempt;
+  accessToken: string;
+  /** Đề thích ứng: câu đầu tiên do máy chủ chọn */
+  firstQuestionId: number | null;
+}
+
+/** Kết quả nộp bài — điểm do máy chủ chấm theo đáp án trong DB */
+export interface QuizSubmitResult {
+  attempt: QuizAttempt;
+  perQuestion: { questionId: number; points: number; maxPoints: number; correct: boolean | null }[];
+  /** Nộp quá giờ (kể cả thời gian bù) — đáp án gửi kèm bị bỏ qua */
+  late: boolean;
+}
 
 export interface ActivityInput {
   title: string; summary: string; startDate: string; endDate: string;
@@ -266,7 +290,8 @@ interface StoreValue {
   markAllNotificationsRead: (accountId: number) => void;
 
   /* feedbacks (R8) */
-  submitFeedback: (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[]; feedbackTopicId: number; title: string; content: string; senderAccountId?: number }) => string;
+  /** Gửi phản ánh qua POST /api/phan-anh — trả mã tra cứu do máy chủ sinh */
+  submitFeedback: (input: FeedbackSubmitInput) => Promise<ApiResult<{ code: string }>>;
   replyFeedback: (session: Session, feedbackId: number, content: string, internal: boolean) => void;
   setFeedbackStatus: (session: Session, feedbackId: number, status: Feedback["status"]) => void;
   /** Gửi email kết quả/phản hồi cho người gửi (giả lập SMTP) — trả về false nếu thiếu email */
@@ -275,7 +300,8 @@ interface StoreValue {
 
   /* attendance (công khai, không cần session) */
   toggleAttendance: (session: Session, activityId: number, open: boolean) => void;
-  addAttendance: (input: { activityId: number; memberName: string; memberClass?: string }) => boolean;
+  /** Điểm danh qua POST /api/diem-danh — trả tổng số lượt đã điểm danh của hoạt động */
+  addAttendance: (input: { activityId: number; memberName: string; memberClass?: string }) => Promise<ApiResult<{ count: number }>>;
 
   /* resources (R9) */
   saveResource: (input: Omit<Resource, "id" | "downloadCount">, id?: number) => void;
@@ -325,8 +351,10 @@ interface StoreValue {
   saveQuizExam: (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; topics?: string[]; status?: QuizExam["status"] }, questionIds: number[]) => number;
   setQuizExamStatus: (id: number, status: QuizExam["status"]) => void;
   quizAttempts: QuizAttempt[];
-  startQuizAttempt: (examId: number, examinee: { name: string; orgText: string; accountId?: number }) => number;
-  submitQuizAttempt: (attemptId: number, answers: Record<number, QuizAnswer>, autoScore: number, maxScore: number, trail?: AdaptiveStep[]) => void;
+  /** Bắt đầu lượt thi ở máy chủ (POST /api/thi/bat-dau) — tài khoản lấy từ phiên đăng nhập */
+  startQuizAttempt: (examId: number, examinee: { name: string; orgText: string }) => Promise<ApiResult<QuizStartResult>>;
+  /** Nộp bài (POST /api/thi/nop) — máy chủ chấm điểm, trình duyệt không gửi điểm */
+  submitQuizAttempt: (attemptId: number, accessToken: string, answers: Record<number, QuizAnswer>) => Promise<ApiResult<QuizSubmitResult>>;
   gradeQuizAttempt: (session: Session, attemptId: number, manualPoints: number) => void;
   hs3tProfiles: Hs3tProfile[];
   hs3tAchievements: Hs3tAchievement[];
@@ -1303,32 +1331,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /* ============ Feedbacks (R8) ============ */
 
   const submitFeedback = useCallback(
-    (input: { senderName: string; senderEmail: string; senderPhone?: string; senderOrgText?: string; senderCommuneUnion?: string; senderProvinceUnion?: string; evidenceNames?: string[]; feedbackTopicId: number; title: string; content: string }) => {
-      // Mã tra cứu SINH NGẪU NHIÊN (bỏ ký tự dễ nhầm I/O/0/1) — không đoán được
-      // theo cấu trúc tuần tự để chặn dò/crawl dữ liệu qua trang tra cứu
-      const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      const taken = new Set(feedbacks.map((f) => f.trackingCode));
-      let code = "";
-      for (let attempt = 0; attempt < 50 && !code; attempt++) {
-        const bytes = new Uint8Array(8);
-        crypto.getRandomValues(bytes);
-        let candidate = "PA-";
-        for (const b of bytes) candidate += CODE_ALPHABET[b % CODE_ALPHABET.length];
-        if (!taken.has(candidate)) code = candidate;
-      }
-      if (!code) code = `PA-${Date.now().toString(36).toUpperCase()}`;
-      const id = nextId();
-      setFeedbacks((prev) => [
-        { ...input, id, trackingCode: code, status: "NEW", submittedAt: nowISO() },
-        ...prev,
-      ]);
-      setFeedbackMessages((prev) => [
-        ...prev,
-        { id: nextId(), feedbackId: id, senderType: "CITIZEN", senderName: input.senderName, content: input.content, isInternalNote: false, sentAt: nowISO() },
-      ]);
-      return code;
+    async (input: FeedbackSubmitInput): Promise<ApiResult<{ code: string }>> => {
+      // Máy chủ sinh mã tra cứu ngẫu nhiên, gắn tài khoản theo phiên, ghi tin nhắn đầu + sự kiện Trực tiếp
+      const r = await callPublicApi<{ trackingCode: string; feedback: Feedback; messages: FeedbackMessage[] }>(
+        "/api/phan-anh",
+        input,
+      );
+      if (!r.ok) return r;
+      adoptServerRows("feedbacks", [r.feedback as unknown as Record<string, unknown>]);
+      adoptServerRows("feedbackMessages", r.messages as unknown as Record<string, unknown>[]);
+      return { ok: true, code: r.trackingCode };
     },
-    [feedbacks]
+    [adoptServerRows]
   );
 
   /** Soạn và "gửi" email cho người gửi phản ánh — nội dung ghép từ phản hồi chính thức mới nhất (giả lập SMTP) */
@@ -1444,20 +1458,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const addAttendance = useCallback(
-    (input: { activityId: number; memberName: string; memberClass?: string }) => {
-      if (!attendanceOpenIds.includes(input.activityId)) return false;
-      const record: Attendance = {
-        id: nextId(),
-        activityId: input.activityId,
-        memberName: input.memberName.trim(),
-        memberClass: input.memberClass?.trim() || undefined,
-        orgUnitId: activities.find((a) => a.id === input.activityId)?.orgUnitId ?? 0,
-        checkedInAt: nowISO(),
-      };
-      setAttendances((prev) => [record, ...prev]);
-      return true;
+    async (input: { activityId: number; memberName: string; memberClass?: string }): Promise<ApiResult<{ count: number }>> => {
+      // Máy chủ kiểm tra hoạt động đang mở điểm danh + chống trùng tên/lớp
+      const r = await callPublicApi<{ attendance: Attendance; count: number }>("/api/diem-danh", input);
+      if (!r.ok) return r;
+      adoptServerRows("attendances", [r.attendance as unknown as Record<string, unknown>]);
+      return { ok: true, count: r.count };
     },
-    [activities, attendanceOpenIds]
+    [adoptServerRows]
   );
 
   /* ============ Resources (R9) ============ */
@@ -2035,37 +2043,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startQuizAttempt = useCallback(
-    (examId: number, examinee: { name: string; orgText: string; accountId?: number }) => {
-      const id = nextId();
-      const attempt: QuizAttempt = {
-        id,
+    async (examId: number, examinee: { name: string; orgText: string }): Promise<ApiResult<QuizStartResult>> => {
+      const r = await callPublicApi<QuizStartResult>("/api/thi/bat-dau", {
         examId,
-        accountId: examinee.accountId,
-        examineeName: examinee.name.trim() || "Thí sinh ẩn danh",
-        examineeOrgText: examinee.orgText.trim() || "—",
-        answers: {},
-        autoScore: 0,
-        maxScore: 0,
-        status: "IN_PROGRESS",
-        startedAt: nowISO(),
-      };
-      setQuizAttempts((prev) => [attempt, ...prev]);
-      return id;
+        examineeName: examinee.name,
+        examineeOrgText: examinee.orgText,
+      });
+      if (r.ok) adoptServerRows("quizAttempts", [r.attempt as unknown as Record<string, unknown>]);
+      return r;
     },
-    []
+    [adoptServerRows]
   );
 
   const submitQuizAttempt = useCallback(
-    (attemptId: number, answers: Record<number, QuizAnswer>, autoScore: number, maxScore: number, trail?: AdaptiveStep[]) => {
-      setQuizAttempts((prev) =>
-        prev.map((a) =>
-          a.id === attemptId
-            ? { ...a, answers, autoScore, maxScore, trail, status: "SUBMITTED", submittedAt: nowISO() }
-            : a
-        )
-      );
+    async (attemptId: number, accessToken: string, answers: Record<number, QuizAnswer>): Promise<ApiResult<QuizSubmitResult>> => {
+      const r = await callPublicApi<QuizSubmitResult>("/api/thi/nop", { attemptId, accessToken, answers });
+      if (r.ok) adoptServerRows("quizAttempts", [r.attempt as unknown as Record<string, unknown>]);
+      return r;
     },
-    []
+    [adoptServerRows]
   );
 
   const gradeQuizAttempt = useCallback(

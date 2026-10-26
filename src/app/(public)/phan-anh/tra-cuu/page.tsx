@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import QRCode from "react-qr-code";
-import { useStore } from "@/lib/store-context";
+import { callPublicApi } from "@/lib/public-api-client";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -32,19 +32,24 @@ const fadeUp = {
 };
 
 export default function TraCuuPage() {
-  const { feedbacks } = useStore();
   const { toast } = useToast();
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [checking, setChecking] = useState(false);
 
-  const lookup = (e: React.FormEvent) => {
+  // Tra cứu ở máy chủ (khách không có danh sách phản ánh trong store)
+  const lookup = async (e: React.FormEvent) => {
     e.preventDefault();
-    const found = feedbacks.find((f) => f.trackingCode.toLowerCase() === code.trim().toLowerCase());
-    if (!found) {
-      toast(`Không tìm thấy phản ánh với mã "${code.trim()}".`, "warning");
+    const typed = code.trim().toUpperCase();
+    if (!typed || checking) return;
+    setChecking(true);
+    const r = await callPublicApi<{ feedback: { trackingCode: string } }>(`/api/phan-anh/${encodeURIComponent(typed)}`);
+    setChecking(false);
+    if (!r.ok) {
+      toast(r.status === 404 ? `Không tìm thấy phản ánh với mã "${typed}".` : r.error, "warning");
       return;
     }
-    router.push(`/phan-anh/${found.trackingCode}`);
+    router.push(`/phan-anh/${r.feedback.trackingCode}`);
   };
 
   return (
@@ -151,9 +156,10 @@ export default function TraCuuPage() {
             />
             <button
               type="submit"
+              disabled={checking}
               className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:brightness-110"
             >
-              Tra cứu ngay
+              {checking ? "Đang tra cứu…" : "Tra cứu ngay"}
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </button>
           </form>
