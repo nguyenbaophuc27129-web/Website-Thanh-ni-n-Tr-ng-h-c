@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { moderateWithAI } from "@/lib/server/moderation";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,17 @@ export const runtime = "nodejs";
 
 /** POST /api/ai/kiem-duyet — { text } → { ok, verdict, reason, model } */
 export async function POST(request: Request) {
+  // Bắt buộc đăng nhập (đoàn viên trở lên) + giới hạn lượt theo tài khoản
+  const gate = await guardRequest(request, {
+    access: "member",
+    bucket: "ai-kiem-duyet",
+    windowMs: 10 * 60_000,
+    perAccount: 120,
+    perMember: 30,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
+
   const payload = (await request.json().catch(() => null)) as { text?: string } | null;
   const text = payload?.text?.trim() ?? "";
   if (text.length < 2) {

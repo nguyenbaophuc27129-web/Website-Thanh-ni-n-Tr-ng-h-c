@@ -96,6 +96,9 @@ export function ActivityForm({ activity }: { activity?: Activity }) {
           return [...prev, { platform: "PRESS", url, note: "Link bài viết nguồn đã trích xuất" }];
         });
         toast("Đã tự động trích xuất thông tin bài viết thành công!", "success");
+      } else if ([401, 403, 429].includes(res.status) && data?.error) {
+        // Phiên hết hạn / quá lượt trích xuất → báo đúng lý do máy chủ trả
+        toast(data.error, "warning");
       } else {
         toast("Không trích xuất được bài viết từ link này. Bạn có thể tự nhập tay.", "warning");
       }

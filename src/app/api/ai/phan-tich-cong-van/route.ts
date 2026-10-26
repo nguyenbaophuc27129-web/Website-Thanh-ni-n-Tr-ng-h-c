@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { DirectiveDraft } from "@/lib/ai-directive";
 import { callAI } from "@/lib/ai-client";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,9 @@ export const runtime = "nodejs";
    Chưa có key → route trả 502 → client /quan-tri/nhiem-vu/ai-phan-tich
    tự dùng parser quy tắc cục bộ (lib/ai-directive.ts) nên demo không gãy.
    ════════════════════════════════════════════════════════════════════ */
+
+/** Trần độ dài công văn gửi AI (ký tự) */
+const MAX_TEXT_CHARS = 30_000;
 
 const DIRECTIVE_SYSTEM_PROMPT =
   'Bạn là trợ lý lượng hoá công văn của Đoàn TNCS Hồ Chí Minh. Đọc văn bản công văn và trích ra các chỉ tiêu KPI định lượng. Chỉ trả về DUY NHẤT mảng JSON (không markdown, không giải thích), mỗi phần tử: {"metricName": "tên chỉ tiêu ≤80 ký tự", "targetValue": số, "unit": "đơn vị tính (lượt|bài|người|sân chơi|biên bản|%|…)", "aggregationType": "SUM" (dùng "PERCENT" nếu đơn vị là %), "dueDate": "YYYY-MM-DD" hoặc "" nếu không nêu hạn}.';
@@ -31,10 +35,26 @@ async function analyzeWithAI(text: string): Promise<{ drafts: DirectiveDraft[]; 
 
 /** POST /api/ai/phan-tich-cong-van — { text } → { ok, drafts, model } */
 export async function POST(request: Request) {
+  // Chỉ cán bộ (trang /quan-tri/nhiem-vu/ai-phan-tich) + giới hạn lượt theo tài khoản
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "ai-phan-tich-cong-van",
+    windowMs: 10 * 60_000,
+    perAccount: 20,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
+
   const payload = (await request.json().catch(() => null)) as { text?: string } | null;
-  const text = payload?.text?.trim() ?? "";
+  const text = typeof payload?.text === "string" ? payload.text.trim() : "";
   if (text.length < 40) {
     return NextResponse.json({ ok: false, error: "Nội dung công văn quá ngắn (cần ≥ 40 ký tự)." }, { status: 400 });
+  }
+  if (text.length > MAX_TEXT_CHARS) {
+    return NextResponse.json(
+      { ok: false, error: `Công văn quá dài — tối đa ${MAX_TEXT_CHARS.toLocaleString("vi-VN")} ký tự, hãy dán phần có chỉ tiêu.` },
+      { status: 413 },
+    );
   }
   try {
     const { drafts, model } = await analyzeWithAI(text);

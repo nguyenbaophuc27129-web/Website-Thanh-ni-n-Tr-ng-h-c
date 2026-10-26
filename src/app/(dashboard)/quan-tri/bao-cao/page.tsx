@@ -263,6 +263,11 @@ export default function BaoCaoPage() {
       const data = (await res.json().catch(() => null)) as
         | { ok?: boolean; content?: string; model?: string; error?: string }
         | null;
+      if ([401, 403, 413, 429].includes(res.status) && data?.error) {
+        // Chưa đăng nhập / quá lượt → báo đúng lý do máy chủ trả
+        toast(data.error, "warning");
+        return;
+      }
       if (!res.ok || !data?.ok || !data.content) throw new Error(data?.error ?? `HTTP ${res.status}`);
       store.updateReport(reportId, {
         aiDraftContent: data.content,

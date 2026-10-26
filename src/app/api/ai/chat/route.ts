@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { callAI } from "@/lib/ai-client";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
+
+/* Widget công khai — khách được hỏi nhưng dùng chung 1 hạn mức nhỏ cho mọi khách;
+   người đã đăng nhập đếm riêng theo tài khoản. */
+const CHAT_WINDOW_MS = 10 * 60_000;
+const CHAT_PER_ACCOUNT = 20;
+const CHAT_GUEST_POOL = 30;
+const CHAT_MAX_CHARS = 500;
 
 /* ════════════════════════════════════════════════════════════════════
    AI THẬT CHO "TRỢ LÝ ẢO" (widget chat công khai) — ĐÃ GẮN qua lib/ai-client.ts
@@ -28,10 +36,25 @@ async function replyWithAI(message: string): Promise<{ reply: string; model: str
 /** POST /api/ai/chat — { message } → { ok, reply, model } */
 export async function POST(request: Request) {
   const payload = (await request.json().catch(() => null)) as { message?: string } | null;
-  const message = payload?.message?.trim() ?? "";
+  const message = typeof payload?.message === "string" ? payload.message.trim() : "";
   if (!message) {
     return NextResponse.json({ ok: false, error: "Thiếu nội dung câu hỏi." }, { status: 400 });
   }
+  if (message.length > CHAT_MAX_CHARS) {
+    return NextResponse.json(
+      { ok: false, error: `Câu hỏi quá dài — tối đa ${CHAT_MAX_CHARS} ký tự.` },
+      { status: 413 },
+    );
+  }
+  const gate = await guardRequest(request, {
+    access: "guest",
+    bucket: "ai-chat",
+    windowMs: CHAT_WINDOW_MS,
+    perAccount: CHAT_PER_ACCOUNT,
+    guestPool: CHAT_GUEST_POOL,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
   try {
     const { reply, model } = await replyWithAI(message);
     return NextResponse.json({ ok: true, reply, model });

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { BROWSER_UA, FACEBOOK_UA, fetchPublic } from "@/lib/server/safe-fetch";
+import { guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
+
+/* Chỉ cán bộ dùng (nhập bài / hoạt động từ link) — không cho khách dùng máy chủ làm proxy tải trang */
+const FETCH_WINDOW_MS = 10 * 60_000;
+const FETCH_PER_WINDOW = 30;
 
 /* ============ Helper parse HTML & Entities ============ */
 
@@ -162,8 +167,19 @@ function extractRichContent(html: string, baseUrl: string): string[] {
 
 /** POST /api/fetch-article — trích xuất tiêu đề/mô tả/ảnh/nội dung từ đường link báo hoặc Facebook */
 export async function POST(request: Request) {
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "fetch-article",
+    windowMs: FETCH_WINDOW_MS,
+    perAccount: FETCH_PER_WINDOW,
+  });
+  if (!gate.ok) return gate.response;
+
   const payload = (await request.json().catch(() => null)) as { url?: string } | null;
   const rawUrl = payload?.url?.trim() ?? "";
+  if (rawUrl.length > 2048) {
+    return NextResponse.json({ ok: false, error: "Đường dẫn quá dài." }, { status: 400 });
+  }
 
   let target: URL;
   try {
