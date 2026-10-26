@@ -49,7 +49,7 @@ DB chính thức vẫn là `tnth_dev` — chủ dự án quyết định **khôn
 
 ## Lỗi / kỹ thuật
 10. **Gửi lại 39 dòng `tasks` một lần** khi mở vài trang (`/quan-tri/nhiem-vu`, `cham-diem`, `truc-tiep`) — chưa rõ nguyên nhân (có thể lệch định dạng một trường); server bỏ qua dòng không đổi nên vô hại.
-11. **Vòng nạp lại 4 giây vẫn tải toàn bộ snapshot** (đã dừng khi tab ẩn). Nên đổi sang chỉ tải phần thay đổi (`?since=`) khi dữ liệu lớn.
+11. **Vòng nạp lại (30 giây, đã dừng khi tab ẩn) vẫn tải toàn bộ snapshot**. Nên đổi sang chỉ tải phần thay đổi (`?since=`) khi dữ liệu lớn.
 12. ESLint còn 32 lỗi (chủ yếu `set-state-in-effect` 19, `no-unescaped-entities` 4), không gây lỗi chạy; sửa dần.
 13. Chưa thử nhánh "tạo hồ sơ HS3T mới" trên DB thử (các tài khoản thử đã có hồ sơ).
 14. Lượt thi đang làm dở trước lần triển khai 26/10 sáng không nộp được (không có mã bí mật) — chỉ ảnh hưởng một lần.

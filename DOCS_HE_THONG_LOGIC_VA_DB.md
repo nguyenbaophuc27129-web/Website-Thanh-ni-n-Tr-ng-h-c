@@ -17,7 +17,7 @@
 Hệ thống kết hợp giữa **Server-side PostgreSQL** làm nguồn sự thật duy nhất (Single Source of Truth) và **Client-side React Context (`StoreContext`)** giúp giao diện phản hồi tức thì (Optimistic UI):
 1. **Hydration khởi động**: Khi trình duyệt tải trang, `StoreContext` lập tức gọi `GET /api/store` và `GET /api/org-units` để kéo toàn bộ dữ liệu thật từ DB về bộ nhớ client.
 2. **Lưu trữ tức thời (Persistence)**: Mọi thao tác thêm/sửa/xoá trên UI đều cập nhật state trong bộ nhớ và ghi nhận thay đổi (thêm mới, cập nhật, hoặc đưa vào danh sách tombstone).
-3. **Đồng bộ ngầm (Background Sync)**: Client chỉ đẩy **dòng mới/đổi** (và id đã xoá) lên `POST /api/store` — sau khoảng 1,2 giây yên tĩnh, hoặc ngay khi rời trang/ẩn tab — để ghi vào PostgreSQL bằng cơ chế **UPSERT** và xóa theo **Tombstones ngược khóa ngoại**. Vòng 4 giây chỉ là chiều **nạp lại** từ server (bỏ qua khi tab ẩn hoặc máy còn thay đổi chờ gửi). Chi tiết ở mục 4.4.
+3. **Đồng bộ ngầm (Background Sync)**: Client chỉ đẩy **dòng mới/đổi** (và id đã xoá) lên `POST /api/store` — sau khoảng 1,2 giây yên tĩnh, hoặc ngay khi rời trang/ẩn tab — để ghi vào PostgreSQL bằng cơ chế **UPSERT** và xóa theo **Tombstones ngược khóa ngoại**. Vòng 30 giây (`SYNC_POLL_MS`) chỉ là chiều **nạp lại** từ server (bỏ qua khi tab ẩn hoặc máy còn thay đổi chờ gửi). Chi tiết ở mục 4.4.
 4. **Không mất dữ liệu khi F5**: Vì dữ liệu được lưu vĩnh viễn trong PostgreSQL và tự động nạp lại khi mount, việc F5 hay chuyển đổi thiết bị đều giữ trọn vẹn 100% dữ liệu.
 5. **Không dùng dữ liệu ảo (Zero Fake/Mock Data)**: Toàn bộ bảng nhiệm vụ, kết quả báo cáo, chỉ tiêu phân bổ và điểm thi đua đều lấy từ dữ liệu thực tế do người dùng tạo.
 
@@ -108,7 +108,7 @@ tnth-website/
 - **Logic chi tiết**:
   - Cung cấp hook `useStore()` truy xuất mọi danh mục dữ liệu.
   - Tự động nạp dữ liệu lần đầu khi mount (`refreshSnapshot()` và `refreshOrgUnits()`).
-  - Bộ theo dõi dòng (`baseRef`/`pendingRef`) gom dòng mới/đổi để gửi lên server; vòng nền 4 giây nạp lại snapshot từ server. `adoptServerRows(entity, rows)` đưa dòng do API riêng trả về vào state và đánh dấu đã khớp DB. Xem mục 4.4.
+  - Bộ theo dõi dòng (`baseRef`/`pendingRef`) gom dòng mới/đổi để gửi lên server; vòng nền 30 giây nạp lại snapshot từ server. `adoptServerRows(entity, rows)` đưa dòng do API riêng trả về vào state và đánh dấu đã khớp DB. Xem mục 4.4.
   - Hỗ trợ hàm tìm kiếm theo cây: `orgById()`, `orgName()`, `childrenOf()`, `scopeIds()`, `isDescendant()`.
   - Hàm tính toán tiến độ: `targetOf()`, `resultsOf()`, `latestReviewOf()`, `unitScore()`.
 
@@ -380,7 +380,7 @@ DO UPDATE SET ...                   (Theo chiều ngược FK Dependency)
 
 **Chiều ghi (client → server)**
 - `store-context.tsx` giữ `baseRef` (bản đã khớp DB của từng dòng, so theo tham chiếu đối tượng; state luôn cập nhật bất biến nên dòng đổi là có đối tượng mới). Dòng khác `baseRef` vào `pendingRef`, sau ~1,2 giây (hoặc ngay khi rời trang/ẩn tab, dùng `keepalive` nếu body < 60KB) gửi `POST /api/store {entities, deletes}` — **chỉ dòng mới/đổi**, không gửi cả bảng. Nhờ vậy không đè thay đổi của người khác lên dòng mình không sửa.
-- Nạp lại snapshot mỗi 4 giây **chỉ áp dụng khi máy không còn thay đổi chờ gửi**; kết quả nạp bị bỏ nếu trong lúc chờ có thay đổi cục bộ mới.
+- Nạp lại snapshot mỗi 30 giây (và ngay khi quay lại tab đã ẩn >10 giây) **chỉ áp dụng khi máy không còn thay đổi chờ gửi**; kết quả nạp bị bỏ nếu trong lúc chờ có thay đổi cục bộ mới.
 - Server (`src/app/api/store/route.ts`) trong một transaction: lập kế hoạch từng dòng (`planRowWrite`: thêm/sửa/xoá, cột đổi so với DB) → bỏ dòng không đổi (`skipped`) → kiểm quyền từng dòng bằng `WRITE_POLICIES` → UPSERT/xoá → ghi `audit_logs`. Có dòng vi phạm thì **403 cả lô** và rollback.
 - **Khách & đoàn viên không ghi qua `/api/store`** (`PUBLIC_WRITE_ENTITIES`/`MEMBER_ALLOWED_WRITE_ENTITIES` rỗng; POST trả 401/403). Họ dùng API riêng — `/api/phan-anh`, `/api/diem-danh`, `/api/thi/*`, `/api/dien-dan/*`, `/api/dong-gop`, `/api/tai-nguyen/dong-gop`, `/api/du-an`, `/api/hs3t/*` — nơi server tự kiểm duyệt, chấm điểm thi, cộng điểm. Client đưa dòng server trả về vào state bằng `adoptServerRows` (đánh dấu đã khớp DB nên bộ theo dõi không gửi lại).
 

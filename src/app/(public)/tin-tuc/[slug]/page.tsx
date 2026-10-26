@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ArrowLeft, CalendarDays, Eye, Building2, Tag, PenLine } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
@@ -13,7 +13,7 @@ import { formatDate, formatNumber } from "@/lib/utils";
 
 export default function ChiTietTinPage() {
   const params = useParams<{ slug: string }>();
-  const { publishedPosts, accounts, orgName } = useStore();
+  const { publishedPosts, accounts, orgName, viewPost } = useStore();
 
   const post = useMemo(
     () => publishedPosts.find((p) => p.slug === params.slug && p.status === "PUBLISHED"),
@@ -30,6 +30,15 @@ export default function ChiTietTinPage() {
         : [],
     [publishedPosts, post]
   );
+
+  // Mỗi lần mở 1 bài = 1 lượt xem (máy chủ lọc trùng 30 phút / bot); không đếm lại khi dữ liệu nạp lại
+  const viewedRef = useRef<number | null>(null);
+  const postId = post?.id ?? null;
+  useEffect(() => {
+    if (postId === null || viewedRef.current === postId) return;
+    viewedRef.current = postId;
+    void viewPost(postId);
+  }, [postId, viewPost]);
 
   if (!post) {
     return (

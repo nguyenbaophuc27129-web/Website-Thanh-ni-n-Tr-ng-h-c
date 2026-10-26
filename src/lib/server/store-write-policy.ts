@@ -407,6 +407,9 @@ export const WRITE_POLICIES: Record<string, EntityPolicy> = {
       }
       return null;
     },
+    // Lượt xem do máy chủ đếm (POST /api/tin-tuc/[id]/luot-xem) — cán bộ không đặt/sửa số này qua đồng bộ
+    setOnInsert: { view_count: () => 0 },
+    keepOnUpdate: ["view_count"],
   },
   reports: {
     label: "Báo cáo",

@@ -123,6 +123,10 @@ const nextId = () => (uid = Math.max(uid + 1, Date.now() * 1000 + Math.floor(Mat
 
 const nowISO = () => new Date().toISOString();
 
+/** Chu kỳ nạp lại dữ liệu từ DB (ms) và khoảng ẩn tối thiểu để nạp ngay khi quay lại tab */
+const SYNC_POLL_MS = 30_000;
+const SYNC_VISIBLE_MIN_MS = 10_000;
+
 /** Dựng 1 sự kiện trực tiếp ngẫu nhiên từ dữ liệu seed thật của đơn vị */
 function buildRandomLiveEvent(unit: (typeof seedOrgUnits)[number]): Omit<LiveEvent, "id" | "createdAt" | "orgUnitId"> {
   const pool: { eventType: LiveEvent["eventType"]; title: string }[] = [];
@@ -347,6 +351,8 @@ interface StoreValue {
   deleteResource: (id: number) => void;
   /** Ghi nhận 1 lượt tải / xem qua POST /api/tai-nguyen/[id]/luot-tai (máy chủ chống đếm trùng) — trả số lượt mới, null nếu không ghi được */
   downloadResource: (id: number) => Promise<number | null>;
+  /** Ghi nhận 1 lượt xem bài viết qua POST /api/tin-tuc/[id]/luot-xem (máy chủ chống đếm trùng) — trả số lượt mới, null nếu không ghi được */
+  viewPost: (id: number) => Promise<number | null>;
 
   /* system */
   updateSetting: (key: string, value: string) => void;
@@ -421,7 +427,7 @@ export function useStore() {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { session } = useAuth();
+  const { session, ready: authReady } = useAuth();
   const { toast } = useToast();
   // Phiên mới nhất để flushSync đọc lúc bắn (tránh closure cũ)
   const sessionRef = useRef(session);
@@ -485,7 +491,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/accounts");
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok && Array.isArray(data.accounts)) {
-        setAccounts(data.accounts as Account[]);
+        // Dữ liệu không đổi → giữ nguyên mảng cũ để không vẽ lại cả giao diện mỗi lần nạp
+        const next = data.accounts as Account[];
+        setAccounts((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
       }
     } catch {
       // offline fallback
@@ -497,7 +505,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/org-units");
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok && Array.isArray(data.units)) {
-        setOrgUnits(data.units as typeof seedOrgUnits);
+        const next = data.units as typeof seedOrgUnits;
+        setOrgUnits((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
       }
     } catch {
       // offline fallback
@@ -510,7 +519,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    *   tượng mới → so tham chiếu với baseRef là biết dòng nào cần gửi.
    * - Chỉ gửi dòng mới/đổi, không gửi cả bảng: lượt gửi nhỏ (kịp gửi khi F5/đóng tab,
    *   giới hạn keepalive ~64KB) và không đè thay đổi của người khác lên dòng mình không sửa.
-   * - Nạp lại từ DB mỗi 4 giây chỉ áp khi máy không còn thay đổi chờ gửi.
+   * - Nạp lại từ DB mỗi 30 giây (SYNC_POLL_MS) chỉ áp khi máy không còn thay đổi chờ gửi.
    */
 
   // Ảnh state mới nhất để sync đọc lúc bắn (tránh closure cũ)
@@ -811,22 +820,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loadStoreSnapshotRef.current = loadStoreSnapshot;
   }, [loadStoreSnapshot]);
 
-  // Nạp dữ liệu ngay khi ứng dụng khởi động và mỗi khi phiên đăng nhập thay đổi
+  // Nạp dữ liệu ngay khi mở trang. /api/store đọc phiên từ cookie nên không cần chờ trình duyệt biết phiên
+  // (nếu chờ thì thêm 1 vòng mạng, nếu nạp lại khi phiên xác định xong thì tải thừa 1 lần toàn bộ dữ liệu).
   useEffect(() => {
     void loadStoreSnapshot(true);
-    void refreshAccounts();
     void refreshOrgUnits();
-  }, [session?.accountId, session?.role, loadStoreSnapshot, refreshAccounts, refreshOrgUnits]);
+  }, [loadStoreSnapshot, refreshOrgUnits]);
 
-  // Tự động đồng bộ realtime mỗi 4 giây từ PostgreSQL thực tế (bỏ qua khi tab ẩn)
+  // Phiên đăng nhập xác định xong → nạp danh sách tài khoản (chỉ cán bộ quản trị tài khoản được gọi);
+  // đăng nhập / đăng xuất / đổi tài khoản SAU đó → nạp lại toàn bộ vì cookie đã đổi.
+  const sessionKey = authReady ? `${session?.accountId ?? ""}:${session?.role ?? ""}` : null;
+  const sessionKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === "hidden") return;
+    if (sessionKey === null) return;
+    const first = sessionKeyRef.current === null;
+    sessionKeyRef.current = sessionKey;
+    void refreshAccounts();
+    if (!first) {
+      void loadStoreSnapshot(true);
+      void refreshOrgUnits();
+    }
+  }, [sessionKey, loadStoreSnapshot, refreshAccounts, refreshOrgUnits]);
+
+  // Đồng bộ định kỳ từ PostgreSQL (bỏ qua khi tab ẩn). Chu kỳ dài: mỗi lần nạp là cả snapshot, và OneShield
+  // chặn khi trình duyệt gửi quá nhiều yêu cầu cùng lúc. Quay lại tab sau khi ẩn lâu thì nạp ngay.
+  useEffect(() => {
+    let last = Date.now();
+    const refresh = () => {
+      last = Date.now();
       void loadStoreSnapshot();
       void refreshAccounts();
       void refreshOrgUnits();
-    }, 4000);
-    return () => clearInterval(timer);
+    };
+    const timer = setInterval(() => {
+      if (document.visibilityState !== "hidden") refresh();
+    }, SYNC_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - last > SYNC_VISIBLE_MIN_MS) refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [loadStoreSnapshot, refreshAccounts, refreshOrgUnits]);
 
   const orgById = useCallback((id: number) => orgUnits.find((u) => u.id === id), [orgUnits]);
@@ -1547,6 +1583,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return res.downloadCount;
   }, [adoptServerRows]);
 
+  const viewPost = useCallback(async (id: number): Promise<number | null> => {
+    const res = await postMemberApi<{ viewCount: number }>(`/api/tin-tuc/${id}/luot-xem`, { referrer: document.referrer });
+    if (!res.ok) return null;
+    // Số lượt do máy chủ đếm: đưa vào state như dòng đã khớp DB (adoptServerRows) — KHÔNG sinh ghi /api/store
+    const row = (syncedStateRef.current.publishedPosts as PublishedPost[] | undefined)?.find((p) => p.id === id);
+    if (row && row.viewCount !== res.viewCount) {
+      adoptServerRows("publishedPosts", [{ ...row, viewCount: res.viewCount } as unknown as Record<string, unknown>]);
+    }
+    return res.viewCount;
+  }, [adoptServerRows]);
+
   /* ============ System ============ */
 
   const updateSetting = useCallback((key: string, value: string) => {
@@ -2140,7 +2187,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addNotification, markNotificationRead, markAllNotificationsRead,
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
-      saveResource, deleteResource, downloadResource,
+      saveResource, deleteResource, downloadResource, viewPost,
       updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, refreshOrgUnits, deleteAccount, createAccount,
       forumThreads, forumComments, createForumThread, createForumComment, toggleForumLike, moderateForumItem,
       contributions, memberContributions, createMemberContribution, moderateMemberContribution,
@@ -2177,7 +2224,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addNotification, markNotificationRead, markAllNotificationsRead,
       submitFeedback, replyFeedback, setFeedbackStatus, sendFeedbackResultEmail, emailLogs,
       toggleAttendance, addAttendance,
-      saveResource, deleteResource, downloadResource,
+      saveResource, deleteResource, downloadResource, viewPost,
       updateSetting, updateAccountStatus, updateAccount, updateAccountPermissions, refreshAccounts, refreshOrgUnits, deleteAccount, createAccount,
     ]
   );

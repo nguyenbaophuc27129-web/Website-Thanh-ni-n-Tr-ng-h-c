@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 /**
- * Màn chào sân (intro splash) — CHỈ DIỄN Ở TRANG CHỦ (/) KHI TẢI LẠI TRANG.
- * Các trang con (/dien-dan, /tin-tuc, /hoc-sinh-3-tot...) sau F5 KHÔNG diễn để tránh phiền người dùng.
+ * Màn chào sân (intro splash) — CHỈ DIỄN Ở TRANG CHỦ (/), MỘT LẦN MỖI PHIÊN TRÌNH DUYỆT (tab).
+ * Các trang con (/dien-dan, /tin-tuc, /hoc-sinh-3-tot...) KHÔNG diễn; quay về trang chủ trong cùng phiên cũng
+ * không diễn lại, để người dùng không phải chờ ~3 giây mỗi lần bấm logo.
  * Ai không muốn xem trên trang chủ bấm "Bỏ qua" là thoát ngay.
  */
+const SEEN_KEY = "tnth_intro_seen";
 
 const SHOW_MS = 2600; // thời gian trình diễn trước khi màn kéo lên
 const EXIT_MS = 650; // thời gian màn kéo lên
@@ -19,6 +21,11 @@ export function IntroSplash() {
   const t2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Báo cho các hiệu ứng phía dưới (vd: reveal chữ Tin tiêu điểm) biết đã diễn xong
+  const markSeen = () => {
+    try {
+      window.sessionStorage.setItem(SEEN_KEY, "1");
+    } catch {}
+  };
   const finish = () => {
     if (typeof window !== "undefined") {
       (window as unknown as { tnthIntroDone?: boolean }).tnthIntroDone = true;
@@ -27,8 +34,12 @@ export function IntroSplash() {
   };
 
   useEffect(() => {
-    // Chỉ kích hoạt màn chào ở trang chủ (/)
-    if (pathname !== "/") {
+    // Chỉ kích hoạt màn chào ở trang chủ (/), và chỉ lần đầu của phiên
+    let seen = false;
+    try {
+      seen = pathname === "/" && window.sessionStorage.getItem(SEEN_KEY) === "1";
+    } catch {}
+    if (pathname !== "/" || seen) {
       setPhase("hidden");
       finish();
       return;
@@ -38,6 +49,7 @@ export function IntroSplash() {
     document.body.style.overflow = "hidden"; // khoá cuộn trong lúc diễn
 
     t1Ref.current = setTimeout(() => {
+      markSeen();
       setPhase("exit");
     }, SHOW_MS);
 
@@ -58,6 +70,7 @@ export function IntroSplash() {
     // Huỷ cả 2 hẹn giờ để màn không tự bật lại sau khi đã bỏ qua
     if (t1Ref.current) clearTimeout(t1Ref.current);
     if (t2Ref.current) clearTimeout(t2Ref.current);
+    markSeen();
     setPhase("exit");
     setTimeout(() => {
       setPhase("hidden");
