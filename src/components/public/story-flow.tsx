@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import type { PublishedPost } from "@/types";
 import { CountUp } from "@/components/public/reveal";
-import { useStore } from "@/lib/store-context";
+import { usePublicStats } from "@/lib/public-stats";
 
 /**
  * 🌌 STORY FLOW — Dòng Chảy Câu Chuyện Bất Tận (Horizontal Storytelling Flow)
@@ -58,7 +58,7 @@ type DataNode = {
   href: string;
 };
 
-/* Khung 7 ấn phẩm — số liệu TÍNH TỪ DỮ LIỆU THẬT trong store (0 khi chưa có dữ liệu) */
+/* Khung 7 ấn phẩm — số liệu TÍNH TỪ DỮ LIỆU THẬT (GET /api/thong-ke, 0 khi chưa có dữ liệu) */
 const NODE_META: Array<Omit<DataNode, "code" | "value">> = [
   { icon: Rocket, grad: "from-blue-500 to-cyan-400", suffix: "", label: "Bài viết đã xuất bản trên Cổng Thanh niên Trường học", href: "/tin-tuc" },
   { icon: Trophy, grad: "from-amber-400 to-orange-500", suffix: "", label: "Hoạt động Đoàn - Hội đã đăng tải trên Cổng", href: "/tin-tuc" },
@@ -495,23 +495,24 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
    SECTION CHÍNH — một cuộc hành trình thị giác kéo dài theo ngang
    ================================================================ */
 export function StoryFlow({ posts }: { posts: PublishedPost[] }) {
-  const store = useStore();
+  const stats = usePublicStats();
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   const open = zoomIdx !== null;
 
-  /* Số liệu thật từ store — khung ấn phẩm giữ nguyên, đếm = 0 khi chưa có dữ liệu */
+  /* Số liệu thật đếm phía máy chủ (/api/thong-ke) — snapshot khách không chứa dữ liệu
+     nội bộ (hoạt động, hồ sơ HS3T…) nên không đếm trên store. 0 khi chưa có dữ liệu. */
   const dataNodes = useMemo<DataNode[]>(() => {
     const counts = [
-      store.publishedPosts.filter((p) => p.status === "PUBLISHED").length,
-      store.activities.length,
-      store.forumThreads.filter((t) => t.status === "PUBLISHED").length,
-      store.volunteerProjects.filter((v) => v.status === "APPROVED").length,
-      store.resources.filter((r) => r.isPublic).length,
-      store.hs3tProfiles.filter((h) => h.awardedLevel != null).length,
-      store.orgUnits.filter((u) => u.isActive).length,
+      stats.posts,
+      stats.activities,
+      stats.forumThreads,
+      stats.volunteerProjects,
+      stats.resources,
+      stats.hs3tAwarded,
+      stats.orgUnits,
     ];
     return NODE_META.map((m, i) => ({ ...m, code: `#DATA.${pad2(i + 1)}`, value: counts[i] ?? 0 }));
-  }, [store.publishedPosts, store.activities, store.forumThreads, store.volunteerProjects, store.resources, store.hs3tProfiles, store.orgUnits]);
+  }, [stats]);
 
   const close = useCallback(() => setZoomIdx(null), []);
   const step = useCallback(
