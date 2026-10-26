@@ -161,16 +161,12 @@ function reconcileRows(
 /* Phạm vi entity được GỬI SYNC theo phiên đăng nhập — phải khớp gate phía
  * server (src/lib/server/store-tables.ts). Phần entity ngoài phạm vi KHÔNG gửi
  * kèm mà giữ lại dirty, tránh server từ chối cả lô (401/403) làm kẹt dữ liệu
- * hợp lệ khác trong cùng POST. */
-const GUEST_WRITE_ENTITIES = new Set([
-  "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
-]);
-const MEMBER_WRITE_ENTITIES = new Set([
-  ...GUEST_WRITE_ENTITIES,
-  "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
-  "forumThreads", "forumComments", "volunteerProjects", "resources",
-]);
-/** null = cán bộ (scope full) — gửi mọi entity */
+ * hợp lệ khác trong cùng POST.
+ * Khách & đoàn viên KHÔNG ghi qua /api/store (tập rỗng = không gửi gì): thao tác của
+ * họ đi qua API riêng rồi adoptServerRows. Cán bộ được server kiểm quyền từng dòng. */
+const GUEST_WRITE_ENTITIES = new Set<string>();
+const MEMBER_WRITE_ENTITIES = new Set<string>();
+/** null = cán bộ (scope full) — gửi mọi entity; tập rỗng = không gửi entity nào */
 const scopeAllowedEntities = (session: Session | null): Set<string> | null =>
   !session ? GUEST_WRITE_ENTITIES : session.role === "DOAN_VIEN" ? MEMBER_WRITE_ENTITIES : null;
 
