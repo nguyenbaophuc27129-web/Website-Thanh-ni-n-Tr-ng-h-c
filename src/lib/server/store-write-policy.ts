@@ -1,4 +1,6 @@
 import { effectivePermissions, hasPerm } from "@/lib/permissions";
+import { isSafeYoutubeUrl } from "@/lib/safe-urls";
+import { RESOURCE_EXTS, VAN_BAN_EXTS, isUploadPath } from "@/lib/server/upload-path";
 import { CONTRIBUTION_POINTS } from "@/types";
 
 /**
@@ -58,6 +60,11 @@ export interface EntityPolicy {
   label: string;
   /** Trả lý do từ chối (tiếng Việt), null = cho phép */
   check(ch: RowChange, env: PolicyEnv): Promise<string | null> | string | null;
+  /**
+   * Kiểm NỘI DUNG cột (đường dẫn tệp, liên kết… — chống XSS) cho dòng thêm/sửa.
+   * Khác `check`: chạy cho MỌI cán bộ kể cả QUAN_TRI_TW. Trả lý do từ chối, null = hợp lệ.
+   */
+  content?(ch: RowChange): string | null;
   /** Cột server tự điền khi thêm mới (người tạo…) — giá trị undefined = giữ nguyên */
   setOnInsert?: Record<string, (s: WriteSubject, next: Row) => unknown>;
   /** Cột không được sửa / do derive ghi đè — khi cập nhật luôn giữ giá trị trong DB */
@@ -156,6 +163,32 @@ function forumPolicy(label: string): EntityPolicy {
       return "chỉ cán bộ có quyền quản lý diễn đàn mới được kiểm duyệt/sửa/xoá";
     },
   };
+}
+
+/** Cột có được ghi trong lần này không (thêm mới: mọi cột client gửi; sửa: cột đổi so với DB) */
+const touches = (ch: RowChange, col: string) => ch.op === "insert" || ch.changed.includes(col);
+const isEmpty = (v: unknown) => v === null || v === undefined || v === "";
+
+/**
+ * Cột tệp: rỗng, hoặc đường dẫn tệp tải lên đúng phân hệ. Chuỗi base64 (data:) vẫn qua được vì
+ * POST /api/store tự chuyển nó thành tệp trên đĩa (hoặc để trống nếu không hợp lệ) TRƯỚC khi ghi DB.
+ */
+function fileColumnError(v: unknown, kind: "tai-nguyen" | "van-ban", exts: readonly string[]): string | null {
+  if (isEmpty(v)) return null;
+  if (typeof v === "string" && (v.startsWith("data:") || isUploadPath(v, kind, exts))) return null;
+  return `tệp phải nằm trên máy chủ (/uploads/${kind}/…), không nhận liên kết hay mã khác`;
+}
+
+/** Cột json (dòng đọc từ DB hoặc từ client đều thành chuỗi JSON) → mảng, null nếu không phải mảng */
+function jsonArray(v: unknown): unknown[] | null {
+  if (Array.isArray(v)) return v;
+  if (typeof v !== "string") return null;
+  try {
+    const parsed: unknown = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /* ---------------- Bảng chính sách theo entity ---------------- */
@@ -387,6 +420,10 @@ export const WRITE_POLICIES: Record<string, EntityPolicy> = {
   },
   documents: {
     label: "Văn bản",
+    content(ch) {
+      if (!ch.next || !touches(ch, "file_data_url")) return null;
+      return fileColumnError(ch.next.file_data_url, "van-ban", VAN_BAN_EXTS);
+    },
     check(ch, { subject: s }) {
       if (!anyPerm(s, "document.issue")) return NO_PERM;
       return allRows(ch, (r) => inScope(s, r.issuing_org_unit_id)) ? null : "văn bản do đơn vị ngoài phạm vi ban hành";
@@ -476,11 +513,39 @@ export const WRITE_POLICIES: Record<string, EntityPolicy> = {
   /* ===== Tài nguyên ===== */
   resources: {
     label: "Tài nguyên",
+    content(ch) {
+      const n = ch.next;
+      if (!n) return null;
+      if (touches(ch, "file_data_url")) {
+        const err = fileColumnError(n.file_data_url, "tai-nguyen", RESOURCE_EXTS);
+        if (err) return err;
+      }
+      if (touches(ch, "video_url") && !isEmpty(n.video_url) && !isSafeYoutubeUrl(n.video_url)) {
+        return "liên kết clip phải là địa chỉ https của YouTube (watch, embed, shorts hoặc youtu.be)";
+      }
+      if (touches(ch, "attachments") && !isEmpty(n.attachments)) {
+        const list = jsonArray(n.attachments);
+        if (!list) return "danh sách tệp đính kèm không hợp lệ";
+        if (list.length > 10) return "mỗi tài nguyên tối đa 10 tệp";
+        for (const a of list) {
+          const item = (a && typeof a === "object" ? a : {}) as Record<string, unknown>;
+          if (!isUploadPath(item.url, "tai-nguyen", RESOURCE_EXTS)) return "tệp đính kèm phải nằm trên máy chủ (/uploads/tai-nguyen/…)";
+          if (typeof item.name !== "string" || item.name.length > 255) return "tên tệp đính kèm không hợp lệ";
+        }
+      }
+      return null;
+    },
     check(ch, { subject: s }) {
       const mgr = anyPerm(s, "resource.manage");
       // Duyệt tài nguyên do đoàn viên đóng góp
       const moderator = anyPerm(s, "contribution.review", "post.manage");
       const contributed = (r: Row) => num(r.submitted_by_account_id) !== null;
+      // Tên người đóng góp do máy chủ ghi lúc đoàn viên gửi — cán bộ không tự đặt/đổi (giữ nguyên thì cho qua,
+      // vì duyệt tài nguyên gửi cả dòng qua UPSERT)
+      if (ch.op !== "delete") {
+        const before = ch.old ? String(ch.old.contributor_name ?? "") : "";
+        if (String(ch.next!.contributor_name ?? "") !== before) return "không được tự đặt hay đổi tên người đóng góp";
+      }
       if (ch.op === "insert") {
         const n = ch.next!;
         const myDraft = isSelf(s, n.submitted_by_account_id) && n.status === "DRAFT" && n.is_public !== true && isOwnOrg(s, n.published_by_org_unit_id);
@@ -489,13 +554,11 @@ export const WRITE_POLICIES: Record<string, EntityPolicy> = {
       }
       const manageable = (r: Row) => (mgr || (moderator && contributed(r))) && inScope(s, r.published_by_org_unit_id);
       if (allRows(ch, manageable)) return null;
-      // Ai cũng tăng được lượt tải khi bấm tải về
-      if (ch.op === "update" && onlyChanged(ch, ["download_count"])) {
-        const d = (num(ch.next!.download_count) ?? 0) - (num(ch.old!.download_count) ?? 0);
-        if (d > 0 && d <= 100) return null;
-      }
       return mgr || moderator ? OUT_OF_SCOPE : NO_PERM;
     },
+    // Lượt tải do máy chủ đếm (POST /api/tai-nguyen/[id]/luot-tai) — cán bộ không đặt/sửa số này qua đồng bộ
+    setOnInsert: { download_count: () => 0 },
+    keepOnUpdate: ["download_count"],
   },
 
   /* ===== Cấu hình hệ thống ===== */

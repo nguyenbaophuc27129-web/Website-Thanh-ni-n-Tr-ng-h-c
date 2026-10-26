@@ -342,8 +342,14 @@ export async function POST(request: NextRequest) {
         return accountOrgCache.get(id) ?? null;
       },
     };
+    const denied: { entity: string; key: string | null; reason: string }[] = [];
+    // Nội dung cột (đường dẫn tệp, liên kết…) chống XSS: kiểm cho MỌI cán bộ, kể cả QUAN_TRI_TW
+    for (const p of active) {
+      if (p.op === "delete" || !p.next) continue;
+      const reason = WRITE_POLICIES[p.entity]?.content?.(p);
+      if (reason) denied.push({ entity: p.entity, key: p.key, reason });
+    }
     if (!subject.superAdmin) {
-      const denied: { entity: string; key: string | null; reason: string }[] = [];
       // Liên kết gửi kèm hoạt động mang id của liên kết thuộc hoạt động KHÁC → UPSERT sẽ chiếm dòng đó
       const childLinkKeys = ((entitiesIn.activityLinks ?? []) as Obj[])
         .filter((o) => o && typeof o === "object" && changedActivityIds.has(Number(o.activityId)))
@@ -363,22 +369,22 @@ export async function POST(request: NextRequest) {
             : await policy.check(p, env);
         if (reason) denied.push({ entity: p.entity, key: p.key, reason });
       }
-      if (denied.length > 0) {
-        await client.query("ROLLBACK");
-        const labels = Array.from(new Set(denied.map((d) => WRITE_POLICIES[d.entity]?.label ?? d.entity)));
-        console.warn(
-          `[TNTH][STORE] Chặn ghi của tài khoản #${subject.accountId} (${subject.role}, đơn vị ${subject.orgUnitId}):`,
-          denied.slice(0, 5).map((d) => `${d.entity}#${d.key}: ${d.reason}`).join("; "),
-        );
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `Không có quyền lưu ${labels.join(", ")}: ${denied[0].reason}.`,
-            denied: denied.slice(0, 20),
-          },
-          { status: 403 },
-        );
-      }
+    }
+    if (denied.length > 0) {
+      await client.query("ROLLBACK");
+      const labels = Array.from(new Set(denied.map((d) => WRITE_POLICIES[d.entity]?.label ?? d.entity)));
+      console.warn(
+        `[TNTH][STORE] Chặn ghi của tài khoản #${subject.accountId} (${subject.role}, đơn vị ${subject.orgUnitId}):`,
+        denied.slice(0, 5).map((d) => `${d.entity}#${d.key}: ${d.reason}`).join("; "),
+      );
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Không có quyền lưu ${labels.join(", ")}: ${denied[0].reason}.`,
+          denied: denied.slice(0, 20),
+        },
+        { status: 403 },
+      );
     }
 
     // Hoạt động còn bài xuất bản → chặn xoá để báo lỗi rõ ràng cho client

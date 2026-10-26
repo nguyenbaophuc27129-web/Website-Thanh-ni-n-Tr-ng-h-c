@@ -51,3 +51,7 @@ next-env.d.ts
 
 # tệp tải lên khi chạy next dev (production nằm ở /srv/tnth/uploads)
 /uploads/
+
+# Kiểm thử e2e: gói thư viện và tệp đầu ra
+scripts/kiem-thu/e2e/node_modules/
+scripts/kiem-thu/e2e/out/

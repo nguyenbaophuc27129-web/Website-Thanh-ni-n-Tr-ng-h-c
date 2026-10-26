@@ -22,12 +22,12 @@ async function parse(res: Response): Promise<UploadedFile> {
   return data.file;
 }
 
-/** Tải 1 tệp từ máy người dùng lên máy chủ */
-export async function uploadFile(file: File, kind: UploadKind): Promise<UploadedFile> {
+/** Tải 1 tệp từ máy người dùng lên máy chủ (signal: huỷ giữa chừng khi người dùng bỏ tệp) */
+export async function uploadFile(file: File, kind: UploadKind, signal?: AbortSignal): Promise<UploadedFile> {
   const form = new FormData();
   form.append("kind", kind);
   form.append("file", file);
-  return parse(await fetch("/api/uploads", { method: "POST", body: form }));
+  return parse(await fetch("/api/uploads", { method: "POST", body: form, signal }));
 }
 
 /** Máy chủ tự tải tệp từ URL bên ngoài về lưu trữ riêng */

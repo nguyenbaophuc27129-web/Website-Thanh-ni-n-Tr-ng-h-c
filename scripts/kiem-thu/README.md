@@ -21,6 +21,7 @@ Tài khoản thử (mật khẩu chung trong `$TNTH_TEST_DIR/test-password.txt`,
 | `e2e/c-api.mjs`, `e2e/c-ui.mjs` | Phân quyền ghi của cán bộ qua `/api/store` | 51/52\*, 24/24 |
 | `e2e/d-snapshot.mjs`, `e2e/d-pages.mjs` | Dữ liệu đọc theo vai trò; quét 40 trang × vai trò | 81/81, 160/160 |
 | `e-api.sh` (`BASE=… bash e-api.sh`), `e2e/e-chat-widget.mjs` | fetch-article / AI: đăng nhập + giới hạn tần suất | 28/28, 7/7 |
+| `e2e/f-tai-nguyen.mjs` | Kho tài nguyên nhiều tệp: đóng góp 3–10 tệp (tải song song ≤3), từ chối 11 tệp/url giả/url ngoài, duyệt, trang chi tiết (ảnh, PDF, 360px), tải `.zip` (CRC, tên tiếng Việt, trùng tên, thiếu tệp), đếm lượt tải chống trùng, chặn XSS ở luật ghi cán bộ, `/van-ban` tải thật. Cần áp migration 0028; ghi gói zip vào `e2e/out/` để chạy `unzip -t` | 115/115 |
 | `e2e/sec-smoke.mjs` | Tổng hợp ~35 kịch bản tấn công | 34/35\* |
 
 \* Các mục báo hỏng là do kịch bản viết trước khi các chính sách khác được gộp (vd. đọc `liveEvents` bằng tài khoản khách, nay khách không còn nhận) — không phải lỗi; xem `docs/VIEC-TON-DONG.md` mục "Bộ kiểm thử".

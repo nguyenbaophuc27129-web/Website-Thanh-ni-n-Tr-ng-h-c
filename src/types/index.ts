@@ -451,12 +451,22 @@ export interface ResourceType {
   short?: string;
 }
 
+/** Một tệp của tài nguyên — url là đường dẫn /uploads/tai-nguyen/... trên máy chủ */
+export interface ResourceAttachment {
+  name: string;
+  url: string;
+  sizeKb: number;
+  mime?: string;
+}
+
 export interface Resource {
   id: number;
   resourceTypeId: number;
   title: string;
   description: string;
+  /** Tên tệp chính (= tệp đầu của attachments) */
   fileName: string;
+  /** Tổng dung lượng mọi tệp (KB) */
   fileSizeKb: number;
   isPublic: boolean;
   downloadCount: number;
@@ -467,8 +477,12 @@ export interface Resource {
   submittedByAccountId?: number;
   /** Link YouTube (watch hoặc embed videoseries) — tài nguyên xem trực tuyến thay vì tải file */
   videoUrl?: string;
-  /** Nội dung tệp base64 dataUrl — cho phép tải xuống thật từ kho tài nguyên (≤ ~4MB) */
+  /** Đường dẫn /uploads/... của tệp chính (không còn base64) */
   fileDataUrl?: string;
+  /** Mọi tệp của tài nguyên (≤ 10); rỗng với dữ liệu cũ → dùng resourceFiles() để suy từ fileName/fileDataUrl */
+  attachments?: ResourceAttachment[];
+  /** Tên người đóng góp, hiển thị công khai ("Đóng góp bởi …") */
+  contributorName?: string;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
 }
 

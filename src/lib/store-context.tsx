@@ -18,7 +18,7 @@ import type {
   DocumentRecord, DocumentRecipient, EmailLog, Feedback, FeedbackMessage, ForumComment, ForumMedia, ForumThread,
   Hs3tAchievement, Hs3tCategory, Hs3tProfile, Hs3tUnitStandard, LiveEvent, MemberContribution, ModerationResult, Notification,
   OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
-  RankingEntry, RankingSnapshot, Report, Resource, Score,
+  RankingEntry, RankingSnapshot, Report, Resource, ResourceAttachment, Score,
   SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
   VolunteerProjectField, VolunteerProjectPhase,
 } from "@/types";
@@ -251,6 +251,8 @@ interface StoreValue {
   liveEnabled: boolean;
   setLiveEnabled: (on: boolean) => void;
   resources: Resource[];
+  /** false cho tới khi lần nạp snapshot đầu tiên từ /api/store xong (kể cả lỗi) */
+  storeReady: boolean;
   settings: SystemSetting[];
 
   /* selectors */
@@ -326,7 +328,8 @@ interface StoreValue {
   /* resources (R9) */
   saveResource: (input: Omit<Resource, "id" | "downloadCount">, id?: number) => void;
   deleteResource: (id: number) => void;
-  downloadResource: (id: number) => void;
+  /** Ghi nhận 1 lượt tải / xem qua POST /api/tai-nguyen/[id]/luot-tai (máy chủ chống đếm trùng) — trả số lượt mới, null nếu không ghi được */
+  downloadResource: (id: number) => Promise<number | null>;
 
   /* system */
   updateSetting: (key: string, value: string) => void;
@@ -361,7 +364,7 @@ interface StoreValue {
   memberContributions: MemberContribution[];
   createMemberContribution: (input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }) => Promise<MemberWriteResult>;
   moderateMemberContribution: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => number | undefined;
-  submitResourceDraft: (input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }) => Promise<MemberWriteResult>;
+  submitResourceDraft: (input: { resourceTypeId: number; title: string; description: string; attachments: ResourceAttachment[] }) => Promise<MemberWriteResult>;
   moderateResourceContribution: (session: Session, id: number, action: "APPROVE" | "REJECT") => void;
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
@@ -430,6 +433,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>(seedLiveEvents);
   const [liveEnabled, setLiveEnabled] = useState(false);
   const [resources, setResources] = useState(seedResources);
+  // Đã nhận phản hồi đầu tiên từ /api/store (thành công hay lỗi) — trang chi tiết dùng để không báo "không tìm thấy" khi dữ liệu còn đang nạp
+  const [storeReady, setStoreReady] = useState(false);
   const [settings, setSettings] = useState(seedSettings);
   const [forumThreads, setForumThreads] = useState<ForumThread[]>(seedForumThreads);
   const [forumComments, setForumComments] = useState<ForumComment[]>(seedForumComments);
@@ -776,6 +781,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (maxId > uid) uid = maxId;
     } catch {
       /* DB chưa nối được — chế độ offline */
+    } finally {
+      setStoreReady(true);
     }
   }, [entitySetters]);
   useEffect(() => {
@@ -1510,9 +1517,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void flushSync(true);
   }, [trackDelete, flushSync]);
 
-  const downloadResource = useCallback((id: number) => {
-    setResources((prev) => prev.map((r) => (r.id === id ? { ...r, downloadCount: r.downloadCount + 1 } : r)));
-  }, []);
+  const downloadResource = useCallback(async (id: number): Promise<number | null> => {
+    const res = await postMemberApi<{ downloadCount: number }>(`/api/tai-nguyen/${id}/luot-tai`, {});
+    if (!res.ok) return null;
+    // Số lượt do máy chủ đếm: đưa vào state như dòng đã khớp DB (adoptServerRows) — KHÔNG sinh ghi /api/store
+    const row = (syncedStateRef.current.resources as Resource[] | undefined)?.find((r) => r.id === id);
+    if (row && row.downloadCount !== res.downloadCount) {
+      adoptServerRows("resources", [{ ...row, downloadCount: res.downloadCount } as unknown as Record<string, unknown>]);
+    }
+    return res.downloadCount;
+  }, [adoptServerRows]);
 
   /* ============ System ============ */
 
@@ -1832,7 +1846,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /** Đoàn viên gửi tài nguyên qua /api/tai-nguyen/dong-gop — luôn DRAFT + isPublic false, chờ Ban TNTH duyệt */
   const submitResourceDraft = useCallback(
-    async (input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }): Promise<MemberWriteResult> => {
+    async (input: { resourceTypeId: number; title: string; description: string; attachments: ResourceAttachment[] }): Promise<MemberWriteResult> => {
       const res = await postMemberApi<{ row: Resource }>("/api/tai-nguyen/dong-gop", input);
       if (!res.ok) return res;
       adoptServerRows("resources", [res.row as unknown as Record<string, unknown>]);
@@ -2116,7 +2130,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       activities, publishedPosts, criteriaSets, tasks, taskMetrics, taskAssignments,
       assignmentTargets, taskResults, assignmentReviews, scores, rankingSnapshots, rankingEntries,
       reports, documents, documentRecipients, notifications, feedbacks, feedbackMessages,
-      attendances, attendanceOpenIds, liveEvents, liveEnabled, setLiveEnabled, resources, settings,
+      attendances, attendanceOpenIds, liveEvents, liveEnabled, setLiveEnabled, resources, storeReady, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
       reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf, setOrgUnits,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,
@@ -2153,7 +2167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orgUnits, accounts, activities, publishedPosts, criteriaSets, tasks, taskMetrics,
       taskAssignments, assignmentTargets, taskResults, assignmentReviews, scores,
       rankingSnapshots, rankingEntries, reports, documents, documentRecipients,
-      notifications, feedbacks, feedbackMessages, attendances, attendanceOpenIds, liveEvents, liveEnabled, resources, settings,
+      notifications, feedbacks, feedbackMessages, attendances, attendanceOpenIds, liveEvents, liveEnabled, resources, storeReady, settings,
       orgName, orgById, accountByOrgUnit, scopeIds, taskMetricsOf, targetsOf, resultsOf,
       reviewsOf, descendantsOf, activeCriteriaSet, docRecipientsOf, setOrgUnits,
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,

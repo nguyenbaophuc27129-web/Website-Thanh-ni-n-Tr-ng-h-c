@@ -313,6 +313,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       publishedAt: f("published_at", "ts"),
       submittedByAccountId: f("submitted_by_account_id", "int"),
       videoUrl: f("video_url", "str"), fileDataUrl: f("file_data_url", "str"),
+      attachments: f("attachments", "json"), contributorName: f("contributor_name", "str"),
       status: f("status", "str"),
     },
     derive: () => ({ file_id: null }),

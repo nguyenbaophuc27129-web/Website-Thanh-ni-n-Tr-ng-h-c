@@ -133,6 +133,7 @@ Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<
     tnth-builder:media node scripts/clean-orphan-media.mts
   # xoá thật: thêm --delete (tự dừng nếu sắp xoá > 50% tệp/dòng; chắc chắn đúng thì thêm --force)
   ```
+- **Kho tài nguyên nhiều tệp** (migration 0028): mỗi tài nguyên ≤ 10 tệp (`resources.attachments`), `GET /api/tai-nguyen/<id>/zip` đọc thẳng từ thư mục tải lên và phát gói `.zip` dạng stream; `POST /api/tai-nguyen/<id>/luot-tai` đếm lượt tải (chống trùng 30 phút theo IP + User-Agent, bộ đếm nằm trong bộ nhớ).
 - Chạy `next dev` trên máy lập trình viên: tệp ghi vào `./uploads` và được phục vụ qua `src/app/uploads/[...path]/route.ts`.
 - **Chuyển máy:** chép cả thư mục `/srv/tnth/uploads` (giữ quyền `1000:1000`), không chỉ database.
 

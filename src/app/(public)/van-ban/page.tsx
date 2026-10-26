@@ -10,7 +10,6 @@ import {
   Download,
   Eye,
   Check,
-  Loader2,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -19,6 +18,7 @@ import { useToast } from "@/lib/toast-context";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/public/empty-state";
 import { formatDate, cn } from "@/lib/utils";
+import { downloadStoredFile } from "@/lib/resource-files";
 import type { DocumentRecord } from "@/types";
 
 /* Staggered fade-up — mỗi dòng lệch nhau 50ms */
@@ -46,7 +46,6 @@ export default function VanBanPublicPage() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [viewDoc, setViewDoc] = useState<DocumentRecord | null>(null);
-  const [busyId, setBusyId] = useState<number | null>(null);
   const [doneId, setDoneId] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -72,16 +71,16 @@ export default function VanBanPublicPage() {
     [documents, cat, q]
   );
 
-  /** Micro-interaction tải file: spinner → check → toast */
+  /** Tải tệp văn bản thật trên máy chủ; chưa có tệp thì báo rõ thay vì giả lập tải xuống */
   const handleDownload = (d: DocumentRecord) => {
-    if (busyId !== null) return;
-    setBusyId(d.id);
-    window.setTimeout(() => {
-      setBusyId(null);
-      setDoneId(d.id);
-      toast(`Đã tải xuống văn bản "${d.docNumber || d.title}".`);
-      window.setTimeout(() => setDoneId(null), 1600);
-    }, 900);
+    const label = d.docNumber || d.title;
+    if (!downloadStoredFile(d.fileDataUrl, d.fileName || `van-ban-${d.id}`)) {
+      toast(`Văn bản "${label}" chưa có tệp đính kèm — nội dung sẽ được bổ sung sau.`, "warning");
+      return;
+    }
+    setDoneId(d.id);
+    toast(`Đã tải xuống văn bản "${label}".`);
+    window.setTimeout(() => setDoneId(null), 1600);
   };
 
   const catName = (d: DocumentRecord) =>
@@ -209,16 +208,12 @@ export default function VanBanPublicPage() {
                       doneId === d.id ? "bg-emerald-500" : "bg-blue-600 hover:bg-blue-700"
                     )}
                   >
-                    {busyId === d.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : doneId === d.id ? (
+                    {doneId === d.id ? (
                       <Check className="h-3.5 w-3.5" />
                     ) : (
                       <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
                     )}
-                    <span className="hidden md:inline">
-                      {busyId === d.id ? "Đang tải…" : doneId === d.id ? "Đã tải" : "Tải xuống"}
-                    </span>
+                    <span className="hidden md:inline">{doneId === d.id ? "Đã tải" : "Tải xuống"}</span>
                   </button>
                 </div>
               </motion.div>
@@ -302,17 +297,13 @@ export default function VanBanPublicPage() {
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-600/25 hover:shadow-blue-500/30"
               )}
             >
-              {busyId === viewDoc.id ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Đang chuẩn bị tệp…
-                </>
-              ) : doneId === viewDoc.id ? (
+              {doneId === viewDoc.id ? (
                 <>
                   <Check className="h-4 w-4" /> Đã tải xuống
                 </>
               ) : (
                 <>
-                  <Download className="h-4 w-4" /> Tải văn bản (PDF)
+                  <Download className="h-4 w-4" /> Tải văn bản
                 </>
               )}
             </button>
