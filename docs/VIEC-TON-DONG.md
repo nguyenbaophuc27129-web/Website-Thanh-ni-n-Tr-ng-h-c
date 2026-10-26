@@ -35,7 +35,7 @@ DB chính thức vẫn là `tnth_dev` — chủ dự án quyết định **khôn
 - Ngoài phạm vi đợt này: trang tin dựng sẵn trên máy chủ cho SEO (mục 17); ô đóng góp bài của đoàn viên vẫn là chữ thường; soạn chung nhiều người.
 
 ## Ưu tiên cao
-1. **Trang quản trị `quan-tri/tai-nguyen`** (để sau theo quyết định chủ dự án): vẫn tách mỗi tệp thành một tài nguyên; nên chuyển sang dùng `useMultiUpload` + `attachments` như trang đóng góp.
+1. ~~Trang quản trị `quan-tri/tai-nguyen`~~ — **đã làm lại (27/10/2026)**: hộp thoại Thêm/Sửa dùng `useMultiUpload` + `attachments` (≤10 tệp = một tài nguyên, kéo thả, trạng thái từng tệp), bỏ ô dung lượng/tên tệp gõ tay, sửa không đổi ngày/đơn vị đăng, có ô link YouTube cho loại clip, hỏi xác nhận khi đóng mà chưa lưu. Sửa kèm: mã tài nguyên tạo ở trình duyệt có 16 chữ số nên trang chi tiết và `.zip` từng báo lỗi (regex 15 chữ số) — đã nới lên 16.
 2. **Cấp 3 chấm điểm**: server cho `QUAN_TRI_CAP3` chấm đơn vị cấp dưới, giao diện `quan-tri/nhiem-vu/cham-diem` chỉ hiện nút "Lưu điểm" cho TW/Tỉnh/`score.manage`. Cần quyết nghiệp vụ: mở nút cho cấp 3 hay siết server.
 3. **Xác nhận nghiệp vụ các chỗ cố ý thu hẹp quyền đọc**: biểu đồ xu hướng `/quan-tri/thong-ke` chỉ tính trong cây đơn vị; cán bộ cấp dưới không thấy thông báo người khác, phân công ông/bà, xếp hạng nháp của TW, danh bạ ngoài cây; `DON_VI`/`BIEN_TAP_VIEN` không nhận phản ánh. Thêm: kiểm duyệt diễn đàn chỉ người có `forum.manage` (mặc định chỉ TW), không phân theo đơn vị; `/api/dien-dan/thich|binh-luan` trên bài đang ẩn nay chỉ cho người có `forum.manage`.
 4. `accountByOrgUnit` vẫn không tìm được tài khoản với `DON_VI`/`BTV` (họ không đọc `/api/accounts`) → thao tác của họ không sinh thông báo. Giải cùng mục 5.

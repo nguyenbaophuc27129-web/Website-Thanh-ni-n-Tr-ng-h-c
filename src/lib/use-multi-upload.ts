@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { uploadFile, type UploadKind } from "@/lib/upload-client";
 import { RESOURCE_MAX_FILES, RESOURCE_MAX_FILE_BYTES, nameWithStoredExt } from "@/lib/resource-files";
+import type { ResourceAttachment } from "@/types";
 
 /**
  * Hook chọn & tải NHIỀU tệp lên máy chủ (qua /api/uploads), dùng lại cho mọi nơi cần
@@ -155,6 +156,21 @@ export function useMultiUpload(kind: UploadKind, options: MultiUploadOptions = {
     commit([]);
   }
 
+  /** Nạp sẵn các tệp đã lưu trên máy chủ (mở sửa tài nguyên): hiện như tệp đã tải xong, thay hết danh sách hiện có */
+  function load(files: ResourceAttachment[]) {
+    reset();
+    commit(
+      files.slice(0, max).map((f) => ({
+        id: `u${++seqRef.current}`,
+        name: f.name,
+        sizeKb: f.sizeKb,
+        status: "done" as const,
+        url: f.url,
+        mime: f.mime,
+      })),
+    );
+  }
+
   // Rời trang / đóng modal: huỷ các lượt tải còn dở
   useEffect(() => {
     const controllers = controllersRef.current;
@@ -167,6 +183,7 @@ export function useMultiUpload(kind: UploadKind, options: MultiUploadOptions = {
     remove,
     retry,
     reset,
+    load,
     max,
     maxBytes,
     /** Còn tệp chờ hoặc đang tải — chặn gửi biểu mẫu */

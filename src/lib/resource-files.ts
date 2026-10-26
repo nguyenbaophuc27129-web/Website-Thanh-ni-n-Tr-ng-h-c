@@ -160,7 +160,7 @@ export const docKey = (docId: number) => `vb-${docId}`;
 
 /** Phân tích tham số đường dẫn /tai-nguyen/[id]: số → tài nguyên, vb-<số> → văn bản */
 export function parseEntryKey(raw: string): { kind: "resource" | "document"; id: number } | null {
-  const m = /^(vb-)?(\d{1,15})$/.exec(raw);
+  const m = /^(vb-)?(\d{1,16})$/.exec(raw);
   if (!m) return null;
   const id = Number(m[2]);
   return Number.isSafeInteger(id) && id > 0 ? { kind: m[1] ? "document" : "resource", id } : null;

@@ -1,38 +1,39 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FolderOpen, Plus, Globe, Archive, Download, FileUp, Pencil, Trash2, Loader2 } from "lucide-react";
+import { FolderOpen, Plus, Globe, Archive, Download, FileUp, Pencil, Trash2, Loader2, Play } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { MultiUploadField } from "@/components/ui/multi-upload";
 import { formatDateTime, formatNumber, todayISO } from "@/lib/utils";
-import { uploadFile } from "@/lib/upload-client";
+import { useMultiUpload } from "@/lib/use-multi-upload";
+import { downloadStoredFile, formatSizeKb, isSafeYoutubeUrl, resourceFiles, triggerDownload, ytWatchUrl } from "@/lib/resource-files";
 import { resourceTypes } from "@/data/categories";
 import type { Resource } from "@/types";
 
 type Form = {
-  title: string; description: string; resourceTypeId: string; fileName: string;
-  fileSizeKb: string; isPublic: boolean; status: Resource["status"]; fileDataUrl?: string;
-};
-
-type UploadedFileItem = {
-  name: string;
-  sizeKb: number;
-  fileDataUrl: string;
+  title: string; description: string; resourceTypeId: string; videoUrl: string;
+  isPublic: boolean; status: Resource["status"];
 };
 
 const EMPTY_FORM: Form = {
-  title: "", description: "", resourceTypeId: "", fileName: "", fileSizeKb: "", isPublic: true, status: "PUBLISHED",
+  title: "", description: "", resourceTypeId: "", videoUrl: "", isPublic: true, status: "PUBLISHED",
 };
 
-/** Giới hạn dung lượng mỗi tệp tài nguyên (tệp lưu trên máy chủ, không lưu base64) */
-const MAX_RESOURCE_BYTES = 25 * 1024 * 1024;
+/** Loại "Clip tuyên truyền…" — nhập link YouTube thay cho (hoặc kèm) tệp */
+const CLIP_TYPE_CODE = "CLIP_TINH_BAN";
+
+/** Dấu vết nội dung đang soạn — so với lúc mở để biết có thay đổi chưa lưu */
+const fingerprint = (f: Form, urls: string[]) => JSON.stringify([f, urls]);
+
+const baseName = (name: string) => name.replace(/\.[^/.]+$/, "");
 
 export default function TaiNguyenAdminPage() {
   const { session } = useAuth();
@@ -41,8 +42,9 @@ export default function TaiNguyenAdminPage() {
   const [tab, setTab] = useState("all");
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [form, setForm] = useState<Form>(EMPTY_FORM);
-  const [selectedFiles, setSelectedFiles] = useState<UploadedFileItem[]>([]);
-  const [uploadingCount, setUploadingCount] = useState(0);
+  const [openedAs, setOpenedAs] = useState("");
+  // Nhiều tệp (≤10, mỗi tệp ≤25MB), tải song song tối đa 3 — lưu trên máy chủ, chỉ giữ đường dẫn /uploads/...
+  const upload = useMultiUpload("tai-nguyen", { onReject: (m) => toast(m, "warning") });
 
   const list = useMemo(
     () =>
@@ -56,150 +58,102 @@ export default function TaiNguyenAdminPage() {
     const t = resourceTypes.find((x) => x.id === id);
     return t?.short ?? t?.name ?? "—";
   };
+  const clipTypeId = String(resourceTypes.find((t) => t.code === CLIP_TYPE_CODE)?.id ?? "");
 
-  const openCreate = () => {
-    setForm({ ...EMPTY_FORM, resourceTypeId: resourceTypes[0]?.id.toString() ?? "" });
-    setSelectedFiles([]);
-    setEditingId("new");
+  const openWith = (next: Form, files: Resource["attachments"], id: number | "new") => {
+    setForm(next);
+    upload.load(files ?? []);
+    setOpenedAs(fingerprint(next, (files ?? []).map((f) => f.url)));
+    setEditingId(id);
   };
 
-  const openEdit = (r: Resource) => {
-    setForm({
-      title: r.title, description: r.description, resourceTypeId: r.resourceTypeId.toString(),
-      fileName: r.fileName, fileSizeKb: r.fileSizeKb.toString(), isPublic: r.isPublic, status: r.status,
-      fileDataUrl: r.fileDataUrl,
-    });
-    if (r.fileDataUrl) {
-      setSelectedFiles([{ name: r.fileName, sizeKb: r.fileSizeKb, fileDataUrl: r.fileDataUrl }]);
-    } else {
-      setSelectedFiles([]);
-    }
-    setEditingId(r.id);
+  const openCreate = () => openWith({ ...EMPTY_FORM, resourceTypeId: resourceTypes[0]?.id.toString() ?? "" }, [], "new");
+
+  const openEdit = (r: Resource) =>
+    openWith(
+      {
+        title: r.title, description: r.description, resourceTypeId: r.resourceTypeId.toString(),
+        videoUrl: r.videoUrl ?? "", isPublic: r.isPublic, status: r.status,
+      },
+      resourceFiles(r),
+      r.id,
+    );
+
+  const dirty = editingId !== null && fingerprint(form, upload.uploaded.map((f) => f.url)) !== openedAs;
+
+  const closeDialog = () => {
+    if (dirty && !window.confirm("Bạn có thay đổi chưa lưu. Đóng hộp thoại và bỏ các thay đổi này?")) return;
+    upload.reset();
+    setEditingId(null);
   };
 
-  /** Chọn tệp thật (hỗ trợ chọn nhiều tệp tối đa 5 tệp khi thêm mới) */
-  const pickFiles = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const incoming = Array.from(files);
-
-    let base = editingId === "new" ? [...selectedFiles] : [];
-    if (base.length + incoming.length > 5) {
-      toast("Chỉ được chọn tối đa 5 tệp mỗi lần tải lên.", "warning");
-    }
-
-    const availableSlots = Math.max(0, 5 - base.length);
-    const toProcess = incoming.slice(0, availableSlots);
-
-    toProcess.forEach((file) => {
-      if (file.size > MAX_RESOURCE_BYTES) {
-        toast(`Tệp "${file.name}" vượt quá 25MB — đã bỏ qua.`, "warning");
-        return;
-      }
-      // Tệp lưu trên máy chủ — chỉ giữ đường dẫn /uploads/... trong dữ liệu
-      setUploadingCount((n) => n + 1);
-      uploadFile(file, "tai-nguyen")
-        .then((uploaded) => {
-        const item: UploadedFileItem = {
-          name: file.name,
-          sizeKb: Math.max(1, Math.round(file.size / 1024)),
-          fileDataUrl: uploaded.url,
-        };
-        setSelectedFiles((prev) => {
-          const next = editingId === "new" ? [...prev, item].slice(0, 5) : [item];
-          setForm((f) => ({
-            ...f,
-            title: f.title || file.name.replace(/\.[^/.]+$/, ""),
-            fileName: next[0]?.name ?? "",
-            fileSizeKb: String(next[0]?.sizeKb ?? ""),
-            fileDataUrl: next[0]?.fileDataUrl ?? "",
-          }));
-          return next;
-        });
-        })
-        .catch((e: unknown) => toast(e instanceof Error ? e.message : `Không tải được tệp "${file.name}" lên máy chủ.`, "warning"))
-        .finally(() => setUploadingCount((n) => n - 1));
-    });
-  };
-
-  const removeSelectedFile = (idx: number) => {
-    setSelectedFiles((prev) => {
-      const next = prev.filter((_, i) => i !== idx);
-      if (next.length > 0) {
-        setForm((f) => ({
-          ...f,
-          fileName: next[0].name,
-          fileSizeKb: String(next[0].sizeKb),
-          fileDataUrl: next[0].fileDataUrl,
-        }));
-      } else {
-        setForm((f) => ({
-          ...f,
-          fileName: "",
-          fileSizeKb: "",
-          fileDataUrl: undefined,
-        }));
-      }
-      return next;
-    });
-  };
+  const firstFile = upload.uploaded[0];
+  const totalKb = upload.uploaded.reduce((sum, f) => sum + f.sizeKb, 0);
+  const showVideo = form.resourceTypeId === clipTypeId || form.videoUrl !== "";
 
   const handleSave = () => {
-    if (!session) return;
-    if (uploadingCount > 0) {
+    if (!session || editingId === null) return;
+    if (upload.uploading) {
       toast("Tệp đang được tải lên máy chủ — vui lòng đợi xong rồi lưu.", "warning");
       return;
     }
-    if (editingId === "new" && selectedFiles.length > 1) {
-      // Lưu hàng loạt nhiều tệp (tối đa 5)
-      for (const f of selectedFiles) {
-        const fileTitle = form.title.trim()
-          ? `${form.title.trim()} - ${f.name}`
-          : f.name.replace(/\.[^/.]+$/, "");
-        const input: Omit<Resource, "id" | "downloadCount"> = {
-          resourceTypeId: Number(form.resourceTypeId),
-          title: fileTitle,
-          description: form.description.trim(),
-          fileName: f.name,
-          fileSizeKb: f.sizeKb,
-          fileDataUrl: f.fileDataUrl,
-          isPublic: form.isPublic,
-          publishedByOrgUnitId: session.orgUnitId,
-          publishedAt: todayISO(),
-          status: form.status,
-        };
-        store.saveResource(input);
-      }
-      toast(`Đã thêm ${selectedFiles.length} tài nguyên vào kho.`);
-      setEditingId(null);
-      setSelectedFiles([]);
+    if (upload.hasError) {
+      toast("Có tệp tải lên bị lỗi — hãy thử lại hoặc xoá tệp đó trước khi lưu.", "warning");
+      return;
+    }
+    const videoUrl = form.videoUrl.trim();
+    if (videoUrl && !isSafeYoutubeUrl(videoUrl)) {
+      toast("Link clip phải là địa chỉ https của YouTube (youtube.com/watch, youtu.be, shorts hoặc embed).", "warning");
+      return;
+    }
+    if (!firstFile && !videoUrl) {
+      toast("Hãy chọn ít nhất một tệp đính kèm hoặc dán link YouTube.", "warning");
+      return;
+    }
+    const title = form.title.trim() || (firstFile ? baseName(firstFile.name) : "");
+    if (!title) {
+      toast("Vui lòng nhập tên tài nguyên.", "warning");
       return;
     }
 
-    const firstFile = selectedFiles[0];
-    const targetTitle = form.title.trim() || firstFile?.name?.replace(/\.[^/.]+$/, "") || "";
-    const targetFileName = firstFile?.name || form.fileName.trim();
-
-    if (!targetTitle || !targetFileName) {
-      toast("Vui lòng nhập tên tài nguyên hoặc chọn tệp.", "warning");
-      return;
-    }
-
+    const attachments = upload.uploaded.map((f) => ({ name: f.name, url: f.url, sizeKb: f.sizeKb, mime: f.mime }));
+    // Sửa: giữ nguyên ngày đăng, đơn vị đăng, người đóng góp… của dòng cũ; chỉ ghi đè các trường trong hộp thoại
+    const old = editingId === "new" ? undefined : store.resources.find((r) => r.id === editingId);
+    const { id: _id, downloadCount: _dl, ...kept } = old ?? ({} as Partial<Resource>);
+    void _id; void _dl;
     const input: Omit<Resource, "id" | "downloadCount"> = {
-      resourceTypeId: Number(form.resourceTypeId),
-      title: targetTitle,
-      description: form.description.trim(),
-      fileName: targetFileName,
-      fileSizeKb: firstFile?.sizeKb || Number(form.fileSizeKb) || 0,
-      fileDataUrl: firstFile?.fileDataUrl || form.fileDataUrl,
-      isPublic: form.isPublic,
       publishedByOrgUnitId: session.orgUnitId,
       publishedAt: todayISO(),
+      ...kept,
+      resourceTypeId: Number(form.resourceTypeId),
+      title,
+      description: form.description.trim(),
+      fileName: firstFile?.name ?? "",
+      fileSizeKb: totalKb,
+      fileDataUrl: firstFile?.url,
+      attachments,
+      videoUrl: videoUrl || undefined,
+      isPublic: form.isPublic,
       status: form.status,
     };
-    store.saveResource(input, editingId === "new" ? undefined : editingId ?? undefined);
+    store.saveResource(input, old?.id);
     toast(editingId === "new" ? "Đã thêm tài nguyên vào kho." : "Đã cập nhật tài nguyên.");
+    upload.reset();
     setEditingId(null);
-    setSelectedFiles([]);
+  };
+
+  const downloadFiles = (r: Resource) => {
+    const files = resourceFiles(r);
+    if (files.length > 1) {
+      // Máy chủ gói .zip và tự đếm lượt tải
+      triggerDownload(`/api/tai-nguyen/${r.id}/zip`);
+      toast(`Đang tải gói ${files.length} tệp của "${r.title}".`);
+    } else if (files.length === 1 && downloadStoredFile(files[0].url, files[0].name)) {
+      void store.downloadResource(r.id);
+      toast(`Đã tải "${files[0].name}".`);
+    } else {
+      toast(`"${r.title}" chưa có tệp — hãy Sửa và thêm tệp thật.`, "warning");
+    }
   };
 
   return (
@@ -238,8 +192,8 @@ export default function TaiNguyenAdminPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-stone-800">{r.title}</p>
                   <p className="truncate text-[11px] text-stone-400">
-                    {typeName(r.resourceTypeId)} · {r.fileName}
-                    {r.fileSizeKb > 0 ? ` · ${r.fileSizeKb} KB` : ""} · {r.publishedAt ? formatDateTime(r.publishedAt) : "—"}
+                    {typeName(r.resourceTypeId)}
+                    {fileSummary(r)} · {r.publishedAt ? formatDateTime(r.publishedAt) : "—"}
                   </p>
                 </div>
                 <Badge tone={r.status === "PUBLISHED" ? "green" : r.status === "DRAFT" ? "yellow" : "gray"}>
@@ -255,26 +209,20 @@ export default function TaiNguyenAdminPage() {
                   <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
                     <Pencil className="h-3.5 w-3.5" /> Sửa
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      if (r.fileDataUrl) {
-                        const a = document.createElement("a");
-                        a.href = r.fileDataUrl;
-                        a.download = r.fileName || `tai-nguyen-${r.id}`;
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        store.downloadResource(r.id);
-                        toast(`Đã tải "${r.fileName}".`);
-                      } else {
-                        toast(`"${r.fileName}" chưa có nội dung tệp — hãy Sửa và nạp tệp thật.`, "warning");
-                      }
-                    }}
-                  >
-                    <Download className="h-3.5 w-3.5" /> Tải
-                  </Button>
+                  {resourceFiles(r).length > 0 ? (
+                    <Button size="sm" variant="secondary" onClick={() => downloadFiles(r)}>
+                      <Download className="h-3.5 w-3.5" /> Tải
+                    </Button>
+                  ) : r.videoUrl && ytWatchUrl(r.videoUrl) ? (
+                    <a
+                      href={ytWatchUrl(r.videoUrl)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-stone-100 px-3 text-xs font-medium text-stone-700 hover:bg-stone-200"
+                    >
+                      <Play className="h-3.5 w-3.5" /> Xem clip
+                    </a>
+                  ) : null}
                   {r.status === "PUBLISHED" ? (
                     <Button
                       size="sm"
@@ -293,7 +241,7 @@ export default function TaiNguyenAdminPage() {
                     onClick={() => {
                       if (window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn tài nguyên "${r.title}" không?`)) {
                         store.deleteResource(r.id);
-                        toast(`Đã xóa tài nguyên "${r.fileName || r.title}".`, "success");
+                        toast(`Đã xóa tài nguyên "${r.title}".`, "success");
                       }
                     }}
                   >
@@ -314,23 +262,42 @@ export default function TaiNguyenAdminPage() {
 
       <Modal
         open={editingId !== null}
-        onClose={() => setEditingId(null)}
+        onClose={closeDialog}
+        wide
         title={editingId === "new" ? "Thêm tài nguyên" : "Cập nhật tài nguyên"}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setEditingId(null)}>Hủy</Button>
-            <Button onClick={handleSave}>Lưu</Button>
+            <span className="mr-auto self-center text-xs text-stone-500">
+              {upload.items.length > 0 ? `${upload.items.length} tệp${totalKb > 0 ? ` · ${formatSizeKb(totalKb)}` : ""}` : "Chưa có tệp"}
+              {dirty ? " · có thay đổi chưa lưu" : ""}
+            </span>
+            <Button variant="secondary" onClick={closeDialog}>Hủy</Button>
+            <Button onClick={handleSave} disabled={upload.uploading}>
+              {upload.uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {upload.uploading ? "Đang tải tệp…" : "Lưu"}
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <Field label="Tên tài nguyên" required>
-            <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="VD: Mẫu nhật ký hoạt động Đoàn trường" />
+          <Field
+            label="Tệp đính kèm"
+            required={!showVideo}
+            hint="PDF, Word, Excel, PowerPoint, ảnh, video, tệp nén… — tệp đầu tiên là tệp chính. Nhiều tệp vẫn là một tài nguyên, người dùng tải được cả gói .zip."
+          >
+            <MultiUploadField upload={upload} />
+          </Field>
+          <Field label="Tên tài nguyên" hint={firstFile ? "Để trống sẽ lấy theo tên tệp đầu tiên." : undefined}>
+            <Input
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder={firstFile ? baseName(firstFile.name) : "VD: Mẫu nhật ký hoạt động Đoàn trường"}
+            />
           </Field>
           <Field label="Mô tả">
-            <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
+            <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Loại tài nguyên">
               <Select value={form.resourceTypeId} onChange={(e) => setForm((f) => ({ ...f, resourceTypeId: e.target.value }))}>
                 {resourceTypes.map((t) => (
@@ -345,76 +312,17 @@ export default function TaiNguyenAdminPage() {
                 <option value="ARCHIVED">Lưu trữ</option>
               </Select>
             </Field>
-            <Field
-              label={editingId === "new" ? "Tệp đính kèm (chọn tối đa 5 tệp)" : "Tệp đính kèm"}
-              required
-              hint="Chọn tệp để tự động lấy tên và dung lượng — người dùng sẽ tải được tệp thật (tối đa 25MB/tệp, tối đa 5 tệp mỗi lần)."
-            >
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-700 transition-colors hover:bg-stone-50">
-                    {uploadingCount > 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}{" "}
-                    {uploadingCount > 0 ? "Đang tải lên máy chủ…" : selectedFiles.length > 0 ? "Chọn thêm tệp…" : "Chọn tệp (tối đa 5 tệp)…"}
-                    <input
-                      type="file"
-                      multiple={editingId === "new"}
-                      className="hidden"
-                      onChange={(e) => {
-                        pickFiles(e.target.files);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  {selectedFiles.length <= 1 && (
-                    <Input
-                      value={form.fileName}
-                      onChange={(e) => setForm((f) => ({ ...f, fileName: e.target.value }))}
-                      placeholder="mau-nhat-ky.docx"
-                    />
-                  )}
-                </div>
-
-                {selectedFiles.length > 0 ? (
-                  <div className="space-y-1.5 rounded-lg border border-stone-200 bg-stone-50 p-2.5">
-                    <div className="flex items-center justify-between text-xs font-semibold text-stone-700">
-                      <span>Danh sách tệp ({selectedFiles.length}/5):</span>
-                      {selectedFiles.length >= 5 && (
-                        <span className="font-normal text-amber-600">Đã đạt tối đa 5 tệp</span>
-                      )}
-                    </div>
-                    <div className="divide-y divide-stone-200/60">
-                      {selectedFiles.map((f, idx) => (
-                        <div key={idx} className="flex items-center justify-between py-1 text-xs text-stone-700">
-                          <span className="truncate pr-2 font-mono text-[11px] text-blue-700">
-                            {idx + 1}. {f.name} <span className="text-stone-400">({f.sizeKb} KB)</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removeSelectedFile(idx)}
-                            className="rounded p-1 text-stone-400 hover:bg-stone-200 hover:text-rose-600"
-                            title="Xóa tệp này"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-1 text-[11px] text-amber-600">Chưa nạp tệp — bạn có thể bấm &quot;Chọn tệp&quot; để chọn tối đa 5 tệp.</p>
-                )}
-              </div>
-            </Field>
-            <Field label="Dung lượng (KB)">
+          </div>
+          {showVideo ? (
+            <Field label="Link YouTube" hint="Dán link clip (youtube.com/watch, youtu.be, shorts hoặc danh sách phát nhúng) — người xem phát ngay trên trang. Có thể để trống nếu đã chọn tệp.">
               <Input
-                type="number"
-                min={0}
-                value={form.fileSizeKb}
-                onChange={(e) => setForm((f) => ({ ...f, fileSizeKb: e.target.value }))}
-                disabled={selectedFiles.length > 1}
+                value={form.videoUrl}
+                onChange={(e) => setForm((f) => ({ ...f, videoUrl: e.target.value }))}
+                placeholder="https://www.youtube.com/watch?v=…"
+                inputMode="url"
               />
             </Field>
-          </div>
+          ) : null}
           <label className="flex items-center gap-2 text-sm text-stone-700">
             <input type="checkbox" checked={form.isPublic} onChange={(e) => setForm((f) => ({ ...f, isPublic: e.target.checked }))} className="accent-doan-600" />
             Công khai — hiển thị trên trang Tài nguyên cho khách truy cập
@@ -423,4 +331,12 @@ export default function TaiNguyenAdminPage() {
       </Modal>
     </div>
   );
+}
+
+/** " · 3 tệp · 1.5 MB" (hoặc " · Clip YouTube") cho dòng danh sách */
+function fileSummary(r: Resource): string {
+  const files = resourceFiles(r);
+  if (files.length === 0) return r.videoUrl ? " · Clip YouTube" : " · Chưa có tệp";
+  const size = formatSizeKb(files.reduce((sum, f) => sum + f.sizeKb, 0));
+  return ` · ${files.length === 1 ? files[0].name : `${files.length} tệp`}${size ? ` · ${size}` : ""}`;
 }

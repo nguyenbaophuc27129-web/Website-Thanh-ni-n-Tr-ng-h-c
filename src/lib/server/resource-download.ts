@@ -30,9 +30,9 @@ export function viewerFingerprint(request: NextRequest): string {
   return createHash("sha256").update(`${ip}|${ua}|${lang}`).digest("hex").slice(0, 24);
 }
 
-/** Mã tài nguyên từ tham số đường dẫn: số nguyên dương hợp lý, ngược lại null */
+/** Mã tài nguyên từ tham số đường dẫn: số nguyên dương hợp lý (≤16 chữ số: mã tạo ở trình duyệt dạng Date.now()*1000 có 16 chữ số), ngược lại null */
 export function parseResourceId(raw: string): number | null {
-  if (!/^\d{1,15}$/.test(raw)) return null;
+  if (!/^\d{1,16}$/.test(raw)) return null;
   const id = Number(raw);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
