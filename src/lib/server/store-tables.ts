@@ -490,12 +490,6 @@ export const PUBLIC_WRITE_ENTITIES = new Set([
   "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
 ]);
 
-/** Entity đoàn viên (DOAN_VIEN) được phép đọc thêm (ngoài public) */
-export const MEMBER_READ_ENTITIES = new Set([
-  "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
-  "hs3tUnitStandards", "notifications", "quizAttempts",
-]);
-
 /** Entity đoàn viên (DOAN_VIEN) được phép ghi qua sync */
 export const MEMBER_ALLOWED_WRITE_ENTITIES = new Set([
   "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
@@ -503,14 +497,23 @@ export const MEMBER_ALLOWED_WRITE_ENTITIES = new Set([
   "forumThreads", "forumComments", "volunteerProjects", "resources",
 ]);
 
-/** Entity khách vãng lai được đọc — còn lại chỉ khi có phiên đăng nhập */
+/**
+ * Entity khách vãng lai được đọc — điều kiện lọc dòng / che cột của từng entity
+ * nằm ở src/lib/server/store-read-policy.ts (tập này chỉ là cổng ngoài cùng).
+ */
 export const PUBLIC_READ_ENTITIES = new Set([
-  "orgUnits", "publishedPosts", "activities", "activityCategories", "activityLinks",
-  "documents", "documentRecipients", "resources", "settings",
-  "forumThreads", "forumComments", "orgDirectories", "volunteerProjects",
-  "quizQuestions", "quizExams", "liveEvents", "hs3tUnitStandards",
-  "criteriaSets", "tasks", "taskMetrics", "taskAssignments", "assignmentTargets",
-  "taskResults", "assignmentReviews", "scores", "rankingSnapshots", "rankingEntries",
+  "rankingSnapshots", "rankingEntries",
+  "activities", "activityCategories", "activityLinks", "publishedPosts",
+  "documents", "resources", "settings", "forumThreads", "forumComments",
+  "hs3tUnitStandards", "quizQuestions", "quizExams", "volunteerProjects",
+]);
+
+/** Entity đoàn viên (DOAN_VIEN) được đọc = nhóm công khai + dữ liệu của chính mình */
+export const MEMBER_READ_ENTITIES = new Set([
+  ...PUBLIC_READ_ENTITIES,
+  "notifications", "feedbacks", "feedbackMessages", "emailLogs",
+  "hs3tProfiles", "hs3tAchievements", "quizAttempts",
+  "memberContributions", "contributions",
 ]);
 
 function coerceIn(value: unknown, type: FieldType): unknown {

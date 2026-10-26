@@ -4,26 +4,26 @@ import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
 import {
   ENTITY_ORDER,
   ENTITY_SPECS,
-  PUBLIC_READ_ENTITIES,
   PUBLIC_WRITE_ENTITIES,
-  MEMBER_READ_ENTITIES,
   MEMBER_ALLOWED_WRITE_ENTITIES,
   buildDeriveCtx,
-  readEntity,
   writeEntity,
   deleteEntityIds,
 } from "@/lib/server/store-tables";
 import { externalizeDataUrls } from "@/lib/server/media";
+import { buildReadViewer, readSnapshot } from "@/lib/server/store-read-policy";
 
 export const runtime = "nodejs";
 
 /**
  * API dữ liệu store dùng chung:
- *   GET  /api/store              → { ok, scope, data: {entity: rows[] } }
- *                                  - Khách: chỉ nhận nhóm công khai
- *                                  - Đoàn viên: nhận nhóm công khai + dữ liệu cá nhân (phản ánh của mình)
- *                                  - Cán bộ quản trị: nhận đầy đủ phạm vi
- *                                  - Khách & đoàn viên chỉ thấy bài viết ĐÃ XUẤT BẢN, không kèm ghi chú nội bộ
+ *   GET  /api/store              → { ok, scope, data: {entity: rows[] } } — theo chính sách đọc
+ *                                  (src/lib/server/store-read-policy.ts):
+ *                                  - Khách: chỉ dữ liệu công khai đã duyệt (không đáp án đề thi,
+ *                                    không id người viết diễn đàn ẩn danh…)
+ *                                  - Đoàn viên: nhóm công khai + dữ liệu của chính mình
+ *                                  - QUAN_TRI_TW: toàn bộ; cán bộ khác: dữ liệu nội bộ trong cây đơn vị
+ *                                  - Entity người xem không được đọc thì vắng mặt trong data
  *   POST /api/store {entities}   → ghi dữ liệu theo cơ chế UPSERT (bảo vệ toàn vẹn dữ liệu,
  *                                  KHÔNG xoá cả bảng):
  *                                  - Khách: chỉ ghi nhóm công khai (phản ánh, điểm danh...)
@@ -32,11 +32,6 @@ export const runtime = "nodejs";
  *                                  - Tệp base64 (data:) lọt vào cột tệp được chuyển thành tệp
  *                                    trên ổ đĩa (/uploads/...) trước khi ghi DB
  */
-
-/** Cột chỉ dành cho ban biên tập — bỏ khỏi snapshot gửi khách / đoàn viên */
-const STAFF_ONLY_FIELDS: Record<string, string[]> = {
-  publishedPosts: ["internalNotes"],
-};
 
 async function resolveSession(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -53,53 +48,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
   }
   const session = await resolveSession(request);
-  let entities: string[];
-  let scope: "public" | "member" | "full";
-
-  if (!session) {
-    scope = "public";
-    entities = ENTITY_ORDER.filter((e) => PUBLIC_READ_ENTITIES.has(e));
-  } else if (session.role === "DOAN_VIEN") {
-    scope = "member";
-    entities = ENTITY_ORDER.filter(
-      (e) =>
-        PUBLIC_READ_ENTITIES.has(e) ||
-        MEMBER_READ_ENTITIES.has(e) ||
-        e === "feedbacks" ||
-        e === "feedbackMessages",
-    );
-  } else {
-    scope = "full";
-    entities = ENTITY_ORDER;
-  }
-
-  const data: Record<string, unknown[]> = {};
   try {
-    for (const entity of entities) {
-      if (session?.role === "DOAN_VIEN" && entity === "feedbacks") {
-        data[entity] = await readEntity(entity, {
-          where: "sender_account_id = $1",
-          params: [session.accountId],
-        });
-      } else if (session?.role === "DOAN_VIEN" && entity === "feedbackMessages") {
-        data[entity] = await readEntity(entity, {
-          where:
-            "feedback_id IN (SELECT id FROM citizen_feedbacks WHERE sender_account_id = $1)",
-          params: [session.accountId],
-        });
-      } else if (scope !== "full" && entity === "publishedPosts") {
-        // Bản nháp / đã gỡ / hẹn giờ chỉ cán bộ quản trị mới thấy
-        data[entity] = await readEntity(entity, { where: "status = 'PUBLISHED'", params: [] });
-      } else {
-        data[entity] = await readEntity(entity);
-      }
-      if (scope !== "full" && STAFF_ONLY_FIELDS[entity]) {
-        for (const row of data[entity] as Record<string, unknown>[]) {
-          for (const field of STAFF_ONLY_FIELDS[entity]) delete row[field];
-        }
-      }
-    }
-    return NextResponse.json({ ok: true, scope, data });
+    // Lọc dòng + che cột theo người xem — xem src/lib/server/store-read-policy.ts
+    const viewer = await buildReadViewer(session);
+    const data = await readSnapshot(viewer);
+    return NextResponse.json({ ok: true, scope: viewer.scope, data });
   } catch (err) {
     console.warn("[TNTH][STORE] Lỗi đọc snapshot:", err instanceof Error ? err.message : err);
     return NextResponse.json({ ok: false, error: "STORE_READ_FAILED" }, { status: 500 });
