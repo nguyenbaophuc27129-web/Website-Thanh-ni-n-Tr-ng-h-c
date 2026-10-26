@@ -59,6 +59,7 @@ Người dùng ──HTTPS──► OneShield ──HTTPS, cổng 443──► p
 - Bản ghi A của `@` và `www` trỏ về `103.216.116.242`, cột "Bảo vệ" đang bật. Vì vậy tra DNS từ ngoài sẽ thấy IP của OneShield chứ không thấy IP máy chủ; đó là bình thường.
 - Chứng chỉ công khai (Let's Encrypt) do OneShield cấp và gia hạn. OneShield cũng tự chuyển HTTP sang HTTPS.
 - Caddy dùng chứng chỉ tự ký (`tls internal`) cho chặng OneShield → máy chủ. Tên miền đặt bằng `DOMAIN=` trong file `.env`.
+- **IP thật của người dùng:** OneShield ghi IP người dùng vào `X-Real-Ip`, nhưng Caddy ghi đè `X-Forwarded-For` bằng IP kết nối trực tiếp (tức IP của OneShield). `deploy/Caddyfile` đặt header `X-Client-Ip` cho web: lấy từ `X-Real-Ip` **chỉ khi** kết nối đến từ máy chủ OneShield đã liệt kê ở `@oneshield` (hiện `103.216.118.10`, `103.56.163.10`, `103.166.183.10` — lấy từ log truy cập), còn lại dùng địa chỉ kết nối thật (khách vào thẳng IP máy chủ không giả được). Web chỉ tin `X-Client-Ip` (`src/lib/server/client-ip.ts`) để giới hạn tần suất theo IP và ghi `audit_logs`. OneShield thêm máy chủ mới → bổ sung địa chỉ vào `@oneshield` rồi `docker compose restart proxy` (trước đó người dùng qua máy mới bị gộp chung theo IP của máy OneShield — giới hạn chặt hơn chứ không lỏng hơn).
 - **Không dùng NGINX, Sites, SSL trên OneDash cho website này.** NGINX đòi cổng 80/443 mà Caddy đang giữ.
 
 Nếu tắt "Bảo vệ" ở bản ghi DNS, trình duyệt sẽ gặp chứng chỉ tự ký và báo không an toàn. Khi đó sửa `tls internal` trong `deploy/Caddyfile` thành `tls <email>` để Caddy tự xin Let's Encrypt.
@@ -148,7 +149,7 @@ Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<
 
   | Route | Ai được gọi | Giới hạn / 10 phút |
   |---|---|---|
-  | `chat` (widget Trợ lý ảo) | cả khách | 20 / tài khoản; **mọi khách dùng chung 30** (không có IP thật qua OneShield); câu hỏi ≤ 500 ký tự |
+  | `chat` (widget Trợ lý ảo) | cả khách | 20 / tài khoản; khách **10 / IP thật** (header `X-Client-Ip` do Caddy ghi đè) + **trần chung 150 cho mọi khách**; câu hỏi ≤ 500 ký tự |
   | `kiem-duyet` | đã đăng nhập | đoàn viên 30, cán bộ 120 / tài khoản |
   | `nhap-bao-cao` | cán bộ | 20 / tài khoản; ngữ cảnh ≤ 20.000 ký tự |
   | `phan-tich-cong-van` | cán bộ | 20 / tài khoản; công văn ≤ 30.000 ký tự |

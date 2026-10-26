@@ -140,30 +140,18 @@ const idList = (v: unknown) =>
       .filter((n) => Number.isInteger(n) && n > 0),
   );
 
-/** Chỉ thêm/bớt chính mình trong mảng lượt thích */
-function onlySelfLikeToggled(s: WriteSubject, ch: RowChange): boolean {
-  if (!ch.old || !ch.next || !onlyChanged(ch, ["liked_account_ids"])) return false;
-  const a = new Set(((ch.old.liked_account_ids as unknown[]) ?? []).map(Number));
-  const b = new Set(((ch.next.liked_account_ids as unknown[]) ?? []).map(Number));
-  for (const x of a) if (!b.has(x) && x !== s.accountId) return false;
-  for (const x of b) if (!a.has(x) && x !== s.accountId) return false;
-  return true;
-}
+/**
+ * Entity CHỈ ghi qua API riêng, không bao giờ qua POST /api/store (kể cả QUAN_TRI_TW):
+ * dòng diễn đàn trả về cho cán bộ ngoài TW đã che authorAccountId/likedByAccountIds, nên
+ * UPSERT cả dòng từ snapshot sẽ đè mất cột thật. Đăng bài/bình luận: /api/dien-dan/bai-viet,
+ * /api/dien-dan/binh-luan; thích: /api/dien-dan/thich; duyệt/ẩn: /api/dien-dan/kiem-duyet.
+ */
+export const API_ONLY_ENTITIES: ReadonlySet<string> = new Set(["forumThreads", "forumComments"]);
 
-/** Kiểm duyệt nội dung chung cho diễn đàn: tác giả đăng bài của mình, ai cũng thả thích, người có forum.manage duyệt */
-function forumPolicy(label: string): EntityPolicy {
-  return {
-    label,
-    check(ch, { subject: s }) {
-      if (ch.op === "insert") {
-        return isSelf(s, ch.next!.author_account_id) ? null : "chỉ được đăng bài/bình luận dưới tài khoản của mình";
-      }
-      if (anyPerm(s, "forum.manage")) return null;
-      if (ch.op === "update" && onlySelfLikeToggled(s, ch)) return null;
-      return "chỉ cán bộ có quyền quản lý diễn đàn mới được kiểm duyệt/sửa/xoá";
-    },
-  };
-}
+const forumViaApiPolicy = (label: string): EntityPolicy => ({
+  label,
+  check: () => "diễn đàn chỉ ghi qua API riêng (/api/dien-dan/*), không ghi qua đồng bộ",
+});
 
 /** Cột có được ghi trong lần này không (thêm mới: mọi cột client gửi; sửa: cột đổi so với DB) */
 const touches = (ch: RowChange, col: string) => ch.op === "insert" || ch.changed.includes(col);
@@ -564,29 +552,18 @@ export const WRITE_POLICIES: Record<string, EntityPolicy> = {
   /* ===== Cấu hình hệ thống ===== */
   settings: {
     label: "Cấu hình hệ thống",
-    async check(ch, env) {
-      const s = env.subject;
+    check(ch, { subject: s }) {
       if (ch.op === "delete") return "không xoá cấu hình qua đồng bộ";
       if (s.role === "QUAN_TRI_TW" && anyPerm(s, "system.settings")) return null;
-      // Ngoại lệ: mở/đóng điểm danh cho hoạt động thuộc phạm vi của mình
-      if (String(ch.next!.setting_key) === "attendance_open_ids" && onlyChanged(ch, ["setting_key", "value", "value_type", "group_name", "description"])) {
-        if (ch.old && !onlyChanged(ch, ["value"])) return "chỉ được đổi danh sách hoạt động mở điểm danh";
-        const before = idList(ch.old?.value);
-        const after = idList(ch.next!.value);
-        const toggled = [...after].filter((x) => !before.has(x)).concat([...before].filter((x) => !after.has(x)));
-        for (const id of toggled) {
-          const act = await env.row("activities", id);
-          if (!act || !inScope(s, act.org_unit_id)) return "chỉ được mở/đóng điểm danh hoạt động thuộc phạm vi của mình";
-        }
-        return null;
-      }
+      // Danh sách hoạt động mở điểm danh (attendance_open_ids) do đơn vị bật/tắt TỪNG hoạt động qua
+      // POST /api/diem-danh/mo-dong (nguyên tử, kiểm phạm vi) — ghi cả chuỗi qua đây sẽ đè lẫn nhau
       return "chỉ Quản trị Trung ương được sửa cấu hình hệ thống";
     },
   },
 
   /* ===== Diễn đàn ===== */
-  forumThreads: forumPolicy("Bài viết diễn đàn"),
-  forumComments: forumPolicy("Bình luận diễn đàn"),
+  forumThreads: forumViaApiPolicy("Bài viết diễn đàn"),
+  forumComments: forumViaApiPolicy("Bình luận diễn đàn"),
 
   /* ===== Học sinh 3 tốt ===== */
   hs3tProfiles: {

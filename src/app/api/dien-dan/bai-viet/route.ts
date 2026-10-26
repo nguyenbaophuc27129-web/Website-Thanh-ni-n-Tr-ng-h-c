@@ -3,7 +3,7 @@ import { withTransaction } from "@/lib/db";
 import { toObj } from "@/lib/server/store-tables";
 import { moderateServer } from "@/lib/server/moderation";
 import { viewForumRow } from "@/lib/server/forum-view";
-import { parseForumMedia, pickFreeAlias } from "@/lib/server/forum-write";
+import { forumViewerOf, parseForumMedia, pickFreeAlias } from "@/lib/server/forum-write";
 import { fail, json, notifyAdmin, rateLimit, readBody, requireSession, serverError, str } from "@/lib/server/member-write";
 
 export const runtime = "nodejs";
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     });
     return json({
       ok: true,
-      row: viewForumRow(toObj("forumThreads", row), session),
+      row: viewForumRow(toObj("forumThreads", row), forumViewerOf(session)),
       verdict: mod.verdict,
       reason: mod.reason ?? null,
     });

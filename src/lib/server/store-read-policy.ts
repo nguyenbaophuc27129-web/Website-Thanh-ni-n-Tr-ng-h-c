@@ -1,6 +1,7 @@
 import { query } from "../db.ts";
 import type { SessionDto } from "./auth.ts";
 import { effectivePermissions, hasPerm } from "../permissions.ts";
+import { maskForumRow } from "./forum-view.ts";
 import {
   ENTITY_ORDER,
   ENTITY_SPECS,
@@ -23,9 +24,11 @@ import {
  * (biến dạng {me} {tree} {open} {prov} — chỉ biến nào dùng mới được bind tham số);
  * `mask` = che/bỏ field trên từng dòng sau khi đọc.
  *
- * LƯU Ý cho cán bộ (scope full): KHÔNG che cột — client cán bộ vẫn ghi qua
+ * LƯU Ý cho cán bộ (scope full): chỉ lọc DÒNG, không che cột — client cán bộ vẫn ghi qua
  * POST /api/store bằng cả dòng, field bị che (null) sẽ bị UPSERT đè mất dữ liệu.
- * Với cán bộ chỉ lọc DÒNG.
+ * NGOẠI LỆ duy nhất là diễn đàn (che authorAccountId/likedByAccountIds với cán bộ ngoài TW):
+ * diễn đàn không ghi qua /api/store (API_ONLY_ENTITIES), cán bộ duyệt bài qua
+ * POST /api/dien-dan/kiem-duyet nên che cột không làm mất dữ liệu.
  */
 
 export type ReadScope = "public" | "member" | "full";
@@ -130,23 +133,16 @@ const drop = (...fields: string[]) => (row: Record<string, unknown>) => {
 };
 
 /**
- * Hợp đồng 2 — diễn đàn ẩn danh với khách/đoàn viên:
- * authorAccountId = id người xem nếu là của họ, ngược lại null; likedByAccountIds
- * chỉ còn [id người xem] nếu đã thích; thêm likeCount; bỏ dấu vết kiểm duyệt dòng người khác.
+ * Hợp đồng 2 — diễn đàn ẩn danh: che authorAccountId / likedByAccountIds / dấu vết kiểm duyệt
+ * theo người xem. Dùng CHUNG hàm với các API /api/dien-dan/* (forum-view.ts). Chỉ QUAN_TRI_TW
+ * nhận đủ cột — cán bộ khác (kể cả có forum.manage) bị che như người dùng thường.
  */
 function maskForum(row: Record<string, unknown>, v: ReadViewer) {
-  const me = v.accountId;
-  const liked = Array.isArray(row.likedByAccountIds) ? (row.likedByAccountIds as number[]) : [];
-  const own = me !== null && Number(row.authorAccountId) === me;
-  row.likeCount = liked.length;
-  row.likedByAccountIds = me !== null && liked.includes(me) ? [me] : [];
-  row.authorAccountId = own ? me : null;
-  if (!own) {
-    delete row.aiReason;
-    delete row.aiModel;
-    delete row.moderatedByAccountId;
-    delete row.rejectionReason;
-  }
+  maskForumRow(row, {
+    accountId: v.accountId,
+    isTW: v.isTW,
+    canModerate: v.scope === "full" && hasPerm(v.perms, "forum.manage"),
+  });
 }
 
 /** Dự án tình nguyện của người khác: bỏ id người gửi + thông tin kiểm duyệt */
@@ -302,15 +298,19 @@ const STAFF_RULES: Record<string, RuleFn> = {
   resources: () => ({
     where: `status = 'PUBLISHED' OR published_by_org_unit_id = ANY({tree}) OR submitted_by_account_id IN ${ACC_IN_TREE}`,
   }),
-  // Diễn đàn ẩn danh — kiểm duyệt chỉ QUAN_TRI_TW (forum.manage); cán bộ khác như người dùng thường
+  // Diễn đàn ẩn danh — kiểm duyệt cần forum.manage (mặc định chỉ QUAN_TRI_TW); mọi cán bộ ngoài TW
+  // đều bị che tác giả/người thích (maskForum), cán bộ không có forum.manage chỉ thấy như người dùng thường
   forumThreads: (v) =>
-    hasPerm(v.perms, "forum.manage") ? {} : { where: "status = 'PUBLISHED' OR author_account_id = {me}" },
+    hasPerm(v.perms, "forum.manage")
+      ? { mask: maskForum }
+      : { where: "status = 'PUBLISHED' OR author_account_id = {me}", mask: maskForum },
   forumComments: (v) =>
     hasPerm(v.perms, "forum.manage")
-      ? {}
+      ? { mask: maskForum }
       : {
           where:
             "(status = 'PUBLISHED' AND thread_id IN (SELECT id FROM forum_threads WHERE status = 'PUBLISHED' OR author_account_id = {me})) OR author_account_id = {me}",
+          mask: maskForum,
         },
   // HS3T theo trường trong cây (trang /quan-tri/hs3t mở cho TINH/CAP3/DON_VI hoặc quyền hs3t.*)
   hs3tProfiles: (v) =>

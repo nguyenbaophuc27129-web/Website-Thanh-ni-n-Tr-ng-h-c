@@ -1,8 +1,9 @@
 /**
  * Giới hạn số lần thử trong bộ nhớ tiến trình (web chạy 1 container nên đủ dùng).
  * Không ghi DB, không khoá tài khoản — khởi động lại web là bộ đếm về 0.
- * Đếm theo khoá do nơi gọi đặt (vd. tên đăng nhập): IP thấy được qua OneShield
- * không phải IP thật của người dùng nên không dùng làm khoá.
+ * Đếm theo khoá do nơi gọi đặt (vd. tên đăng nhập, tài khoản, hoặc IP thật từ
+ * clientIpOf/ipRateKey ở client-ip.ts — KHÔNG dùng X-Forwarded-For: qua OneShield
+ * nó chỉ là IP của OneShield).
  */
 
 interface Bucket {

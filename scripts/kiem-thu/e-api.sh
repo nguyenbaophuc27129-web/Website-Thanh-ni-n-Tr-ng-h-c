@@ -48,12 +48,12 @@ for i in $(seq 2 30); do call t.dv1 /api/ai/kiem-duyet "$KD" >/dev/null; done
 expect "ai/kiem-duyet t.dv1 lượt 31 → 429" 429 $(call t.dv1 /api/ai/kiem-duyet "$KD")
 c=$(call t.donvi /api/ai/kiem-duyet "$KD"); expect "ai/kiem-duyet cán bộ (t.donvi) vẫn qua" ok $(okcode $c)
 
-# ---- chat: khách được dùng, chung 30 lượt; đăng nhập 20 lượt/tài khoản; ≤500 ký tự ----
+# ---- chat: khách được dùng, 10 lượt/IP (web thử không qua Caddy → mọi khách chung khoá "unknown") + trần chung 150; đăng nhập 20 lượt/tài khoản; ≤500 ký tự ----
 CH='{"message":"Học sinh 3 tốt là gì?"}'
 expect "ai/chat quá 500 ký tự → 413" 413 $(call - /api/ai/chat "{\"message\":\"$(head -c 501 /dev/zero | tr '\0' a)\"}")
 c=$(call - /api/ai/chat "$CH"); expect "ai/chat khách qua chốt (200/502)" ok $(okcode $c)
-for i in $(seq 2 30); do call - /api/ai/chat "$CH" >/dev/null; done
-expect "ai/chat khách lượt 31 (hạn mức chung) → 429" 429 $(call - /api/ai/chat "$CH")
+for i in $(seq 2 10); do call - /api/ai/chat "$CH" >/dev/null; done
+expect "ai/chat khách lượt 11 (hạn mức theo IP) → 429" 429 $(call - /api/ai/chat "$CH")
 echo "   429 body: $(cat $D/last.json)"
 c=$(call t.dv2 /api/ai/chat "$CH"); expect "ai/chat đoàn viên đếm riêng vẫn qua" ok $(okcode $c)
 for i in $(seq 2 20); do call t.dv2 /api/ai/chat "$CH" >/dev/null; done

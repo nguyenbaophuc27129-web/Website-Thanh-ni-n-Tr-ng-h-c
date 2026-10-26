@@ -39,8 +39,25 @@
 		file_server
 	}
 
+	# IP thật của người dùng cho web (giới hạn tần suất, nhật ký) qua header X-Client-Ip — web chỉ tin
+	# header này (src/lib/server/client-ip.ts). X-Forwarded-For không dùng được: Caddy ghi đè nó bằng IP
+	# kết nối trực tiếp, mà qua OneShield đó là IP của OneShield chứ không phải của người dùng.
+	#  - Kết nối đến từ máy chủ OneShield (liệt kê dưới đây): OneShield đã ghi IP người dùng vào X-Real-Ip.
+	#  - Mọi kết nối khác (vào thẳng IP máy chủ, máy dò quét…): dùng địa chỉ kết nối thật; X-Real-Ip do
+	#    khách tự đặt bị bỏ qua, nên không giả được IP để né giới hạn.
+	# Danh sách lấy từ log truy cập (remote_ip của host thanhnientruonghoc.io.vn). Nếu OneShield thêm máy chủ
+	# mới, người dùng qua máy đó tạm bị gộp theo IP của máy OneShield (giới hạn chặt hơn, không mở rộng hơn)
+	# cho tới khi thêm địa chỉ vào đây rồi `docker compose restart proxy`.
+	@oneshield remote_ip 103.216.118.10 103.56.163.10 103.166.183.10
+	handle @oneshield {
+		reverse_proxy web:3000 {
+			header_up X-Client-Ip {header.X-Real-Ip}
+		}
+	}
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			header_up X-Client-Ip {remote_host}
+		}
 	}
 
 	log {

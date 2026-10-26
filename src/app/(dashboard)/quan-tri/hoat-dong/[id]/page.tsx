@@ -268,8 +268,9 @@ export default function ChiTietHoatDongPage() {
                     variant="outline"
                     size="sm"
                     className="mt-3"
-                    onClick={() => {
-                      store.toggleAttendance(session!, activity.id, false);
+                    onClick={async () => {
+                      const r = await store.toggleAttendance(activity.id, false);
+                      if (!r.ok) return toast(r.error, "warning");
                       toast("Đã tắt điểm danh. Trang điểm danh công khai sẽ báo chưa mở.");
                     }}
                   >
@@ -283,8 +284,9 @@ export default function ChiTietHoatDongPage() {
                   Điểm danh chưa được bật. Khi bật, hệ thống sinh mã QR để đoàn viên quét và tự điểm danh tại chỗ.
                 </p>
                 <Button
-                  onClick={() => {
-                    store.toggleAttendance(session!, activity.id, true);
+                  onClick={async () => {
+                    const r = await store.toggleAttendance(activity.id, true);
+                    if (!r.ok) return toast(r.error, "warning");
                     toast("Đã bật điểm danh QR. Cho đoàn viên quét mã để điểm danh.");
                   }}
                 >

@@ -175,11 +175,15 @@ expect("t.btv sửa/xuất bản bài → OK", await post(btv, { publishedPosts:
 expect("t.donvi đăng bài (không có post.*) → 403", await post(donvi, { publishedPosts: [{ ...P2, id: ID(503), slug: `c-x-${ID(503)}`, editorAccountId: 924 }] }), 403);
 
 /* ---------- Điểm danh (settings attendance_open_ids) ---------- */
+// Cán bộ ngoài TW không còn ghi thẳng chuỗi qua /api/store — bật/tắt TỪNG hoạt động qua /api/diem-danh/mo-dong
+// (kiểm đầy đủ ở g-kiem-duyet-diem-danh.mjs)
 const openRow = (await snap(donvi)).settings.find((s) => s.settingKey === "attendance_open_ids");
 const openIds = (openRow?.value ?? "").split(",").filter(Boolean);
-expect("t.donvi mở điểm danh hoạt động của mình → OK", await post(donvi, { settings: [{ ...openRow, value: [...openIds, String(A3.id)].join(",") }] }), 200);
-expect("t.donvi mở điểm danh hoạt động đơn vị khác → 403", await post(donvi, { settings: [{ ...openRow, value: [...openIds, String(A3.id), String(A2.id)].join(",") }] }), 403);
-expect("t.donvi đóng lại điểm danh → OK", await post(donvi, { settings: [{ ...openRow, value: openIds.join(",") }] }), 200);
+const toggleOpen = async (ctx, activityId, open) => (await ctx.post("/api/diem-danh/mo-dong", { data: { activityId, open } })).status();
+expect("t.donvi ghi thẳng attendance_open_ids qua /api/store → 403", await post(donvi, { settings: [{ ...(openRow ?? { settingKey: "attendance_open_ids", valueType: "STRING", groupName: "Hoạt động", description: "x" }), value: [...openIds, String(A3.id)].join(",") }] }), 403);
+check("t.donvi mở điểm danh hoạt động của mình qua /api/diem-danh/mo-dong → 200", (await toggleOpen(donvi, A3.id, true)) === 200);
+check("t.donvi mở điểm danh hoạt động đơn vị khác qua API riêng → 403", (await toggleOpen(donvi, A2.id, true)) === 403);
+check("t.donvi đóng lại điểm danh → 200", (await toggleOpen(donvi, A3.id, false)) === 200);
 
 /* ---------- t.tw làm mọi thứ ---------- */
 expect("t.tw sửa bài TW + điểm + hoạt động đơn vị khác → OK", await post(tw, {
