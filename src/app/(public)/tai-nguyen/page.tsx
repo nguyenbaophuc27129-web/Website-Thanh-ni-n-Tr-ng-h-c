@@ -160,8 +160,8 @@ export default function TaiNguyenPage() {
   /** Tệp đóng góp lưu trên máy chủ — chỉ giữ đường dẫn /uploads/... */
   const pickFile = async (file: File | null) => {
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      toast("Tệp vượt quá 4MB — hãy chọn tệp nhỏ hơn.", "warning");
+    if (file.size > 25 * 1024 * 1024) {
+      toast("Tệp vượt quá 25MB — hãy chọn tệp nhỏ hơn.", "warning");
       return;
     }
     setRUploading(true);
@@ -175,7 +175,9 @@ export default function TaiNguyenPage() {
     }
   };
 
-  const submitResourceContribute = () => {
+  const [rBusy, setRBusy] = useState(false);
+
+  const submitResourceContribute = async () => {
     if (!session) return;
     if (rUploading) {
       toast("Tệp đang được tải lên máy chủ — vui lòng đợi trong giây lát.", "warning");
@@ -185,7 +187,9 @@ export default function TaiNguyenPage() {
       toast("Cần tên tài nguyên tối thiểu 6 ký tự và chọn tệp đính kèm.", "warning");
       return;
     }
-    submitResourceDraft(session, {
+    if (rBusy) return;
+    setRBusy(true);
+    const res = await submitResourceDraft({
       resourceTypeId: Number(rType),
       title: rTitle,
       description: rDesc || "Tài nguyên do đoàn viên đóng góp, chờ Ban Biên tập duyệt.",
@@ -193,6 +197,11 @@ export default function TaiNguyenPage() {
       fileSizeKb: rFile.sizeKb,
       fileDataUrl: rFile.dataUrl,
     });
+    setRBusy(false);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setContribOpen(false);
     setRTitle(""); setRDesc(""); setRFile(null);
     toast("Đã gửi tài nguyên — ở trạng thái nháp, chờ Ban Biên tập duyệt công khai (+10 điểm khi được duyệt).");
@@ -583,7 +592,8 @@ export default function TaiNguyenPage() {
             <button
               type="button"
               onClick={submitResourceContribute}
-              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
+              disabled={rBusy}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
             >
               <Upload className="h-4 w-4" /> Gửi cho Ban Biên tập duyệt
             </button>

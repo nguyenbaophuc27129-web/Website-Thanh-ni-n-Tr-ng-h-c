@@ -514,13 +514,16 @@ export interface ForumMedia {
 export interface ForumThread {
   id: number;
   alias: string; // "Bằng Lăng Tim Xanh #2481" — sinh cứng lúc tạo, KHÔNG random lúc render
-  authorAccountId: number; // RIÊNG TƯ — không bao giờ hiển thị công khai
+  authorAccountId: number; // RIÊNG TƯ — khách / đoàn viên nhận null nếu không phải bài của mình
   title: string;
   content: string;
   topic?: string;
   media?: ForumMedia[];
   status: "PUBLISHED" | "HIDDEN"; // chờ duyệt = FLAGGED && !moderatedByAccountId
+  /** Khách / đoàn viên chỉ nhận [id của mình] nếu đã thích, ngược lại [] — đếm bằng likeCount */
   likedByAccountIds: number[];
+  /** Tổng lượt thích do máy chủ đếm (dòng đã che); thiếu thì dùng likedByAccountIds.length */
+  likeCount?: number;
   aiVerdict: "CLEAN" | "FLAGGED";
   aiReason?: string;
   aiModel?: string;
@@ -539,6 +542,8 @@ export interface ForumComment {
   media?: ForumMedia[];
   status: "PUBLISHED" | "PENDING_REVIEW" | "REJECTED";
   likedByAccountIds: number[];
+  /** Tổng lượt thích do máy chủ đếm (dòng đã che); thiếu thì dùng likedByAccountIds.length */
+  likeCount?: number;
   aiVerdict: "CLEAN" | "FLAGGED";
   aiReason?: string;
   aiModel?: string;

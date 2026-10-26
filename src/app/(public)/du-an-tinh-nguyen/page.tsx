@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { moderateText } from "@/lib/ai-moderation";
 import { buildTemplateWordData, downloadWordDoc } from "@/lib/word-export";
 import { relTime } from "@/lib/utils";
 import { uploadFile } from "@/lib/upload-client";
@@ -24,7 +23,7 @@ const PROVINCE_OPTIONS = [
   "Bình Dương", "TP Hồ Chí Minh", "Cần Thơ", "Bến Tre",
 ];
 
-const REPORT_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5MB
+const REPORT_FILE_MAX_BYTES = 25 * 1024 * 1024; // 25MB — khớp giới hạn máy chủ (/api/uploads, phân hệ du-an)
 
 /** Chip đính kèm file báo cáo (card + khối chờ duyệt dùng chung) */
 function ReportFileChip({ p }: { p: Pick<VolunteerProject, "reportFile"> }) {
@@ -134,7 +133,7 @@ export default function DuAnTinhNguyenPage() {
     const file = files?.[0];
     if (!file) return;
     if (file.size > REPORT_FILE_MAX_BYTES) {
-      toast(`File "${file.name}" vượt 5MB — hãy nén hoặc chọn file nhỏ hơn.`, "warning");
+      toast(`File "${file.name}" vượt 25MB — hãy nén hoặc chọn file nhỏ hơn.`, "warning");
     } else {
       // File báo cáo lưu trên máy chủ — chỉ giữ đường dẫn /uploads/...
       setReportUploading(true);
@@ -156,32 +155,31 @@ export default function DuAnTinhNguyenPage() {
       toast("Cần tên dự án tối thiểu 8 ký tự và tóm tắt tối thiểu 20 ký tự.", "warning");
       return;
     }
+    // Máy chủ tự kiểm duyệt AI; đơn vị / tên trường lấy theo tài khoản đăng nhập
     setBusy(true);
-    const mod = await moderateText(`${pName}\n${pSummary}`);
-    submitVolunteerProject(
-      session,
-      {
-        orgUnitId: session.orgUnitId,
-        schoolName: orgName(session.orgUnitId),
-        province: pProvince,
-        projectName: pName,
-        summary: pSummary,
-        beneficiaries: pBeneficiaries || "Cộng đồng địa phương",
-        participants: Number(pParticipants) || 1,
-        field: pField,
-        phase: pPhase,
-        reportFile: pReportFile ?? undefined,
-      },
-      mod
-    );
+    const res = await submitVolunteerProject({
+      province: pProvince,
+      projectName: pName,
+      summary: pSummary,
+      beneficiaries: pBeneficiaries || "Cộng đồng địa phương",
+      participants: Number(pParticipants) || 1,
+      field: pField,
+      phase: pPhase,
+      reportFile: pReportFile ?? undefined,
+    });
     setBusy(false);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setOpenSubmit(false);
     setPName(""); setPSummary(""); setPBeneficiaries(""); setPParticipants("50"); setPReportFile(null);
+    const clean = res.mod?.verdict !== "FLAGGED";
     toast(
-      mod.verdict === "CLEAN"
+      clean
         ? "Đã tiếp nhận dự án — chờ cấp trên duyệt, được duyệt sẽ đăng vào ngân hàng dự án (+20 điểm)."
-        : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — dự án chờ kiểm duyệt thủ công.`,
-      mod.verdict === "CLEAN" ? "success" : "warning"
+        : `AI gắn cờ nội dung (${res.mod?.reason ?? "đáng ngờ"}) — dự án chờ kiểm duyệt thủ công.`,
+      clean ? "success" : "warning"
     );
   };
 
@@ -496,7 +494,7 @@ export default function DuAnTinhNguyenPage() {
               <Input type="number" min={1} value={pParticipants} onChange={(e) => setPParticipants(e.target.value)} />
             </Field>
           </div>
-          <Field label="File báo cáo phương pháp thực hiện (không bắt buộc)" hint=".pdf/.doc/.docx · tối đa 5MB — có thể tải mẫu về điền">
+          <Field label="File báo cáo phương pháp thực hiện (không bắt buộc)" hint=".pdf/.doc/.docx · tối đa 25MB — có thể tải mẫu về điền">
             <div className="space-y-2">
               <input ref={reportInputRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => pickReportFile(e.target.files)} />
               <div className="flex flex-wrap gap-2">

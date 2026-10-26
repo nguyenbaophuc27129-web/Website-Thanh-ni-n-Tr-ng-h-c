@@ -28,7 +28,6 @@ import {
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { moderateText } from "@/lib/ai-moderation";
 import { SPECIAL_CATEGORIES, SECTION_TAGS } from "@/data/categories";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { Modal } from "@/components/ui/modal";
@@ -115,21 +114,24 @@ export default function TinTucPage() {
       toast("Cần tiêu đề tối thiểu 8 ký tự và nội dung tối thiểu 40 ký tự.", "warning");
       return;
     }
+    // Máy chủ tự kiểm duyệt AI rồi lưu bài ở trạng thái chờ duyệt
     setCBusy(true);
-    const mod = await moderateText(`${cTitle}\n${cContent}`);
-    createMemberContribution(
-      session,
-      { categoryTag: cTag, title: cTitle, excerpt: cExcerpt || cContent.slice(0, 150), content: cContent, coverDataUrl: cCover },
-      mod
-    );
+    const res = await createMemberContribution({
+      categoryTag: cTag, title: cTitle, excerpt: cExcerpt || cContent.slice(0, 150), content: cContent, coverDataUrl: cCover,
+    });
     setCBusy(false);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setContribOpen(false);
     setCTitle(""); setCExcerpt(""); setCContent(""); setCCover(undefined); setCCoverName("");
+    const clean = res.mod?.verdict !== "FLAGGED";
     toast(
-      mod.verdict === "CLEAN"
+      clean
         ? "Đã gửi bài đóng góp — nội dung đạt kiểm duyệt AI, chờ Ban Biên tập duyệt đăng."
-        : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — bài ở trạng thái chờ kiểm duyệt thủ công.`,
-      mod.verdict === "CLEAN" ? "success" : "warning"
+        : `AI gắn cờ nội dung (${res.mod?.reason ?? "đáng ngờ"}) — bài ở trạng thái chờ kiểm duyệt thủ công.`,
+      clean ? "success" : "warning"
     );
   };
 
