@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbEnabled, query, withTransaction } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
-import { effectivePermissions, hasPerm } from "@/lib/permissions";
+import { ACCOUNT_ADMIN_ROLES, effectivePermissions, hasPerm } from "@/lib/permissions";
 import { permissionsList } from "@/data/org-units";
 
 export const runtime = "nodejs";
@@ -43,6 +43,9 @@ async function canGrantPermissions(
     return true;
   }
 
+  // Chỉ vai trò quản trị tài khoản (TW/Tỉnh/cấp 3) mới phân quyền cho cấp dưới — đoàn viên,
+  // DON_VI, BIEN_TAP_VIEN không được (trước đây chỉ cần cùng đơn vị là qua)
+  if (!ACCOUNT_ADMIN_ROLES.includes(callerRole)) return false;
   // Các tài khoản khác không được tự phân quyền cho chính mình
   if (callerAccountId === targetAccountId) return false;
   if (callerUnitId === targetUnitId) return true;
@@ -64,6 +67,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const accountId = Number(id);
   if (!accountId) return NextResponse.json({ ok: false, error: "DỮ LIỆU KHÔNG HỢP LỆ" }, { status: 400 });
+
+  // Quyền gán riêng là thông tin quản trị: chỉ xem của chính mình, hoặc của tài khoản trong
+  // phạm vi mình được phân quyền (cùng điều kiện với PUT) — không cho tài khoản bất kỳ dò id.
+  if (ctx.session.accountId !== accountId) {
+    const targets = await query<{ org_unit_id: number }>(
+      "SELECT org_unit_id FROM accounts WHERE id = $1 AND deleted_at IS NULL",
+      [accountId],
+    );
+    const target = targets[0];
+    if (!target) return NextResponse.json({ ok: false, error: "KHÔNG TÌM THẤY TÀI KHOẢN" }, { status: 404 });
+    const allowed = await canGrantPermissions(
+      ctx.session.role,
+      ctx.session.accountId,
+      ctx.session.orgUnitId,
+      ctx.perms,
+      accountId,
+      Number(target.org_unit_id),
+    );
+    if (!allowed) {
+      return NextResponse.json({ ok: false, error: "BẠN KHÔNG CÓ QUYỀN XEM PHÂN QUYỀN CỦA TÀI KHOẢN NÀY" }, { status: 403 });
+    }
+  }
 
   const rows = await query<{ perm_code: string }>(
     "SELECT perm_code FROM account_permissions WHERE account_id = $1 ORDER BY perm_code",

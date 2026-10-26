@@ -1,5 +1,17 @@
 "use client";
 
+/*
+ * 3 QUY TẮC KHI SỬA FILE NÀY (cơ chế đồng bộ với /api/store — chi tiết: DOCS_HE_THONG_LOGIC_VA_DB.md mục 4.4):
+ * 1. KHÔNG bỏ bộ theo dõi dòng (baseRef + pendingRef): client chỉ gửi dòng MỚI/ĐỔI so với bản đã khớp
+ *    DB. Bỏ nó là gần như không gì được ghi, hoặc gửi cả bảng sẽ đè thay đổi của người khác.
+ * 2. Thao tác của khách / đoàn viên KHÔNG ghi qua /api/store: gọi API riêng (/api/phan-anh,
+ *    /api/diem-danh, /api/thi/*, /api/dien-dan/*…) rồi đưa dòng server trả về vào state bằng
+ *    adoptServerRows (đánh dấu đã khớp DB, không gửi lại).
+ * 3. Entity mới phải khai CẢ chính sách đọc (store-read-policy.ts) LẪN ghi (store-write-policy.ts);
+ *    thiếu luật thì cán bộ cấp dưới không đọc/ghi được. Kiểm tra: scripts/kiem-thu/kiem-chinh-sach.mts
+ *    (xem scripts/kiem-thu/README.md); route /api/store cũng cảnh báo trong log khi thiếu.
+ */
+
 import {
   createContext,
   useCallback,
@@ -24,6 +36,7 @@ import type {
 } from "@/types";
 import { CONTRIBUTION_POINTS } from "@/types";
 import { orgUnits as seedOrgUnits, descendantIds } from "@/data/org-units";
+import { ACCOUNT_ADMIN_ROLES } from "@/lib/permissions";
 import { accounts as seedAccounts } from "@/data/accounts";
 import { contentCategories, documentCategories, resourceTypes, feedbackTopics } from "@/data/categories";
 import { activities as seedActivities } from "@/data/activities";
@@ -459,6 +472,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshAccounts = useCallback(async () => {
+    // Chỉ vai trò quản trị tài khoản mới gọi được /api/accounts — vai trò khác (khách, đoàn viên,
+    // DON_VI, BIEN_TAP_VIEN) sẽ nhận 401/403, nên không gọi/poll để khỏi rác log + tốn tài nguyên.
+    const role = sessionRef.current?.role;
+    if (!role || !ACCOUNT_ADMIN_ROLES.includes(role)) return;
     try {
       const res = await fetch("/api/accounts");
       const data = await res.json().catch(() => null);

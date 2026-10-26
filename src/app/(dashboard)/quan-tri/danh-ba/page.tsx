@@ -33,17 +33,6 @@ export default function DanhBaAdminPage() {
   const isTW = session?.role === "QUAN_TRI_TW";
   const isUnit = session?.role === "DON_VI";
 
-  if (!session) {
-    return (
-      <Card>
-        <CardBody className="flex flex-col items-center py-16 text-center">
-          <ShieldAlert className="h-10 w-10 text-stone-300" />
-          <p className="mt-3 text-sm font-semibold text-stone-700">Vui lòng đăng nhập</p>
-        </CardBody>
-      </Card>
-    );
-  }
-
   const directories = useMemo(() => {
     let list = store.orgDirectories.filter((d) => scope.has(d.orgUnitId));
     const kw = q.trim().toLowerCase();
@@ -69,6 +58,18 @@ export default function DanhBaAdminPage() {
     () => orgsInScope.filter((id) => !store.orgDirectories.some((d) => d.orgUnitId === id)).length,
     [store, orgsInScope]
   );
+
+  // Chặn truy cập đặt SAU mọi hook (không được return sớm trước hook)
+  if (!session) {
+    return (
+      <Card>
+        <CardBody className="flex flex-col items-center py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-stone-300" />
+          <p className="mt-3 text-sm font-semibold text-stone-700">Vui lòng đăng nhập</p>
+        </CardBody>
+      </Card>
+    );
+  }
 
   const openEdit = (orgUnitId: number) => {
     const existing = store.orgDirectories.find((d) => d.orgUnitId === orgUnitId);

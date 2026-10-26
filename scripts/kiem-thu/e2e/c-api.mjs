@@ -94,11 +94,13 @@ expect("t.donvi sửa settings → 403", await post(donvi, { settings: [{ ...sit
 expect("t.tinh sửa settings → 403", await post(tinh, { settings: [{ ...siteName, value: "Bị sửa" }] }), 403);
 
 /* ---------- Gửi lại dòng y hệt của đơn vị khác ---------- */
-const a2 = data.activities.find((a) => a.id === A2.id);
-const p1 = data.publishedPosts.find((p) => p.id === P1.id);
+// Dòng của đơn vị khác nay KHÔNG còn nằm trong snapshot của t.donvi (lọc đọc theo cây đơn vị) — lấy từ t.tw
+const twData = await snap(tw);
+const a2 = twData.activities.find((a) => a.id === A2.id);
+const p1 = twData.publishedPosts.find((p) => p.id === P1.id);
 r = await post(donvi, {
-  activities: [{ ...a2, links: data.activityLinks.filter((l) => l.activityId === A2.id), categoryIds: [] }], activityCategories: [], activityLinks: data.activityLinks.filter((l) => l.activityId === A2.id), criteriaSets: [set3], publishedPosts: [p1], settings: [siteName],
-  scores: data.scores.filter((s) => s.id === ID(603)),
+  activities: [{ ...a2, links: twData.activityLinks.filter((l) => l.activityId === A2.id), categoryIds: [] }], activityCategories: [], activityLinks: twData.activityLinks.filter((l) => l.activityId === A2.id), criteriaSets: [set3], publishedPosts: [p1], settings: [siteName],
+  scores: twData.scores.filter((s) => s.id === ID(603)),
 });
 check("gửi lại dòng không đổi của đơn vị khác → không chặn, không ghi",
   r.status === 200 && Object.keys(r.j?.counts ?? {}).length === 0 && r.j?.skipped >= 5, JSON.stringify(r.j));

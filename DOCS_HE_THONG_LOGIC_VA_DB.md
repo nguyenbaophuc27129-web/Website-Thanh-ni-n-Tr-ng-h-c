@@ -17,7 +17,7 @@
 Hệ thống kết hợp giữa **Server-side PostgreSQL** làm nguồn sự thật duy nhất (Single Source of Truth) và **Client-side React Context (`StoreContext`)** giúp giao diện phản hồi tức thì (Optimistic UI):
 1. **Hydration khởi động**: Khi trình duyệt tải trang, `StoreContext` lập tức gọi `GET /api/store` và `GET /api/org-units` để kéo toàn bộ dữ liệu thật từ DB về bộ nhớ client.
 2. **Lưu trữ tức thời (Persistence)**: Mọi thao tác thêm/sửa/xoá trên UI đều cập nhật state trong bộ nhớ và ghi nhận thay đổi (thêm mới, cập nhật, hoặc đưa vào danh sách tombstone).
-3. **Đồng bộ ngầm (Background Sync)**: Cứ mỗi 4 giây (hoặc ngay sau khi thao tác quan trọng hoàn tất), hệ thống đẩy thay đổi lên `POST /api/store` để ghi vào PostgreSQL bằng cơ chế **UPSERT** và xóa theo **Tombstones ngược khóa ngoại**.
+3. **Đồng bộ ngầm (Background Sync)**: Client chỉ đẩy **dòng mới/đổi** (và id đã xoá) lên `POST /api/store` — sau khoảng 1,2 giây yên tĩnh, hoặc ngay khi rời trang/ẩn tab — để ghi vào PostgreSQL bằng cơ chế **UPSERT** và xóa theo **Tombstones ngược khóa ngoại**. Vòng 4 giây chỉ là chiều **nạp lại** từ server (bỏ qua khi tab ẩn hoặc máy còn thay đổi chờ gửi). Chi tiết ở mục 4.4.
 4. **Không mất dữ liệu khi F5**: Vì dữ liệu được lưu vĩnh viễn trong PostgreSQL và tự động nạp lại khi mount, việc F5 hay chuyển đổi thiết bị đều giữ trọn vẹn 100% dữ liệu.
 5. **Không dùng dữ liệu ảo (Zero Fake/Mock Data)**: Toàn bộ bảng nhiệm vụ, kết quả báo cáo, chỉ tiêu phân bổ và điểm thi đua đều lấy từ dữ liệu thực tế do người dùng tạo.
 
@@ -108,7 +108,7 @@ tnth-website/
 - **Logic chi tiết**:
   - Cung cấp hook `useStore()` truy xuất mọi danh mục dữ liệu.
   - Tự động nạp dữ liệu lần đầu khi mount (`refreshSnapshot()` và `refreshOrgUnits()`).
-  - Thiết lập vòng lặp nền 4 giây đồng bộ các thay đổi cục bộ lên server nếu có mutation phát sinh.
+  - Bộ theo dõi dòng (`baseRef`/`pendingRef`) gom dòng mới/đổi để gửi lên server; vòng nền 4 giây nạp lại snapshot từ server. `adoptServerRows(entity, rows)` đưa dòng do API riêng trả về vào state và đánh dấu đã khớp DB. Xem mục 4.4.
   - Hỗ trợ hàm tìm kiếm theo cây: `orgById()`, `orgName()`, `childrenOf()`, `scopeIds()`, `isDescendant()`.
   - Hàm tính toán tiến độ: `targetOf()`, `resultsOf()`, `latestReviewOf()`, `unitScore()`.
 
@@ -375,6 +375,29 @@ DO UPDATE SET ...                   (Theo chiều ngược FK Dependency)
 2. **Không xảy ra Race Condition**: Cơ chế `ON CONFLICT (id) DO UPDATE` ngăn chặn hoàn toàn lỗi trùng lặp khóa chính hoặc lỗi ghi đè dữ liệu sai thời điểm.
 3. **An toàn khóa ngoại (Referential Integrity)**: Khi xóa đối tượng cha, hệ thống xóa các bảng con trước, loại bỏ triệt để lỗi `violates foreign key constraint`.
 4. **Không phụ thuộc LocalStorage**: Dữ liệu sống thực sự trên PostgreSQL, đảm bảo hoạt động nhất quán trên mọi máy tính và trình duyệt của cán bộ Đoàn.
+
+### 4.4. Cơ chế đồng bộ & phân quyền đọc/ghi `/api/store` (hiện hành)
+
+**Chiều ghi (client → server)**
+- `store-context.tsx` giữ `baseRef` (bản đã khớp DB của từng dòng, so theo tham chiếu đối tượng; state luôn cập nhật bất biến nên dòng đổi là có đối tượng mới). Dòng khác `baseRef` vào `pendingRef`, sau ~1,2 giây (hoặc ngay khi rời trang/ẩn tab, dùng `keepalive` nếu body < 60KB) gửi `POST /api/store {entities, deletes}` — **chỉ dòng mới/đổi**, không gửi cả bảng. Nhờ vậy không đè thay đổi của người khác lên dòng mình không sửa.
+- Nạp lại snapshot mỗi 4 giây **chỉ áp dụng khi máy không còn thay đổi chờ gửi**; kết quả nạp bị bỏ nếu trong lúc chờ có thay đổi cục bộ mới.
+- Server (`src/app/api/store/route.ts`) trong một transaction: lập kế hoạch từng dòng (`planRowWrite`: thêm/sửa/xoá, cột đổi so với DB) → bỏ dòng không đổi (`skipped`) → kiểm quyền từng dòng bằng `WRITE_POLICIES` → UPSERT/xoá → ghi `audit_logs`. Có dòng vi phạm thì **403 cả lô** và rollback.
+- **Khách & đoàn viên không ghi qua `/api/store`** (`PUBLIC_WRITE_ENTITIES`/`MEMBER_ALLOWED_WRITE_ENTITIES` rỗng; POST trả 401/403). Họ dùng API riêng — `/api/phan-anh`, `/api/diem-danh`, `/api/thi/*`, `/api/dien-dan/*`, `/api/dong-gop`, `/api/tai-nguyen/dong-gop`, `/api/du-an`, `/api/hs3t/*` — nơi server tự kiểm duyệt, chấm điểm thi, cộng điểm. Client đưa dòng server trả về vào state bằng `adoptServerRows` (đánh dấu đã khớp DB nên bộ theo dõi không gửi lại).
+
+**Phân quyền ghi — `src/lib/server/store-write-policy.ts`**
+- `WRITE_POLICIES[entity]` gồm `check(change, env)` (trả lý do từ chối tiếng Việt hoặc `null`), `setOnInsert` (cột server tự điền, vd. người tạo), `keepOnUpdate` (cột không được sửa).
+- Nguyên tắc: phạm vi = đơn vị của phiên + mọi đơn vị con (tính ở server từ `org_units`); `QUAN_TRI_TW` có quyền `*` bỏ qua kiểm tra; điều kiện phải đúng với **cả dòng cũ trong DB lẫn dòng mới** (không chuyển bản ghi sang đơn vị khác); xoá dùng điều kiện của dòng hiện có; có quy tắc riêng như không tự chấm điểm đơn vị mình, không tự duyệt, chỉ người nhận được đánh dấu đã đọc.
+- Mỗi dòng thêm/sửa/xoá ghi bảng `audit_logs` (tài khoản, hành động, entity, giá trị cũ/mới, IP, user-agent). Lỗi ghi nhật ký chỉ cảnh báo trong log, không làm hỏng lần lưu — cần `tnth_app` có quyền `INSERT` trên bảng này.
+
+**Phân quyền đọc — `src/lib/server/store-read-policy.ts`**
+- `buildReadViewer` dựng người xem thuộc 1 trong 3 phạm vi: `public` (khách), `member` (`DOAN_VIEN`), `full` (cán bộ). `QUAN_TRI_TW` xem toàn bộ; cán bộ khác chỉ thấy dữ liệu nội bộ trong cây đơn vị của mình, dữ liệu tham chiếu chung (bộ tiêu chí, nhiệm vụ, đề thi, BXH đã chốt…) giữ nguyên.
+- Mỗi entity có một luật: `null` = không trả; `where` = điều kiện SQL (biến `{me}` `{tree}` `{open}` `{prov}` được bind tham số); `mask` = che/bỏ cột sau khi đọc (vd. diễn đàn ẩn danh, đáp án đề thi). Khách/đoàn viên còn phải nằm trong `PUBLIC_READ_ENTITIES`/`MEMBER_READ_ENTITIES` (`store-tables.ts`). Với cán bộ chỉ **lọc dòng, không che cột** (vì client cán bộ ghi lại cả dòng, cột bị che sẽ bị UPSERT đè mất).
+- Entity chưa có luật thì **không trả** cho người xem tương ứng (an toàn mặc định).
+- Thống kê công khai (số đơn vị, lượt…) đi qua `/api/thong-ke`, không đọc bảng nội bộ.
+
+**Chốt chặn khi thêm entity mới**
+- Khai trong `ENTITY_SPECS` + `ENTITY_ORDER` (`store-tables.ts`), luật ghi trong `WRITE_POLICIES`, luật đọc trong `PUBLIC_RULES`/`MEMBER_RULES`/`STAFF_RULES` (và tập `*_READ_ENTITIES` nếu khách/đoàn viên được đọc).
+- Entity cố ý không cho ghi/đọc phải khai trong `WRITE_DENIED_BY_DESIGN`/`READ_DENIED_BY_DESIGN` (`src/lib/server/store-policy-audit.ts`). Thiếu khai báo thì route `/api/store` cảnh báo trong log khi nạp module và `scripts/kiem-thu/kiem-chinh-sach.mts` thoát mã 1 (cách chạy: `scripts/kiem-thu/README.md`).
 
 ---
 

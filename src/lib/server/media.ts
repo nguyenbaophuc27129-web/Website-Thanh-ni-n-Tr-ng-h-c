@@ -27,14 +27,26 @@ const MB = 1024 * 1024;
 export type MediaKind = "bai-viet" | "dong-gop" | "dien-dan" | "van-ban" | "tai-nguyen" | "du-an";
 type FileClass = "image" | "video" | "document";
 
-export const KIND_RULES: Record<MediaKind, { classes: FileClass[]; maxBytes: number; staffOnly: boolean }> = {
+/**
+ * maxBytes = trần chung của phân hệ (cũng là mức đọc tối đa khi tải từ URL);
+ * maxBytesByClass = giới hạn chặt hơn theo loại tệp (nếu có), kiểm trên kích thước tệp GỐC
+ * gửi lên — trước khi chuyển WebP. Giữ khớp với giới hạn phía trình duyệt (vd. src/lib/forum-media.ts).
+ */
+export const KIND_RULES: Record<
+  MediaKind,
+  { classes: FileClass[]; maxBytes: number; maxBytesByClass?: Partial<Record<FileClass, number>>; staffOnly: boolean }
+> = {
   "bai-viet": { classes: ["image"], maxBytes: 10 * MB, staffOnly: true },
   "van-ban": { classes: ["document", "image"], maxBytes: 25 * MB, staffOnly: true },
   "dong-gop": { classes: ["image"], maxBytes: 10 * MB, staffOnly: false },
-  "dien-dan": { classes: ["image", "video"], maxBytes: 15 * MB, staffOnly: false },
+  // Diễn đàn: ảnh ≤2MB, video ≤15MB (khớp src/lib/forum-media.ts)
+  "dien-dan": { classes: ["image", "video"], maxBytes: 15 * MB, maxBytesByClass: { image: 2 * MB, video: 15 * MB }, staffOnly: false },
   "tai-nguyen": { classes: ["document", "image", "video"], maxBytes: 25 * MB, staffOnly: false },
   "du-an": { classes: ["document"], maxBytes: 25 * MB, staffOnly: false },
 };
+
+const CLASS_LABEL: Record<FileClass, string> = { image: "Ảnh", video: "Video", document: "Tệp" };
+const mbText = (bytes: number) => `${Math.round((bytes / MB) * 10) / 10}MB`;
 
 export const isMediaKind = (v: unknown): v is MediaKind =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(KIND_RULES, v);
@@ -153,6 +165,15 @@ export async function storeMedia(input: {
 
   const video = detectVideo(buffer);
   const doc = video ? null : detectDocument(buffer, originalName);
+  // Giới hạn theo loại tệp (nếu phân hệ khai) — kiểm trên tệp gốc, trước khi xử lý/chuyển WebP
+  const fileClass: FileClass = video ? "video" : doc ? "document" : "image";
+  const classLimit = rule.maxBytesByClass?.[fileClass];
+  if (classLimit !== undefined && buffer.length > classLimit) {
+    throw new MediaError(
+      `${CLASS_LABEL[fileClass]} vượt quá ${mbText(classLimit)} (tệp của bạn ${mbText(buffer.length)}) — hãy chọn tệp nhỏ hơn.`,
+      413,
+    );
+  }
   if (video) {
     if (!rule.classes.includes("video")) throw new MediaError("Mục này không nhận video.", 415);
     data = buffer;

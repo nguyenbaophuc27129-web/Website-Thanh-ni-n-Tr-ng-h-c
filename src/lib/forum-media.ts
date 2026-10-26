@@ -1,7 +1,8 @@
 import type { ForumMedia } from "@/types";
 import { uploadFile } from "@/lib/upload-client";
 
-/** Giới hạn đính kèm diễn đàn: ảnh ≤2MB × tối đa, video ≤15MB × 1, tổng ≤5 tệp */
+/** Giới hạn đính kèm diễn đàn: ảnh ≤2MB × tối đa, video ≤15MB × 1, tổng ≤5 tệp.
+ *  Máy chủ kiểm lại cùng mức này ở KIND_RULES["dien-dan"].maxBytesByClass (src/lib/server/media.ts) — đổi thì đổi cả hai. */
 export const FORUM_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 export const FORUM_VIDEO_MAX_BYTES = 15 * 1024 * 1024;
 export const FORUM_MEDIA_MAX_ITEMS = 5;

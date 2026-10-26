@@ -6,6 +6,7 @@ import {
   sessionFromToken,
   type RoleCode,
 } from "@/lib/server/auth";
+import { ACCOUNT_ADMIN_ROLES } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -18,11 +19,7 @@ const VALID_ROLES: RoleCode[] = [
   "DOAN_VIEN",
 ];
 
-const ALLOWED_ADMIN_ROLES: RoleCode[] = [
-  "QUAN_TRI_TW",
-  "QUAN_TRI_TINH",
-  "QUAN_TRI_CAP3",
-];
+const ALLOWED_ADMIN_ROLES = ACCOUNT_ADMIN_ROLES;
 
 /** GET /api/accounts — danh sách tài khoản cho trang Phân quyền (kèm số quyền gán riêng). */
 export async function GET(request: NextRequest) {

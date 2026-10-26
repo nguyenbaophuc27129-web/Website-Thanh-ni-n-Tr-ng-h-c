@@ -121,7 +121,7 @@ Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<
 
 - Ảnh luôn chuyển sang WebP, xoá EXIF/GPS, cạnh dài tối đa 2000px; không nhận SVG.
 - Video/văn bản giữ nguyên tệp, chỉ nhận định dạng trong danh sách và kiểm tra chữ ký tệp. Tệp Office/nén/txt luôn tải xuống (`Content-Disposition: attachment`).
-- Dung lượng tối đa: ảnh 10MB, video diễn đàn 15MB, văn bản/tài nguyên 25MB (Caddy giới hạn thân request 30MB).
+- Dung lượng tối đa theo phân hệ/loại tệp (`KIND_RULES` trong `src/lib/server/media.ts`, kiểm trên tệp GỐC trước khi chuyển WebP): ảnh bài viết/đóng góp 10MB; diễn đàn ảnh 2MB, video 15MB; văn bản/tài nguyên/dự án 25MB (Caddy giới hạn thân request 30MB).
 - `POST /api/store` gặp chuỗi base64 trong cột tệp (tab cũ chưa tải lại) sẽ tự chuyển thành tệp trên đĩa.
 - Chuyển dữ liệu cũ: `scripts/migrate-media.mts` (hướng dẫn chạy ở đầu file).
 - **Dọn tệp mồ côi** (tệp/dòng `media_files` không còn cột nào trong DB nhắc tới, cũ hơn 7 ngày): `scripts/clean-orphan-media.mts`. Chạy tay, chưa đặt lịch. `DATABASE_URL` phải trỏ đúng DB đang dùng thư mục `/srv/tnth/uploads` (hiện là `tnth_dev`); nên sao lưu DB + thư mục tệp trước khi xoá.

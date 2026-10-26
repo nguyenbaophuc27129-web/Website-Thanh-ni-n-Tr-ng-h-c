@@ -76,6 +76,18 @@ export default function ThiAdminPage() {
   const [gradingId, setGradingId] = useState<number | null>(null);
   const [gradeInputs, setGradeInputs] = useState<Record<number, number>>({});
 
+  // Các hook dưới đây phải đứng TRƯỚC lệnh return sớm của bước chặn vai trò
+  const pickedQuestions = useMemo(
+    () => (picked ? picked.map((id) => store.quizQuestions.find((q) => q.id === id)).filter((q) => q !== undefined) : []),
+    [picked, store.quizQuestions]
+  );
+
+  const gradingAttempt = gradingId !== null ? store.quizAttempts.find((x) => x.id === gradingId) : undefined;
+  const gradingEssays = useMemo(() => {
+    if (!gradingAttempt) return [];
+    return store.quizQuestions.filter((q) => isEssay(q.type) && gradingAttempt.answers[q.id]);
+  }, [gradingAttempt, store.quizQuestions]);
+
   if (!session || (session.role !== "QUAN_TRI_TW" && session.role !== "QUAN_TRI_TINH" && session.role !== "QUAN_TRI_CAP3" && session.role !== "DON_VI")) {
     return (
       <Card>
@@ -146,11 +158,6 @@ export default function ThiAdminPage() {
     toast(status === "OPEN" ? "Đã đóng kỳ thi — thí sinh không vào được nữa." : "Đã mở kỳ thi — mã kỳ thi có hiệu lực.", "info");
   };
 
-  const pickedQuestions = useMemo(
-    () => (picked ? picked.map((id) => store.quizQuestions.find((q) => q.id === id)).filter((q) => q !== undefined) : []),
-    [picked, store.quizQuestions]
-  );
-
   const attemptsNeedingGrade = store.quizAttempts.filter(
     (a) => a.status === "SUBMITTED" && store.quizQuestions.some((q) => isEssay(q.type) && a.answers[q.id])
   );
@@ -166,11 +173,6 @@ export default function ThiAdminPage() {
     setGradingId(attemptId);
   };
 
-  const gradingAttempt = gradingId !== null ? store.quizAttempts.find((x) => x.id === gradingId) : undefined;
-  const gradingEssays = useMemo(() => {
-    if (!gradingAttempt) return [];
-    return store.quizQuestions.filter((q) => isEssay(q.type) && gradingAttempt.answers[q.id]);
-  }, [gradingAttempt, store.quizQuestions]);
   const gradingTotal = Object.values(gradeInputs).reduce((s, v) => s + (Number(v) || 0), 0);
 
   const saveGrades = () => {
