@@ -24,14 +24,14 @@ DB chính thức vẫn là `tnth_dev` — chủ dự án quyết định **khôn
 
 **Các bước đã làm khi triển khai đợt 2** (dùng lại cho lần sau): sao lưu (`deploy/db-backup.sh`) → áp `0028` vào `tnth_dev` (`scripts/db-migrate.mjs` hoặc psql với `SET ROLE coder_dev`) → `deploy/deploy.sh` → `docker compose restart proxy` (Caddy nhận header `X-Client-Ip`; chưa restart thì mọi khách bị gộp chung một hạn mức chat AI). Báo lập trình viên: `moderateForumItem` và `toggleAttendance` đổi chữ ký (async, gọi API riêng); diễn đàn không ghi qua `/api/store` nữa.
 
-## Đợt 3 (tối 26/10, CHƯA triển khai — cần migration `0029`) — Trình soạn thảo bài viết
+## Đợt 3 (tối 26/10, đã triển khai ~18:50 — commit `71e0867`, migration tới `0029`; sao lưu trước triển khai: `/var/backups/tnth/*-20261026-184825*`) — Trình soạn thảo bài viết
 - **Tiptap 3.31.4** (MIT, ghim đúng phiên bản; chủ dự án chọn sau khi so sánh CKEditor/TinyMCE/Jodit/Lexical/BlockNote/Plate…). Lõi dùng chung `src/lib/editor/`: lược đồ (`schema.ts`), hàm thuần không kéo Tiptap (`doc-utils.ts`), chốt chặn danh sách trắng (`doc-validate.ts`), chuyển Markdown cũ (`legacy-markdown.ts`), dọn HTML dán từ Word/Google Docs (`word-paste.ts`, phần danh sách chuyển từ Jodit — MIT, ghi nguồn trong file).
 - `RichEditor` (`src/components/editor/`, tải động — trang khác không phải tải): thanh công cụ kiểu Word (đoạn/H2/H3, B I U S, canh trái/giữa/phải/đều, danh sách, trích dẫn, link, ảnh, bảng, YouTube, đường kẻ, xoá định dạng, hoàn tác); menu nổi khi bôi đen / chọn ảnh; gõ `/` chèn nhanh; phím tắt + gõ tắt Markdown. Ảnh hiện ngay khi chọn/dán/kéo thả rồi tải lên `/uploads/bai-viet`, chỉnh độ rộng 25–100% (tối đa, không phóng to quá cỡ thật), vị trí, chú thích, mô tả (alt); ảnh link ngoài / data: tự lấy về máy chủ; ảnh `file://` từ Word bị bỏ kèm thông báo.
 - Thay 4 ô soạn thảo Markdown cũ (trang `dang-bai` + 3 hộp thoại ở `xuat-ban`); trang `dang-bai` chỉ nạp form một lần mỗi bài (đồng bộ 4 giây không ghi đè phần đang sửa).
 - Hiển thị (`PostContent`): dựng thẳng React từ tài liệu (không `dangerouslySetInnerHTML`, không tải Tiptap ở trang tin); bài cũ chuyển từ Markdown nên *nghiêng*, gạch chân, danh sách nay hiện đúng; ảnh không bị cắt, bấm để phóng to (`src/components/ui/image-lightbox.tsx`, tách từ trang tài nguyên).
 - Migration `0029`: `published_posts.content_doc jsonb`; cột `content` là văn bản thuần do máy chủ rút từ `content_doc` (tìm kiếm, đoạn trích); luật ghi `publishedPosts` từ chối nội dung ngoài danh sách trắng (kể cả TW).
 - Kiểm thử: `kiem-noi-dung-bai.mts` 46/46 (gồm 3 bài thật trên web), `e2e/i-trinh-soan-thao.mjs` 56/56.
-- **Còn cần chủ dự án kiểm tay trước khi triển khai**: gõ Unikey/EVKey (Telex, VNI) trên Chrome/Edge/Cốc Cốc Windows, Gboard/Laban Key Android, iPhone; dán 3–5 bài Word thật + 1 Google Docs.
+- **Chủ dự án nên kiểm tay** (chưa làm khi triển khai): gõ Unikey/EVKey (Telex, VNI) trên Chrome/Edge/Cốc Cốc Windows, Gboard/Laban Key Android, iPhone; dán 3–5 bài Word thật + 1 Google Docs.
 - Ngoài phạm vi đợt này: trang tin dựng sẵn trên máy chủ cho SEO (mục 17); ô đóng góp bài của đoàn viên vẫn là chữ thường; soạn chung nhiều người.
 
 ## Ưu tiên cao
