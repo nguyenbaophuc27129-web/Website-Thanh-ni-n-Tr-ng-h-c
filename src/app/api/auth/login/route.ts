@@ -6,6 +6,7 @@ import {
   loginAccount,
   sessionCookieOptions,
 } from "@/lib/server/auth";
+import { clientIpOf } from "@/lib/server/client-ip";
 import { clearAttempts, recordAttempt, retryAfterSeconds } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
@@ -52,12 +53,11 @@ export async function POST(request: NextRequest) {
       );
     }
     clearAttempts(limitKey);
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-    const ipOk = ip && /^[0-9a-fA-F:.]+$/.test(ip) ? ip : null;
+    // IP thật do Caddy ghi (X-Client-Ip) — X-Forwarded-For chỉ là IP máy chủ OneShield
     const token = await createSession(
       result.accountId,
       request.headers.get("user-agent"),
-      ipOk,
+      clientIpOf(request),
     );
     const res = NextResponse.json({ ok: true, session: result.session });
     const viaHttps =

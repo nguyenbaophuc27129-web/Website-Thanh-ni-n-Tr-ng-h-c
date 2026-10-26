@@ -13,21 +13,19 @@ scripts/kiem-thu/xoa-moi-truong-thu.sh      # dọn sạch khi xong
 
 Tài khoản thử (mật khẩu chung trong `$TNTH_TEST_DIR/test-password.txt`, mặc định `/var/tmp/tnth-kiem-thu`): `t.tw` (TW), `t.tinh` (Nghệ An 131), `t.tinhkhac` (Tuyên Quang 100), `t.cap3` (13101), `t.donvi` (131101), `t.donvi2` (131103), `t.btv` (Biên tập viên, TW), `t.dv1`, `t.dv2` (Đoàn viên 131101).
 
-| Kịch bản | Nội dung | Kết quả lần chạy 26/10/2026 |
+| Kịch bản | Nội dung | Kết quả chạy 26/10/2026 (code đã gộp đợt 2, `tnth_test` + `0028`) |
 |---|---|---|
 | `e2e/p0.mjs` | Lưu bài viết: chỉ gửi dòng đổi, F5 không mất, đóng tab vẫn lưu | 6/6 |
-| `e2e/a-api.mjs`, `e2e/a-ui.mjs` | Khách: phản ánh (mã ngẫu nhiên), điểm danh, thi (server chấm) | 58/60\*, 23/23 |
+| `e2e/a-api.mjs`, `e2e/a-ui.mjs` | Khách: phản ánh (mã ngẫu nhiên), điểm danh, thi (server chấm) | 60/60, 23/23 |
 | `b-api.py` (`python3 -I b-api.py http://127.0.0.1:3100`), `e2e/b-forum.mjs` | Đoàn viên: diễn đàn, đóng góp, dự án, HS3T | 56/56, 22/22 |
-| `e2e/c-api.mjs`, `e2e/c-ui.mjs` | Phân quyền ghi của cán bộ qua `/api/store` | 51/52\*, 24/24 |
+| `e2e/c-api.mjs`, `e2e/c-ui.mjs` | Phân quyền ghi của cán bộ qua `/api/store` | 53/53, 24/24 |
 | `e2e/d-snapshot.mjs`, `e2e/d-pages.mjs` | Dữ liệu đọc theo vai trò; quét 40 trang × vai trò | 81/81, 160/160 |
 | `e-api.sh` (`BASE=… bash e-api.sh`), `e2e/e-chat-widget.mjs` | fetch-article / AI: đăng nhập + giới hạn tần suất | 28/28, 7/7 |
 | `e2e/f-tai-nguyen.mjs` | Kho tài nguyên nhiều tệp: đóng góp 3–10 tệp (tải song song ≤3), từ chối 11 tệp/url giả/url ngoài, duyệt, trang chi tiết (ảnh, PDF, 360px), tải `.zip` (CRC, tên tiếng Việt, trùng tên, thiếu tệp), đếm lượt tải chống trùng, chặn XSS ở luật ghi cán bộ, `/van-ban` tải thật. Cần áp migration 0028; ghi gói zip vào `e2e/out/` để chạy `unzip -t` | 115/115 |
-| `e2e/sec-smoke.mjs` | Tổng hợp ~35 kịch bản tấn công | 34/35\* |
-| `e2e/g-kiem-duyet-diem-danh.mjs` | Cán bộ: kiểm duyệt diễn đàn qua `/api/dien-dan/kiem-duyet` (TW được, tỉnh/cấp 3/đơn vị không có `forum.manage` bị 403), cán bộ ngoài TW không thấy `authorAccountId`/`likedByAccountIds`, `/api/store` từ chối UPSERT diễn đàn; bật/tắt điểm danh từng hoạt động qua `/api/diem-danh/mo-dong` (3 bên cùng lúc không đè nhau, ngoài phạm vi 403); `created_by` của tasks/reports/documents mới = người tạo | 90/90\*\* |
+| `e2e/sec-smoke.mjs` | Tổng hợp ~35 kịch bản tấn công | 35/35 |
+| `e2e/g-kiem-duyet-diem-danh.mjs` | Cán bộ: kiểm duyệt diễn đàn qua `/api/dien-dan/kiem-duyet` (TW được, tỉnh/cấp 3/đơn vị không có `forum.manage` bị 403), cán bộ ngoài TW không thấy `authorAccountId`/`likedByAccountIds`, `/api/store` từ chối UPSERT diễn đàn; bật/tắt điểm danh từng hoạt động qua `/api/diem-danh/mo-dong` (3 bên cùng lúc không đè nhau, ngoài phạm vi 403); `created_by` của tasks/reports/documents mới = người tạo | 90/90 |
 
-\* Các mục báo hỏng là do kịch bản viết trước khi các chính sách khác được gộp (vd. đọc `liveEvents` bằng tài khoản khách, nay khách không còn nhận) — không phải lỗi; xem `docs/VIEC-TON-DONG.md` mục "Bộ kiểm thử".
-
-\*\* Chạy 26/10/2026 trên môi trường tự dựng riêng (PostgreSQL tạm sao từ `tnth_dev` + web build từ nhánh này, shim `request` thay Playwright) — **chưa chạy trên web thử `tnth_test`**. Kịch bản có `KEEP_DATA=1` để giữ dữ liệu thử và chạy các câu SQL kiểm `created_by`/`audit_logs` in ở cuối kết quả. `c-api.mjs` (mục điểm danh) và `e-api.sh` (chat khách: 10 lượt/IP, nay chung khoá "unknown" vì web thử không qua Caddy) đã đổi theo cơ chế mới.
+Web thử không đi qua Caddy nên không có header `X-Client-Ip`: mọi khách gộp chung khoá "unknown" (chat khách 10 lượt/10 phút) — `e-api.sh` đã tính theo cách này.
 
 `e-api.sh` cố ý làm cạn hạn mức AI/fetch-article — chạy cuối, hoặc khởi động lại web thử trước khi chạy kịch bản khác.
 

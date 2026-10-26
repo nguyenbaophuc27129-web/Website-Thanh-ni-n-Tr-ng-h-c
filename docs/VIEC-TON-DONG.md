@@ -1,45 +1,50 @@
-# Việc còn tồn đọng (cập nhật 26/10/2026)
+# Việc còn tồn đọng (cập nhật 26/10/2026, chiều)
 
-Sau đợt sửa lưu dữ liệu, lưu tệp trên máy chủ và bảo mật `/api/store` (các commit từ `a81b4ee` đến merge `ae7a49c`, đã triển khai lên thanhnientruonghoc.io.vn — DB `tnth_dev`, migration tới `0027`). Bộ kiểm thử dùng lại được: `scripts/kiem-thu/README.md`.
+DB chính thức vẫn là `tnth_dev` — chủ dự án quyết định **không chuyển sang `tnth_prod`** (bỏ mục chuẩn bị `tnth_prod` cũ). Bộ kiểm thử dùng lại được: `scripts/kiem-thu/README.md`.
 
-## Đã làm trong đợt này (để đối chiếu)
+## Đợt 1 (sáng 26/10, đã triển khai — merge `ae7a49c`, migration tới `0027`)
 - Ảnh/video/văn bản lưu ở `/srv/tnth/uploads`, Caddy phục vụ `/uploads/*`; không còn base64 trong DB (`DEPLOY.md` mục "Tệp tải lên").
 - Bỏ nhuận bút (cột đã xoá ở `0025`); trang Trực tiếp hiện số đơn vị thật.
-- Khôi phục lưu dữ liệu: commit `0065d65` đã bỏ bộ theo dõi thay đổi nên gần như không gì được ghi DB. Nay client chỉ gửi **dòng mới/đổi** (`src/lib/store-context.tsx`).
-- Khách & đoàn viên ghi qua API riêng (`/api/phan-anh`, `/api/diem-danh`, `/api/thi/*`, `/api/dien-dan/*`, `/api/dong-gop`, `/api/tai-nguyen/dong-gop`, `/api/du-an`, `/api/hs3t/*`); server tự chấm điểm thi, tự kiểm duyệt.
-- Cán bộ ghi qua `/api/store` bị kiểm quyền + phạm vi đơn vị từng dòng (`src/lib/server/store-write-policy.ts`), ghi `audit_logs`.
-- Dữ liệu đọc lọc theo người xem (`src/lib/server/store-read-policy.ts`); thống kê công khai qua `/api/thong-ke`.
-- `fetch-article` chỉ cán bộ; `/api/ai/*` bắt buộc đăng nhập + giới hạn tần suất (`src/lib/server/require-session.ts`).
+- Client chỉ gửi **dòng mới/đổi** (`src/lib/store-context.tsx`); khách & đoàn viên ghi qua API riêng; cán bộ ghi qua `/api/store` bị kiểm quyền + phạm vi từng dòng (`store-write-policy.ts`), ghi `audit_logs`; dữ liệu đọc lọc theo người xem (`store-read-policy.ts`).
+- `fetch-article` chỉ cán bộ; `/api/ai/*` bắt buộc đăng nhập + giới hạn tần suất.
+
+## Đợt 2 (chiều 26/10, CHƯA triển khai — cần migration `0028` + khởi động lại Caddy)
+- **Kho tài nguyên**: một tài nguyên gồm tối đa 10 tệp (`resources.attachments jsonb`, `contributor_name` — migration `0028`); đóng góp nhiều tệp (hook `src/lib/use-multi-upload.ts` + `src/components/ui/multi-upload.tsx`); trang chi tiết `/tai-nguyen/[id]` (và `/tai-nguyen/vb-<id>` cho văn bản) hiện người đóng góp, xem trước ảnh/PDF/video; tải tất cả `.zip` (`/api/tai-nguyen/[id]/zip`, `src/lib/server/zip-stream.ts`); đếm lượt tải thật (`/api/tai-nguyen/[id]/luot-tai`); `/van-ban` tải tệp thật; luật ghi chặn `javascript:`/URL ngoài ở `file_data_url`, `video_url`, `attachments`.
+- Chốt chặn chính sách: `scripts/kiem-thu/kiem-chinh-sach.mts` (mọi entity phải có luật đọc + ghi hoặc khai rõ cố ý không); `/api/store` cảnh báo khi nạp nếu thiếu.
+- `/api/accounts` chỉ được gọi/poll với TW/Tỉnh/Cấp 3 (`ACCOUNT_ADMIN_ROLES`); GET quyền gán riêng chỉ cho chính mình hoặc người có quyền phân quyền tài khoản đó.
+- Diễn đàn: cán bộ kiểm duyệt qua `/api/dien-dan/kiem-duyet`; `/api/store` không còn ghi `forumThreads`/`forumComments`; cán bộ ngoài TW bị che `authorAccountId`/`likedByAccountIds` (hàm che hợp nhất ở `src/lib/server/forum-view.ts`).
+- Điểm danh: bật/tắt từng hoạt động qua `/api/diem-danh/mo-dong` (khoá dòng setting, không đè nhau).
+- `created_by` của tasks/reports/documents/activities lấy từ người ghi (`derive` có `actor`); bỏ câu UPDATE vá.
+- Chat AI của khách: 10 lượt/IP/10 phút + trần chung 150. IP thật lấy từ header `X-Client-Ip` do Caddy ghi (`deploy/Caddyfile`, `src/lib/server/client-ip.ts`); đăng nhập và đếm lượt tải cũng dùng IP này.
+- Giới hạn dung lượng theo loại tệp (`KIND_RULES.maxBytesByClass`; diễn đàn: ảnh ≤2MB, video ≤15MB, kiểm ở server).
+- Sửa 12 lỗi `rules-of-hooks` (5 trang quản trị); ESLint còn 32 lỗi, 100 cảnh báo (trước 44 lỗi).
+- Tài liệu: `DOCS_HE_THONG_LOGIC_VA_DB.md` mục 4.4 (đồng bộ + phân quyền), `docs/de-xuat-luu-tru-file.md` thành ghi chú "đã triển khai".
+- Kiểm thử trên `tnth_test` (code đã gộp): p0 6/6, a-api 60/60, a-ui 23/23, b-api 56/56, b-forum 22/22, c-api 53/53, c-ui 24/24, d-snapshot 81/81, d-pages 160/160, e-api 28/28, e-chat-widget 7/7, f-tai-nguyen 115/115, g-kiem-duyet-diem-danh 90/90, sec-smoke 35/35, kiem-chinh-sach 37/37.
+
+**Khi triển khai đợt 2:** sao lưu (`deploy/db-backup.sh`) → áp `0028` vào `tnth_dev` (`scripts/db-migrate.mjs` hoặc psql với `SET ROLE coder_dev`) → `deploy/deploy.sh` → `docker compose restart proxy` (Caddy nhận header `X-Client-Ip`; chưa restart thì mọi khách bị gộp chung một hạn mức chat AI). Báo lập trình viên: `moderateForumItem` và `toggleAttendance` đổi chữ ký (async, gọi API riêng); diễn đàn không ghi qua `/api/store` nữa.
 
 ## Ưu tiên cao
-1. **Báo lập trình viên về cơ chế đồng bộ mới** trước khi họ sửa tiếp `store-context.tsx`: không được bỏ bộ theo dõi dòng; thao tác của khách/đoàn viên phải đi qua API riêng + `adoptServerRows`; thêm entity mới phải khai cả chính sách đọc (`store-read-policy.ts`) lẫn ghi (`store-write-policy.ts`) — thiếu luật thì cán bộ cấp dưới không đọc/ghi được.
-2. **Trước khi chuyển sang `tnth_prod`:** áp migration `0018`–`0027` (0021 cần đơn vị id 1 trước), cấp cho `tnth_app` quyền `INSERT` vào `audit_logs` (nếu thiếu, nhật ký không ghi — chỉ có cảnh báo trong log), chép thư mục `/srv/tnth/uploads` đúng DB tương ứng.
-3. **`/api/accounts`**: trình duyệt gọi mỗi 4 giây, trả 401/403 cho khách, đoàn viên, `DON_VI`, `BIEN_TAP_VIEN` (tốn tài nguyên, rác log). Hệ quả phụ: `accountByOrgUnit` không tìm được tài khoản nên thao tác của `DON_VI`/`BTV` không sinh thông báo. Cần rà luôn route này về lộ dữ liệu tài khoản.
-4. **Cấp 3 chấm điểm**: server đã cho `QUAN_TRI_CAP3` (quyền `score.view`) chấm đơn vị cấp dưới, nhưng giao diện `quan-tri/nhiem-vu/cham-diem` chỉ hiện nút "Lưu điểm" cho TW/Tỉnh/`score.manage`. Cần quyết nghiệp vụ: mở nút cho cấp 3 hay siết server lại.
-5. **Xác nhận nghiệp vụ các chỗ cố ý thu hẹp quyền đọc** (nhóm D): biểu đồ xu hướng ở `/quan-tri/thong-ke` nay chỉ tính trong cây đơn vị; cán bộ cấp dưới không thấy thông báo người khác, phân công ông/bà, xếp hạng nháp của TW, danh bạ ngoài cây; `DON_VI`/`BIEN_TAP_VIEN` (quyền mặc định) không nhận phản ánh.
+1. **Leo thang quyền ở `/api/accounts/[id]/permissions` (đã kiểm chứng trên `tnth_test`)**: `canGrantPermissions` coi ai có `system.account.manage` là quản trị toàn phần — mà `QUAN_TRI_TINH` có quyền này mặc định → tài khoản Tỉnh tự gán `["*"]` cho chính mình (hoặc bất kỳ tài khoản nào, kể cả ngoài tỉnh) và thành quản trị toàn quyền. Cần: chỉ TW (`*`) được gán `*`/tự gán; người khác chỉ gán cho tài khoản trong cây đơn vị, không tự gán, và chỉ gán quyền mình đang có.
+2. **Trang quản trị `quan-tri/tai-nguyen`** (để sau theo quyết định chủ dự án): vẫn tách mỗi tệp thành một tài nguyên; nên chuyển sang dùng `useMultiUpload` + `attachments` như trang đóng góp.
+3. **Cấp 3 chấm điểm**: server cho `QUAN_TRI_CAP3` chấm đơn vị cấp dưới, giao diện `quan-tri/nhiem-vu/cham-diem` chỉ hiện nút "Lưu điểm" cho TW/Tỉnh/`score.manage`. Cần quyết nghiệp vụ: mở nút cho cấp 3 hay siết server.
+4. **Xác nhận nghiệp vụ các chỗ cố ý thu hẹp quyền đọc**: biểu đồ xu hướng `/quan-tri/thong-ke` chỉ tính trong cây đơn vị; cán bộ cấp dưới không thấy thông báo người khác, phân công ông/bà, xếp hạng nháp của TW, danh bạ ngoài cây; `DON_VI`/`BIEN_TAP_VIEN` không nhận phản ánh. Thêm: kiểm duyệt diễn đàn chỉ người có `forum.manage` (mặc định chỉ TW), không phân theo đơn vị; `/api/dien-dan/thich|binh-luan` trên bài đang ẩn nay chỉ cho người có `forum.manage`.
+5. `accountByOrgUnit` vẫn không tìm được tài khoản với `DON_VI`/`BTV` (họ không đọc `/api/accounts`) → thao tác của họ không sinh thông báo. Giải cùng mục 6.
 
 ## Bảo mật còn hở
-6. **Diễn đàn với cán bộ ngoài TW chưa được che** `authorAccountId`/`likedByAccountIds` (khách/đoàn viên đã che). Lý do: duyệt bài diễn đàn của cán bộ vẫn ghi cả dòng qua `/api/store`, che cột sẽ làm UPSERT đè mất dữ liệu. Muốn che: chuyển `moderateForumItem` sang API riêng rồi áp hàm che (`maskForum` trong `store-read-policy.ts` / `viewForumRow` trong `src/lib/server/forum-view.ts` — nên hợp nhất làm một).
-7. **Thông báo**: cán bộ tạo được thông báo gửi cho bất kỳ tài khoản nào (cần cho các tác dụng phụ hiện có). Nên chuyển việc sinh thông báo về server.
-8. **Phản ánh không có cột đơn vị** → không kiểm được phạm vi ghi theo đơn vị; quyền đọc của cán bộ đang suy theo người được giao / địa bàn / ô "Đoàn tỉnh" người gửi tự gõ. Nên thêm cột đơn vị tiếp nhận.
-9. **Ảnh diễn đàn ≤2MB chỉ kiểm ở trình duyệt**; `/api/uploads` cho phân hệ `dien-dan` tới 15MB.
-10. **Bộ đếm giới hạn tần suất nằm trong bộ nhớ** (về 0 khi khởi động lại web). Hạn mức chung của khách cho chat AI (30 lượt/10 phút) có thể bị một người dùng cạn → mọi khách chỉ nhận gợi ý tự động tối đa 10 phút.
-11. **Id do trình duyệt sinh** (thời gian + ngẫu nhiên) — đã giảm trùng nhưng về lâu dài nên để server sinh id.
+6. **Thông báo**: cán bộ tạo được thông báo gửi cho bất kỳ tài khoản nào. Nên chuyển việc sinh thông báo về server.
+7. **Phản ánh không có cột đơn vị** → không kiểm được phạm vi ghi; quyền đọc của cán bộ suy theo người được giao / địa bàn / ô "Đoàn tỉnh" người gửi tự gõ. Nên thêm cột đơn vị tiếp nhận.
+8. **Bộ đếm giới hạn tần suất + chống đếm trùng lượt tải nằm trong bộ nhớ** (về 0 khi khởi động lại web). Nên chuyển sang Postgres nếu cần chính xác.
+9. Danh sách IP máy chủ OneShield ghi cứng trong `deploy/Caddyfile` (`@oneshield`): OneShield thêm máy chủ mới thì người dùng qua máy đó bị gộp theo IP OneShield (chặt hơn, không lỏng hơn) cho tới khi bổ sung.
+10. **Id do trình duyệt sinh** (thời gian + ngẫu nhiên) — về lâu dài nên để server sinh id.
 
 ## Lỗi / kỹ thuật
-12. **Gửi lại 39 dòng `tasks` một lần** khi mở vài trang (`/quan-tri/nhiem-vu`, `cham-diem`, `truc-tiep`) — chưa tìm ra nguyên nhân (có thể so khớp lệch định dạng một trường). Hiện vô hại: server so với DB và bỏ qua dòng không đổi (`skipped`).
-13. **Vòng nạp lại 4 giây vẫn tải toàn bộ snapshot** (đã dừng khi tab ẩn). Nên đổi sang chỉ tải phần thay đổi (`?since=`) khi dữ liệu lớn dần.
-14. **`derive` trong `ENTITY_SPECS`** của `tasks`/`reports`/`documents` vẫn ghi `created_by` = 1; route đang sửa lại bằng câu UPDATE sau khi ghi — nên sửa tận gốc ở `store-tables.ts`.
-15. **Mở/đóng điểm danh gửi cả chuỗi `attendance_open_ids`**: hai đơn vị bật cùng lúc thì bên sau có thể bị 403 (client báo lỗi rồi nạp lại). Nên tách thành API bật/tắt từng hoạt động.
-16. **43 lỗi ESLint có sẵn** (không phát sinh trong đợt này), đáng chú ý `react-hooks/rules-of-hooks` ở `src/app/(dashboard)/quan-tri/hs3t/page.tsx` (dòng ~87–111) — có thể gây lỗi thật khi render.
-17. Chưa thử nhánh "tạo hồ sơ HS3T mới" trên DB thử (các tài khoản thử đã có hồ sơ).
-18. Lượt thi đang làm dở trước lần triển khai 26/10 không nộp được (không có mã bí mật) — chỉ ảnh hưởng một lần.
+11. **Gửi lại 39 dòng `tasks` một lần** khi mở vài trang (`/quan-tri/nhiem-vu`, `cham-diem`, `truc-tiep`) — chưa rõ nguyên nhân (có thể lệch định dạng một trường); server bỏ qua dòng không đổi nên vô hại.
+12. **Vòng nạp lại 4 giây vẫn tải toàn bộ snapshot** (đã dừng khi tab ẩn). Nên đổi sang chỉ tải phần thay đổi (`?since=`) khi dữ liệu lớn.
+13. ESLint còn 32 lỗi (chủ yếu `set-state-in-effect` 19, `no-unescaped-entities` 4), không gây lỗi chạy; sửa dần.
+14. Chưa thử nhánh "tạo hồ sơ HS3T mới" trên DB thử (các tài khoản thử đã có hồ sơ).
+15. Lượt thi đang làm dở trước lần triển khai 26/10 sáng không nộp được (không có mã bí mật) — chỉ ảnh hưởng một lần.
 
 ## Vận hành
-19. **Dọn tệp mồ côi** (`scripts/clean-orphan-media.mts`) chưa đặt lịch. Chỉ chạy với `DATABASE_URL` của DB đang dùng thư mục tệp (hiện `tnth_dev`); có chốt chặn 50%, không dùng `--force` khi chưa hiểu vì sao bị chặn.
-20. **Bản sao lưu nằm cùng ổ đĩa** với DB và tệp — cần chép ra nơi khác.
-21. **SEO**: `deploy/Caddyfile` vẫn gắn `noindex` mọi trang trừ trang chủ (chờ nội dung thật); `src/lib/seo.ts` chưa đọc bài từ DB cho sitemap.
-22. `docs/de-xuat-luu-tru-file.md` là đề xuất cũ về lưu tệp — đối chiếu với cách đã triển khai (`DEPLOY.md` mục "Tệp tải lên") rồi cập nhật hoặc xoá. `DOCS_HE_THONG_LOGIC_VA_DB.md` cần bổ sung cơ chế đồng bộ/phân quyền mới.
-
-## Bộ kiểm thử
-23. Ba kịch bản cần sửa cho khớp chính sách đã gộp (không phải lỗi hệ thống): `a-api.mjs` kiểm `liveEvents` bằng snapshot khách (nay khách không nhận — kiểm bằng `t.tw`); `c-api.mjs` mục "gửi lại dòng không đổi của đơn vị khác" lấy dòng từ snapshot `t.donvi` (nay không còn thấy hoạt động đó — lấy từ `t.tw`); `sec-smoke.mjs` mục "cấp 3 chấm cấp dưới" thiếu `maxPoints` trong dòng điểm.
+16. **Dọn tệp mồ côi** (`scripts/clean-orphan-media.mts`) chưa đặt lịch. Chỉ chạy với `DATABASE_URL` của `tnth_dev`; có chốt chặn 50%, không dùng `--force` khi chưa hiểu vì sao bị chặn.
+17. **Bản sao lưu nằm cùng ổ đĩa** với DB và tệp — cần chép ra nơi khác (cần chọn nơi lưu: Drive/S3/VPS khác).
+18. **SEO**: `deploy/Caddyfile` vẫn gắn `noindex` mọi trang trừ trang chủ (chờ nội dung thật); `src/lib/seo.ts` chưa đọc bài từ DB cho sitemap.

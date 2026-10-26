@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { isIP } from "node:net";
 import type { NextRequest } from "next/server";
 import { query } from "@/lib/db";
+import { clientIpOf, ipRateKey } from "@/lib/server/client-ip";
 import { clearAttempts, recordAttempt, retryAfterSeconds } from "@/lib/server/rate-limit";
 
 /**
@@ -19,13 +19,12 @@ const GLOBAL_COUNT_MAX = 3000;
 const GLOBAL_WINDOW_MS = 10 * 60_000;
 
 /**
- * "Dấu vết" người xem. Caddy đứng sau lớp OneShield nên IP thấy được có thể là IP máy chủ biên của
- * OneShield (nhiều người dùng chung một IP) → ghép thêm User-Agent và ngôn ngữ để không chặn nhầm
- * cả một vùng người dùng. Chỉ lưu bản băm trong bộ nhớ.
+ * "Dấu vết" người xem: IP thật do Caddy ghi vào X-Client-Ip (xem client-ip.ts) ghép thêm
+ * User-Agent và ngôn ngữ — nhiều người có thể chung một IP (mạng trường học, NAT) nên không
+ * chặn nhầm cả nhóm. Chỉ lưu bản băm trong bộ nhớ.
  */
 export function viewerFingerprint(request: NextRequest): string {
-  const raw = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip")?.trim() || "";
-  const ip = raw && isIP(raw) ? raw : "?";
+  const ip = ipRateKey(clientIpOf(request));
   const ua = request.headers.get("user-agent")?.slice(0, 300) ?? "";
   const lang = request.headers.get("accept-language")?.slice(0, 100) ?? "";
   return createHash("sha256").update(`${ip}|${ua}|${lang}`).digest("hex").slice(0, 24);

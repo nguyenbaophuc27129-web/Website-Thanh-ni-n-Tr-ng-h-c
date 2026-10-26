@@ -23,7 +23,7 @@ check("đoàn viên POST /api/store bị chặn", !(await post(dv1, { forumThrea
 // ---------- D: chặn tự chấm điểm, chặn ngoài phạm vi ----------
 const cs = twSnap.criteriaSets?.[0], task = twSnap.tasks?.[0];
 if (cs && task) {
-  const score = (org) => ({ id: Date.now() * 1000 + Math.floor(Math.random() * 999), criteriaSetId: cs.id, taskId: task.id, orgUnitId: org, points: 1, maxPoints: 5, note: "smoke" });
+  const score = (org) => ({ id: Date.now() * 1000 + Math.floor(Math.random() * 999), criteriaSetId: cs.id, taskId: task.id, orgUnitId: org, points: 1, maxPoints: 5, scoringMethod: "MANUAL_CONFIRM", note: "smoke" });
   check("DON_VI tự chấm đơn vị mình → chặn", (await post(donvi, { scores: [score(131101)] })).status() === 403);
   const rc = await post(cap3, { scores: [{ ...score(131101), scoredByAccountId: 923 }] });
   check("cấp 3 chấm cấp dưới → được", rc.ok(), rc.ok() ? "" : (await rc.text()).slice(0, 200));
