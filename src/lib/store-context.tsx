@@ -44,7 +44,6 @@ import { volunteerProjects as seedVolunteerProjects } from "@/data/volunteer-pro
 import { quizQuestions as seedQuizQuestions } from "@/data/quiz-bank";
 import { quizExams as seedQuizExams } from "@/data/quiz-exams";
 import { hs3tProfiles as seedHs3tProfiles, hs3tAchievements as seedHs3tAchievements, hs3tUnitStandards as seedHs3tUnitStandards } from "@/data/hs3t";
-import { generateUniqueAlias } from "@/lib/forum-alias";
 import { callPublicApi, type ApiResult } from "@/lib/public-api-client";
 import { useAuth, type Session } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -198,6 +197,31 @@ const MEMBER_WRITE_ENTITIES = new Set([
 const scopeAllowedEntities = (session: Session | null): Set<string> | null =>
   !session ? GUEST_WRITE_ENTITIES : session.role === "DOAN_VIEN" ? MEMBER_WRITE_ENTITIES : null;
 
+/** Kết quả thao tác ghi qua API riêng (đoàn viên) — `mod` là kết quả kiểm duyệt do máy chủ tính */
+export type MemberWriteResult =
+  | { ok: true; id: number; mod?: ModerationResult; liked?: boolean; likeCount?: number }
+  | { ok: false; error: string; busy?: boolean };
+
+/** POST JSON tới API ghi riêng; lỗi mạng / bị từ chối → thông báo tiếng Việt */
+async function postMemberApi<T>(url: string, body: unknown): Promise<({ ok: true } & T) | { ok: false; error: string }> {
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+    const j = (await r.json().catch(() => null)) as ({ ok?: boolean; error?: string } & T) | null;
+    if (!r.ok || !j?.ok) return { ok: false, error: j?.error ?? `Máy chủ từ chối yêu cầu (HTTP ${r.status}).` };
+    return { ...j, ok: true };
+  } catch {
+    return { ok: false, error: "Không kết nối được máy chủ. Vui lòng thử lại." };
+  }
+}
+
+/** Kết quả kiểm duyệt máy chủ trả về → ModerationResult phía client */
+const modOf = (j: { verdict?: ModerationResult["verdict"]; reason?: string | null }): ModerationResult | undefined =>
+  j.verdict ? { verdict: j.verdict, reason: j.reason ?? undefined } : undefined;
+
 interface StoreValue {
   /* data */
   orgUnits: typeof seedOrgUnits;
@@ -329,22 +353,25 @@ interface StoreValue {
   /* forum ẩn danh */
   forumThreads: ForumThread[];
   forumComments: ForumComment[];
-  createForumThread: (session: Session, input: { title: string; content: string; topic?: string; media?: ForumMedia[] }, mod: ModerationResult) => number;
-  createForumComment: (session: Session, input: { threadId: number; content: string; media?: ForumMedia[] }, mod: ModerationResult) => number;
-  toggleForumLike: (session: Session, kind: "THREAD" | "COMMENT", id: number) => void;
+  /** Đăng bài qua /api/dien-dan/bai-viet — máy chủ kiểm duyệt, sinh bí danh */
+  createForumThread: (input: { title: string; content: string; topic?: string; media?: ForumMedia[] }) => Promise<MemberWriteResult>;
+  createForumComment: (input: { threadId: number; content: string; media?: ForumMedia[] }) => Promise<MemberWriteResult>;
+  /** Bật/tắt thích nguyên tử ở máy chủ (/api/dien-dan/thich) */
+  toggleForumLike: (kind: "THREAD" | "COMMENT", id: number) => Promise<MemberWriteResult>;
   moderateForumItem: (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => void;
 
   /* v12 — đóng góp cộng đồng & chương trình */
   contributions: ContributionLog[];
   memberContributions: MemberContribution[];
-  createMemberContribution: (session: Session, input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }, mod: ModerationResult) => number;
+  createMemberContribution: (input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }) => Promise<MemberWriteResult>;
   moderateMemberContribution: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => number | undefined;
-  submitResourceDraft: (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }) => number;
+  submitResourceDraft: (input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }) => Promise<MemberWriteResult>;
   moderateResourceContribution: (session: Session, id: number, action: "APPROVE" | "REJECT") => void;
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
   volunteerProjects: VolunteerProject[];
-  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => number;
+  /** Đơn vị / tên trường do máy chủ lấy theo tài khoản đăng nhập */
+  submitVolunteerProject: (input: { province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }) => Promise<MemberWriteResult>;
   moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
   quizQuestions: QuizQuestion[];
   quizExams: QuizExam[];
@@ -359,8 +386,10 @@ interface StoreValue {
   hs3tProfiles: Hs3tProfile[];
   hs3tAchievements: Hs3tAchievement[];
   hs3tUnitStandards: Hs3tUnitStandard[];
-  ensureHs3tProfile: (session: Session) => Hs3tProfile;
-  addHs3tAchievement: (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; sub?: string; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => void;
+  /** Đoàn viên: lấy/tạo hồ sơ của chính mình qua /api/hs3t/ho-so; cán bộ: chỉ trả hồ sơ sẵn có */
+  ensureHs3tProfile: (session: Session) => Promise<Hs3tProfile | null>;
+  /** Đoàn viên → /api/hs3t/thanh-tich (chỉ hồ sơ của mình); cán bộ bổ sung hộ (asSchool) vẫn qua đồng bộ */
+  addHs3tAchievement: (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; sub?: string; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => Promise<MemberWriteResult>;
   awardHs3tLevel: (session: Session, profileId: number, level: "XA" | "TINH" | "TW") => void;
   /** Điều 5 — lưu tiêu chuẩn danh hiệu của đơn vị (không cao hơn chuẩn TW) */
   saveHs3tUnitStandard: (session: Session, input: { applyTw: boolean; daoDuc?: string; hocTap?: string; theLuc?: string; thanhTichKhac?: string; note?: string }) => void;
@@ -1634,93 +1663,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /* ============ Forum ẩn danh ============ */
 
+  /* Đăng bài / bình luận / thích đều qua API riêng: máy chủ kiểm duyệt, sinh bí danh,
+   * gửi thông báo. Dòng trả về đã "che" theo người xem → đưa thẳng vào state. */
   const createForumThread = useCallback(
-    (session: Session, input: { title: string; content: string; topic?: string; media?: ForumMedia[] }, mod: ModerationResult) => {
-      const alias = generateUniqueAlias([
-        ...forumThreads.map((t) => t.alias),
-        ...forumComments.map((c) => c.alias),
-      ]);
-      const id = nextId();
-      const thread: ForumThread = {
-        id,
-        alias,
-        authorAccountId: session.accountId,
-        title: input.title.trim(),
-        content: input.content.trim(),
-        topic: input.topic?.trim() || undefined,
-        media: input.media?.length ? input.media : undefined,
-        status: mod.verdict === "CLEAN" ? "PUBLISHED" : "HIDDEN",
-        likedByAccountIds: [],
-        aiVerdict: mod.verdict,
-        aiReason: mod.reason,
-        aiModel: mod.model,
-        createdAt: nowISO(),
-      };
-      setForumThreads((prev) => [thread, ...prev]);
-      if (mod.verdict === "FLAGGED") {
-        addNotification({
-          recipientAccountId: 1,
-          notificationType: "FORUM_FLAGGED",
-          title: "Diễn đàn: bài viết chờ kiểm duyệt",
-          message: `Bài "${thread.title}" của ${alias} bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
-          refType: "FORUM_THREAD",
-          refId: id,
-          linkUrl: "/quan-tri/dien-dan",
-        });
-      }
-      return id;
+    async (input: { title: string; content: string; topic?: string; media?: ForumMedia[] }): Promise<MemberWriteResult> => {
+      const res = await postMemberApi<{ row: ForumThread; verdict?: ModerationResult["verdict"]; reason?: string | null }>(
+        "/api/dien-dan/bai-viet",
+        { title: input.title, content: input.content, topic: input.topic, media: input.media ?? [] },
+      );
+      if (!res.ok) return res;
+      adoptServerRows("forumThreads", [res.row as unknown as Record<string, unknown>]);
+      return { ok: true, id: res.row.id, mod: modOf(res) };
     },
-    [forumThreads, forumComments, addNotification]
+    [adoptServerRows]
   );
 
   const createForumComment = useCallback(
-    (session: Session, input: { threadId: number; content: string; media?: ForumMedia[] }, mod: ModerationResult) => {
-      const alias = generateUniqueAlias([
-        ...forumThreads.map((t) => t.alias),
-        ...forumComments.map((c) => c.alias),
-      ]);
-      const id = nextId();
-      const comment: ForumComment = {
-        id,
-        threadId: input.threadId,
-        alias,
-        authorAccountId: session.accountId,
-        content: input.content.trim(),
-        media: input.media?.length ? input.media : undefined,
-        status: mod.verdict === "CLEAN" ? "PUBLISHED" : "PENDING_REVIEW",
-        likedByAccountIds: [],
-        aiVerdict: mod.verdict,
-        aiReason: mod.reason,
-        aiModel: mod.model,
-        createdAt: nowISO(),
-      };
-      setForumComments((prev) => [...prev, comment]);
-      if (mod.verdict === "FLAGGED") {
-        addNotification({
-          recipientAccountId: 1,
-          notificationType: "FORUM_FLAGGED",
-          title: "Diễn đàn: bình luận chờ kiểm duyệt",
-          message: `Bình luận của ${alias} trong bài #${input.threadId} bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
-          refType: "FORUM_COMMENT",
-          refId: id,
-          linkUrl: "/quan-tri/dien-dan",
-        });
-      }
-      return id;
+    async (input: { threadId: number; content: string; media?: ForumMedia[] }): Promise<MemberWriteResult> => {
+      const res = await postMemberApi<{ row: ForumComment; verdict?: ModerationResult["verdict"]; reason?: string | null }>(
+        "/api/dien-dan/binh-luan",
+        { threadId: input.threadId, content: input.content, media: input.media ?? [] },
+      );
+      if (!res.ok) return res;
+      adoptServerRows("forumComments", [res.row as unknown as Record<string, unknown>]);
+      return { ok: true, id: res.row.id, mod: modOf(res) };
     },
-    [forumThreads, forumComments, addNotification]
+    [adoptServerRows]
   );
 
-  const toggleForumLike = useCallback((session: Session, kind: "THREAD" | "COMMENT", id: number) => {
-    const accountId = session.accountId;
-    const flip = (ids: number[]) =>
-      ids.includes(accountId) ? ids.filter((x) => x !== accountId) : [...ids, accountId];
-    if (kind === "THREAD") {
-      setForumThreads((prev) => prev.map((t) => (t.id === id ? { ...t, likedByAccountIds: flip(t.likedByAccountIds) } : t)));
-    } else {
-      setForumComments((prev) => prev.map((c) => (c.id === id ? { ...c, likedByAccountIds: flip(c.likedByAccountIds) } : c)));
-    }
-  }, []);
+  /** Lượt thích đang gửi — bấm liên tục không bắn trùng yêu cầu */
+  const likeInFlightRef = useRef(new Set<string>());
+  const toggleForumLike = useCallback(
+    async (kind: "THREAD" | "COMMENT", id: number): Promise<MemberWriteResult> => {
+      const key = `${kind}:${id}`;
+      if (likeInFlightRef.current.has(key)) return { ok: false, error: "Đang xử lý lượt thích trước.", busy: true };
+      likeInFlightRef.current.add(key);
+      try {
+        const res = await postMemberApi<{ row: ForumThread | ForumComment; liked: boolean; likeCount: number }>(
+          "/api/dien-dan/thich",
+          { kind, id },
+        );
+        if (!res.ok) return res;
+        adoptServerRows(kind === "THREAD" ? "forumThreads" : "forumComments", [res.row as unknown as Record<string, unknown>]);
+        return { ok: true, id, liked: res.liked, likeCount: res.likeCount };
+      } finally {
+        likeInFlightRef.current.delete(key);
+      }
+    },
+    [adoptServerRows]
+  );
 
   const moderateForumItem = useCallback(
     (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => {
@@ -1768,37 +1759,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  /** Gửi bài đóng góp qua /api/dong-gop — máy chủ kiểm duyệt AI, luôn chờ Ban biên tập duyệt */
   const createMemberContribution = useCallback(
-    (session: Session, input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }, mod: ModerationResult) => {
-      void session;
-      const id = nextId();
-      const record: MemberContribution = {
-        id,
-        contributorAccountId: session.accountId,
-        categoryTag: input.categoryTag,
-        title: input.title.trim(),
-        excerpt: input.excerpt.trim(),
-        content: input.content.trim(),
-        coverDataUrl: input.coverDataUrl,
-        status: "PENDING",
-        aiVerdict: mod.verdict,
-        aiReason: mod.reason,
-        aiModel: mod.model,
-        createdAt: nowISO(),
-      };
-      setMemberContributions((prev) => [record, ...prev]);
-      if (mod.verdict === "FLAGGED") {
-        addNotification({
-          recipientAccountId: 1,
-          notificationType: "FORUM_FLAGGED",
-          title: "Bài đóng góp chờ kiểm duyệt",
-          message: `Bài "${record.title}" bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
-          refType: "MEMBER_CONTRIBUTION", refId: id, linkUrl: "/quan-tri/dong-gop",
-        });
-      }
-      return id;
+    async (input: { categoryTag: string; title: string; excerpt: string; content: string; coverDataUrl?: string }): Promise<MemberWriteResult> => {
+      const res = await postMemberApi<{ row: MemberContribution; verdict?: ModerationResult["verdict"]; reason?: string | null }>(
+        "/api/dong-gop",
+        input,
+      );
+      if (!res.ok) return res;
+      adoptServerRows("memberContributions", [res.row as unknown as Record<string, unknown>]);
+      return { ok: true, id: res.row.id, mod: modOf(res) };
     },
-    [addNotification]
+    [adoptServerRows]
   );
 
   /** Duyệt bài đóng góp — APPROVE dựng PublishedPost công khai + cộng điểm; REJECT trả lý do */
@@ -1862,36 +1834,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [accounts, memberContributions, awardContribution, orgName, addNotification]
   );
 
-  /** Đoàn viên gửi tài nguyên — luôn DRAFT + isPublic false, chờ Ban TNTH duyệt */
+  /** Đoàn viên gửi tài nguyên qua /api/tai-nguyen/dong-gop — luôn DRAFT + isPublic false, chờ Ban TNTH duyệt */
   const submitResourceDraft = useCallback(
-    (session: Session, input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }) => {
-      const id = nextId();
-      const resource: Resource = {
-        id,
-        resourceTypeId: input.resourceTypeId,
-        title: input.title.trim(),
-        description: input.description.trim(),
-        fileName: input.fileName || "tai-lieu.pdf",
-        fileSizeKb: input.fileSizeKb || 1024,
-        fileDataUrl: input.fileDataUrl,
-        isPublic: false,
-        downloadCount: 0,
-        publishedByOrgUnitId: session.orgUnitId,
-        publishedAt: nowISO(),
-        submittedByAccountId: session.accountId,
-        status: "DRAFT",
-      };
-      setResources((prev) => [resource, ...prev]);
-      addNotification({
-        recipientAccountId: 1,
-        notificationType: "SYSTEM",
-        title: "Tài nguyên chờ duyệt từ đoàn viên",
-        message: `${session.contactPerson} đóng góp tài nguyên "${resource.title}" — chờ Ban Biên tập duyệt.`,
-        refType: "RESOURCE", refId: id, linkUrl: "/quan-tri/dong-gop",
-      });
-      return id;
+    async (input: { resourceTypeId: number; title: string; description: string; fileName: string; fileSizeKb: number; fileDataUrl?: string }): Promise<MemberWriteResult> => {
+      const res = await postMemberApi<{ row: Resource }>("/api/tai-nguyen/dong-gop", input);
+      if (!res.ok) return res;
+      adoptServerRows("resources", [res.row as unknown as Record<string, unknown>]);
+      return { ok: true, id: res.row.id };
     },
-    [addNotification]
+    [adoptServerRows]
   );
 
   const moderateResourceContribution = useCallback(
@@ -1936,40 +1887,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  /** Đăng ký dự án qua /api/du-an — máy chủ kiểm duyệt AI, luôn chờ cấp trên duyệt */
   const submitVolunteerProject = useCallback(
-    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => {
-      const id = nextId();
-      const project: VolunteerProject = {
-        id,
-        orgUnitId: input.orgUnitId,
-        schoolName: input.schoolName.trim(),
-        province: input.province,
-        projectName: input.projectName.trim(),
-        summary: input.summary.trim(),
-        beneficiaries: input.beneficiaries.trim(),
-        participants: input.participants || 1,
-        status: "PENDING",
-        submittedByAccountId: session.accountId,
-        field: input.field,
-        phase: input.phase,
-        aiVerdict: mod.verdict,
-        aiReason: mod.reason,
-        reportFile: input.reportFile?.name ? input.reportFile : undefined,
-        createdAt: nowISO(),
-      };
-      setVolunteerProjects((prev) => [project, ...prev]);
-      if (mod.verdict === "FLAGGED") {
-        addNotification({
-          recipientAccountId: 1,
-          notificationType: "FORUM_FLAGGED",
-          title: "Dự án tình nguyện chờ kiểm duyệt",
-          message: `Dự án "${project.projectName}" bị AI gắn cờ: ${mod.reason ?? "nội dung đáng ngờ"}.`,
-          refType: "VOLUNTEER_PROJECT", refId: id, linkUrl: "/quan-tri/du-an",
-        });
-      }
-      return id;
+    async (input: { province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }): Promise<MemberWriteResult> => {
+      const res = await postMemberApi<{ row: VolunteerProject; verdict?: ModerationResult["verdict"]; reason?: string | null }>(
+        "/api/du-an",
+        { ...input, reportFile: input.reportFile?.dataUrl ? input.reportFile : undefined },
+      );
+      if (!res.ok) return res;
+      adoptServerRows("volunteerProjects", [res.row as unknown as Record<string, unknown>]);
+      return { ok: true, id: res.row.id, mod: modOf(res) };
     },
-    [addNotification]
+    [adoptServerRows]
   );
 
   const moderateVolunteerProject = useCallback(
@@ -2086,40 +2015,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /* ============ v12 — Học sinh 3 tốt ============ */
 
-  /** Lấy hoặc tạo hồ sơ 3 tốt cho tài khoản — idempotent, CHỈ gọi trong useEffect */
+  /** Lấy hoặc tạo hồ sơ 3 tốt của đoàn viên (máy chủ cấp mã, idempotent) — CHỈ gọi trong useEffect */
   const ensureHs3tProfile = useCallback(
-    (session: Session): Hs3tProfile => {
+    async (session: Session): Promise<Hs3tProfile | null> => {
       const existing = hs3tProfiles.find((p) => p.accountId === session.accountId);
-      if (existing) return existing;
-      const maxNum = hs3tProfiles.reduce((m, p) => {
-        const match = p.code.match(/HS3T-\d{4}-(\d+)/);
-        return match ? Math.max(m, parseInt(match[1], 10)) : m;
-      }, 1000);
-      const profile: Hs3tProfile = {
-        id: nextId(),
-        code: `HS3T-2026-${maxNum + 1}`,
-        accountId: session.accountId,
-        studentName: session.contactPerson,
-        schoolOrgUnitId: session.orgUnitId,
-        createdAt: nowISO(),
-      };
-      // idempotent trong strict mode — chỉ thêm khi chưa có
-      setHs3tProfiles((prev) => (prev.some((p) => p.accountId === session.accountId) ? prev : [profile, ...prev]));
-      return profile;
+      if (existing || session.role !== "DOAN_VIEN") return existing ?? null;
+      const res = await postMemberApi<{ row: Hs3tProfile }>("/api/hs3t/ho-so", {});
+      if (!res.ok) return null;
+      adoptServerRows("hs3tProfiles", [res.row as unknown as Record<string, unknown>]);
+      return res.row;
     },
-    [hs3tProfiles]
+    [hs3tProfiles, adoptServerRows]
   );
 
   const addHs3tAchievement = useCallback(
-    (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; sub?: string; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }) => {
+    async (session: Session, profileId: number, input: { title: string; category: Hs3tCategory; sub?: string; evidenceNames?: string[]; achievedAt: string; asSchool?: boolean }): Promise<MemberWriteResult> => {
+      // Đoàn viên: chỉ thêm vào hồ sơ của chính mình — máy chủ kiểm tra chủ hồ sơ
+      if (session.role === "DOAN_VIEN") {
+        const res = await postMemberApi<{ row: Hs3tAchievement }>("/api/hs3t/thanh-tich", {
+          profileId,
+          title: input.title,
+          category: input.category,
+          sub: input.sub,
+          evidenceNames: input.evidenceNames ?? [],
+          achievedAt: input.achievedAt,
+        });
+        if (!res.ok) return res;
+        adoptServerRows("hs3tAchievements", [res.row as unknown as Record<string, unknown>]);
+        return { ok: true, id: res.row.id };
+      }
       const profile = hs3tProfiles.find((p) => p.id === profileId);
-      if (!profile) return;
+      if (!profile) return { ok: false, error: "Không tìm thấy hồ sơ 3 tốt." };
       // Cán bộ trường chỉ được "bổ sung hộ" hồ sơ thuộc trường mình (kiểm tra 2 lớp)
       const asSchool = input.asSchool === true && session.orgUnitId === profile.schoolOrgUnitId;
+      const id = nextId();
       setHs3tAchievements((prev) => [
         ...prev,
         {
-          id: nextId(),
+          id,
           profileId,
           title: input.title.trim(),
           category: input.category,
@@ -2131,8 +2064,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           createdAt: nowISO(),
         },
       ]);
+      return { ok: true, id };
     },
-    [hs3tProfiles]
+    [hs3tProfiles, adoptServerRows]
   );
 
   const awardHs3tLevel = useCallback(

@@ -1,7 +1,7 @@
 /**
  * Bí danh ẩn danh cho Diễn đàn — sinh từ seed thuần (pure) nên an toàn hydration.
- * Alias được SINH CỨNG lúc tạo bài/bình luận và lưu vào state, tuyệt đối không
- * gọi random lúc render.
+ * Alias được máy chủ SINH CỨNG lúc tạo bài/bình luận (API /api/dien-dan/*) và
+ * lưu vào DB, tuyệt đối không gọi random lúc render.
  */
 
 const FIRST = [
@@ -26,16 +26,24 @@ export function pickAlias(seed: number): string {
 }
 
 /**
+ * Danh sách alias ứng viên theo thứ tự ưu tiên — máy chủ tra DB một lượt
+ * rồi chọn alias đầu tiên chưa dùng (dùng Date.now nên KHÔNG pure).
+ */
+export function aliasCandidates(count = 60): string[] {
+  const now = Date.now();
+  return Array.from({ length: count }, (_, i) => pickAlias(now + i * 7919));
+}
+
+/** Alias dự phòng khi mọi ứng viên đều đã trùng */
+export const fallbackAlias = (): string => `Đoàn Viên Ẩn Danh #${Date.now() % 9000 + 1000}`;
+
+/**
  * Sinh alias chưa trùng trong danh sách đã có (gọi trong action handler thôi —
  * dùng Date.now nên KHÔNG pure, không được gọi lúc render).
  */
 export function generateUniqueAlias(existing: string[]): string {
   const set = new Set(existing);
-  for (let i = 0; i < 60; i++) {
-    const alias = pickAlias(Date.now() + i * 7919);
-    if (!set.has(alias)) return alias;
-  }
-  return `Đoàn Viên Ẩn Danh #${Date.now() % 9000 + 1000}`;
+  return aliasCandidates().find((alias) => !set.has(alias)) ?? fallbackAlias();
 }
 
 /** Màu avatar theo hash alias — pure, an toàn hydration */
