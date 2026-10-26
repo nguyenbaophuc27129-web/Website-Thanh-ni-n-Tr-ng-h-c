@@ -84,7 +84,8 @@ check("GET /api/phan-anh: phản ánh của tôi", r.status === 200 && r.body?.f
 r = await j(await guest.get("/api/phan-anh"));
 check("GET /api/phan-anh khi chưa đăng nhập → 401", r.status === 401);
 
-let snap = await (await guest.get("/api/store")).json();
+// liveEvents là dữ liệu nội bộ — khách không nhận trong snapshot, kiểm bằng tài khoản TW
+let snap = await (await tw.get("/api/store")).json();
 check("sinh live_events FEEDBACK_NEW ở server", snap.data?.liveEvents?.some((e) => e.eventType === "FEEDBACK_NEW" && e.title.includes(RUN)));
 
 /* ================= ĐIỂM DANH ================= */
@@ -105,7 +106,7 @@ r = await j(await guest.get("/api/diem-danh?activityId=271001"));
 check("GET trạng thái điểm danh", r.status === 200 && r.body?.open === true && r.body?.count >= 2);
 r = await j(await guest.get("/api/diem-danh?activityId=271002"));
 check("GET hoạt động đóng: open=false", r.status === 200 && r.body?.exists === true && r.body?.open === false);
-snap = await (await guest.get("/api/store")).json();
+snap = await (await tw.get("/api/store")).json();
 check("sinh live_events ATTENDANCE ở server", snap.data?.liveEvents?.some((e) => e.eventType === "ATTENDANCE" && e.title.includes("[A] Hoạt động đang mở")));
 
 /* ================= THI — đề thường ================= */

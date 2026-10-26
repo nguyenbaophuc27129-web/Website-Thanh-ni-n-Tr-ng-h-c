@@ -25,4 +25,16 @@ Tài khoản thử (mật khẩu chung trong `$TNTH_TEST_DIR/test-password.txt`,
 
 \* Các mục báo hỏng là do kịch bản viết trước khi các chính sách khác được gộp (vd. đọc `liveEvents` bằng tài khoản khách, nay khách không còn nhận) — không phải lỗi; xem `docs/VIEC-TON-DONG.md` mục "Bộ kiểm thử".
 
+## Chốt chặn chính sách đọc/ghi (không cần DB, web thử hay môi trường thử)
+
+`kiem-chinh-sach.mts` kiểm **mọi entity** trong `ENTITY_SPECS` (`src/lib/server/store-tables.ts`) đều có luật ghi trong `store-write-policy.ts` và luật đọc cho từng nhóm người xem (khách, đoàn viên, cán bộ cấp dưới) trong `store-read-policy.ts`. Entity cố ý không cho ghi/đọc phải khai rõ ở `WRITE_DENIED_BY_DESIGN`/`READ_DENIED_BY_DESIGN` trong `src/lib/server/store-policy-audit.ts` — không để ngầm định. Thiếu thì thoát mã 1 và liệt kê từng chỗ thiếu.
+
+```bash
+docker build --target builder -t tnth-builder:chinhsach .
+docker run --rm -v "$PWD/scripts:/app/scripts:ro" tnth-builder:chinhsach \
+  node --no-warnings --import ./scripts/kiem-thu/alias-loader.mjs scripts/kiem-thu/kiem-chinh-sach.mts
+```
+
+(Thư mục `scripts/` bị `.dockerignore` loại khỏi image nên phải gắn vào.) `alias-loader.mjs` chỉ để node thuần giải được alias `@/` và import không ghi đuôi của mã trong `src/`. **Chạy mỗi khi thêm/sửa entity** (hoặc thêm vào bước kiểm trước khi triển khai). Ngoài ra route `/api/store` cũng ghi cảnh báo `[TNTH][STORE] Thiếu chính sách: …` vào log một lần khi nạp module nếu còn thiếu.
+
 `e-api.sh` cố ý làm cạn hạn mức AI/fetch-article — chạy cuối, hoặc khởi động lại web thử trước khi chạy kịch bản khác.

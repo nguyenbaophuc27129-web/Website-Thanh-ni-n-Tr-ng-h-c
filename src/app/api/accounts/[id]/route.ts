@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbEnabled, query } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken, hashPassword, type RoleCode } from "@/lib/server/auth";
+import { ACCOUNT_ADMIN_ROLES } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
-const ALLOWED_ADMIN_ROLES: RoleCode[] = [
-  "QUAN_TRI_TW",
-  "QUAN_TRI_TINH",
-  "QUAN_TRI_CAP3",
-];
+const ALLOWED_ADMIN_ROLES = ACCOUNT_ADMIN_ROLES;
 
 type Session = NonNullable<Awaited<ReturnType<typeof sessionFromToken>>>;
 interface TargetAccount {

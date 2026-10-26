@@ -18,6 +18,7 @@ import {
 } from "@/lib/server/store-tables";
 import { externalizeDataUrls } from "@/lib/server/media";
 import { buildReadViewer, readSnapshot } from "@/lib/server/store-read-policy";
+import { auditStorePolicies } from "@/lib/server/store-policy-audit";
 import {
   WRITE_POLICIES,
   buildWriteSubject,
@@ -28,6 +29,10 @@ import {
 } from "@/lib/server/store-write-policy";
 
 export const runtime = "nodejs";
+
+// Chốt chặn: entity mới thiếu luật đọc/ghi thì cảnh báo một lần khi nạp module (cán bộ cấp dưới
+// sẽ không đọc/ghi được entity đó). Kiểm tra đầy đủ: scripts/kiem-thu/kiem-chinh-sach.mts
+for (const msg of auditStorePolicies()) console.warn("[TNTH][STORE] Thiếu chính sách:", msg);
 
 /**
  * API dữ liệu store dùng chung:

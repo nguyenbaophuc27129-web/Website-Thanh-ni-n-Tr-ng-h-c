@@ -60,18 +60,6 @@ export default function Hs3tAdminPage() {
   const isTW = session?.role === "QUAN_TRI_TW";
   const isSchool = session?.role === "DON_VI";
 
-  if (!session || (session.role !== "QUAN_TRI_TW" && session.role !== "QUAN_TRI_TINH" && session.role !== "QUAN_TRI_CAP3" && session.role !== "DON_VI")) {
-    return (
-      <Card>
-        <CardBody className="flex flex-col items-center py-16 text-center">
-          <ShieldAlert className="h-10 w-10 text-stone-300" />
-          <p className="mt-3 text-sm font-semibold text-stone-700">Trang này dành cho cán bộ Đoàn các cấp</p>
-          <p className="mt-1 text-xs text-stone-400">Học sinh tự cập nhật hồ sơ tại trang Học sinh 3 tốt công khai.</p>
-        </CardBody>
-      </Card>
-    );
-  }
-
   /** Leo parentId tới đơn vị cấp Tỉnh/Thành (orgLevel 2) */
   const provinceOf = (orgUnitId: number) => {
     let cur = store.orgUnits.find((o) => o.id === orgUnitId);
@@ -84,7 +72,7 @@ export default function Hs3tAdminPage() {
     return cur && cur.orgLevel === 2 ? cur : null;
   };
 
-  const scope = useMemo(() => new Set(store.scopeIds(session)), [store, session]);
+  const scope = useMemo(() => new Set(session ? store.scopeIds(session) : []), [store, session]);
   const profiles = useMemo(
     () =>
       store.hs3tProfiles
@@ -121,6 +109,19 @@ export default function Hs3tAdminPage() {
     return Array.from(map.entries()).sort((a, b) => b[1].profiles.length - a[1].profiles.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiles, store]);
+
+  // Chặn vai trò không phải cán bộ — đặt SAU mọi hook (không được return sớm trước hook)
+  if (!session || (session.role !== "QUAN_TRI_TW" && session.role !== "QUAN_TRI_TINH" && session.role !== "QUAN_TRI_CAP3" && session.role !== "DON_VI")) {
+    return (
+      <Card>
+        <CardBody className="flex flex-col items-center py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-stone-300" />
+          <p className="mt-3 text-sm font-semibold text-stone-700">Trang này dành cho cán bộ Đoàn các cấp</p>
+          <p className="mt-1 text-xs text-stone-400">Học sinh tự cập nhật hồ sơ tại trang Học sinh 3 tốt công khai.</p>
+        </CardBody>
+      </Card>
+    );
+  }
 
   // ===== AI xét =====
   const runAi = async (profileId: number) => {
