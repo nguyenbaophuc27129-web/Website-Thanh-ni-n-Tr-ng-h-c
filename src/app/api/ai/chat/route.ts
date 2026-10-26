@@ -4,11 +4,14 @@ import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
 
-/* Widget công khai — khách được hỏi nhưng dùng chung 1 hạn mức nhỏ cho mọi khách;
-   người đã đăng nhập đếm riêng theo tài khoản. */
+/* Widget công khai — khách được hỏi, đếm theo IP thật (header X-Client-Ip do Caddy ghi đè) để một
+   người không làm cạn lượt của người khác; thêm một trần chung cho mọi khách cộng lại (chống lạm
+   dụng chi phí AI từ nhiều IP, vẫn thấp hơn AI_GLOBAL_LIMIT để chừa chỗ cho cán bộ/đoàn viên).
+   Người đã đăng nhập đếm riêng theo tài khoản. */
 const CHAT_WINDOW_MS = 10 * 60_000;
 const CHAT_PER_ACCOUNT = 20;
-const CHAT_GUEST_POOL = 30;
+const CHAT_GUEST_PER_IP = 10;
+const CHAT_GUEST_POOL = 150;
 const CHAT_MAX_CHARS = 500;
 
 /* ════════════════════════════════════════════════════════════════════
@@ -51,6 +54,7 @@ export async function POST(request: Request) {
     bucket: "ai-chat",
     windowMs: CHAT_WINDOW_MS,
     perAccount: CHAT_PER_ACCOUNT,
+    guestPerIp: CHAT_GUEST_PER_IP,
     guestPool: CHAT_GUEST_POOL,
     global: AI_GLOBAL_LIMIT,
   });

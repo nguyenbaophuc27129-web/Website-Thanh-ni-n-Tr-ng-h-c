@@ -193,6 +193,9 @@ const MEMBER_WRITE_ENTITIES = new Set<string>();
 const scopeAllowedEntities = (session: Session | null): Set<string> | null =>
   !session ? GUEST_WRITE_ENTITIES : session.role === "DOAN_VIEN" ? MEMBER_WRITE_ENTITIES : null;
 
+/** Entity chỉ ghi qua API riêng (/api/dien-dan/*) — KHÔNG theo dõi để gửi /api/store (server trả 403 cả lô nếu có) */
+const API_ONLY_ENTITIES = new Set(["forumThreads", "forumComments"]);
+
 /** Kết quả thao tác ghi qua API riêng (đoàn viên) — `mod` là kết quả kiểm duyệt do máy chủ tính */
 export type MemberWriteResult =
   | { ok: true; id: number; mod?: ModerationResult; liked?: boolean; likeCount?: number }
@@ -319,7 +322,8 @@ interface StoreValue {
   emailLogs: EmailLog[];
 
   /* attendance (công khai, không cần session) */
-  toggleAttendance: (session: Session, activityId: number, open: boolean) => void;
+  /** Bật/tắt điểm danh từng hoạt động qua POST /api/diem-danh/mo-dong (nguyên tử ở máy chủ, kiểm phạm vi) */
+  toggleAttendance: (activityId: number, open: boolean) => Promise<ApiResult<{ openIds: number[] }>>;
   /** Điểm danh qua POST /api/diem-danh — trả tổng số lượt đã điểm danh của hoạt động */
   addAttendance: (input: { activityId: number; memberName: string; memberClass?: string }) => Promise<ApiResult<{ count: number }>>;
 
@@ -354,7 +358,8 @@ interface StoreValue {
   createForumComment: (input: { threadId: number; content: string; media?: ForumMedia[] }) => Promise<MemberWriteResult>;
   /** Bật/tắt thích nguyên tử ở máy chủ (/api/dien-dan/thich) */
   toggleForumLike: (kind: "THREAD" | "COMMENT", id: number) => Promise<MemberWriteResult>;
-  moderateForumItem: (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => void;
+  /** Duyệt / từ chối / ẩn qua /api/dien-dan/kiem-duyet — máy chủ kiểm quyền forum.manage và ghi nhật ký */
+  moderateForumItem: (kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => Promise<MemberWriteResult>;
 
   /* v12 — đóng góp cộng đồng & chương trình */
   contributions: ContributionLog[];
@@ -536,7 +541,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       prevArraysRef.current[entity] = rows;
       const base = baseRef.current[entity];
       // Chưa nạp xong từ DB, hoặc phiên không được ghi entity này → không gửi
-      if (!base || (allowed && !allowed.has(entity))) continue;
+      if (!base || (allowed && !allowed.has(entity)) || API_ONLY_ENTITIES.has(entity)) continue;
       for (const row of rows as Record<string, unknown>[]) {
         const key = syncRowKey(entity, row);
         if (base.get(key) === row) continue;
@@ -1465,21 +1470,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   const toggleAttendance = useCallback(
-    (session: Session, activityId: number, open: boolean) => {
-      const cur = new Set(attendanceOpenIds);
-      if (open) cur.add(activityId);
-      else cur.delete(activityId);
-      const value = [...cur].join(",");
-      setSettings((prev) => {
-        const exists = prev.some((s) => s.settingKey === "attendance_open_ids");
-        if (exists) return prev.map((s) => (s.settingKey === "attendance_open_ids" ? { ...s, value } : s));
-        return [
-          ...prev,
-          { settingKey: "attendance_open_ids", value, valueType: "STRING" as const, groupName: "Hoạt động", description: "Danh sách hoạt động đang mở điểm danh (id phân tách bằng dấu phẩy)" },
-        ];
-      });
+    async (activityId: number, open: boolean): Promise<ApiResult<{ openIds: number[] }>> => {
+      // Máy chủ thêm/bớt đúng id hoạt động này trong chuỗi attendance_open_ids (khoá dòng setting),
+      // trả dòng settings mới → đưa vào state, không gửi qua /api/store
+      const r = await callPublicApi<{ setting: Record<string, unknown>; openIds: number[] }>(
+        "/api/diem-danh/mo-dong",
+        { activityId, open },
+      );
+      if (!r.ok) return r;
+      adoptServerRows("settings", [r.setting]);
+      return { ok: true, openIds: r.openIds };
     },
-    [attendanceOpenIds],
+    [adoptServerRows],
   );
 
   const addAttendance = useCallback(
@@ -1710,36 +1712,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const moderateForumItem = useCallback(
-    (session: Session, kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string) => {
-      const stamp = { moderatedByAccountId: session.accountId, moderatedAt: nowISO() };
-      if (kind === "THREAD") {
-        setForumThreads((prev) =>
-          prev.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  ...stamp,
-                  status: action === "APPROVE" ? "PUBLISHED" : "HIDDEN",
-                  rejectionReason: action === "REJECT" ? (reason ?? "Không phù hợp với quy tắc diễn đàn") : undefined,
-                }
-              : t
-          )
-        );
-      } else {
-        setForumComments((prev) =>
-          prev.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  ...stamp,
-                  status: action === "APPROVE" ? "PUBLISHED" : "REJECTED",
-                }
-              : c
-          )
-        );
-      }
+    async (kind: "THREAD" | "COMMENT", id: number, action: "APPROVE" | "REJECT" | "HIDE", reason?: string): Promise<MemberWriteResult> => {
+      const res = await postMemberApi<{ row: ForumThread | ForumComment }>("/api/dien-dan/kiem-duyet", { kind, id, action, reason });
+      if (!res.ok) return res;
+      adoptServerRows(kind === "THREAD" ? "forumThreads" : "forumComments", [res.row as unknown as Record<string, unknown>]);
+      return { ok: true, id };
     },
-    []
+    [adoptServerRows]
   );
 
   /* ============ v12 — Đóng góp cộng đồng & chương trình ============ */

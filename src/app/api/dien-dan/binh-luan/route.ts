@@ -3,7 +3,7 @@ import { query, withTransaction } from "@/lib/db";
 import { toObj } from "@/lib/server/store-tables";
 import { moderateServer } from "@/lib/server/moderation";
 import { viewForumRow } from "@/lib/server/forum-view";
-import { parseForumMedia, pickFreeAlias } from "@/lib/server/forum-write";
+import { canModerateForum, forumViewerOf, parseForumMedia, pickFreeAlias } from "@/lib/server/forum-write";
 import { fail, json, notifyAdmin, rateLimit, readBody, requireSession, serverError, str } from "@/lib/server/member-write";
 
 export const runtime = "nodejs";
@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
       [threadId],
     )
   )[0];
-  const isStaff = session.role !== "DOAN_VIEN";
+  // Bài đang ẩn: chỉ tác giả và cán bộ có quyền kiểm duyệt diễn đàn được bình luận (khớp luật đọc snapshot)
+  const isStaff = canModerateForum(session);
   if (!thread || (thread.status !== "PUBLISHED" && Number(thread.author_account_id) !== session.accountId && !isStaff)) {
     return fail("Không tìm thấy bài viết hoặc bài đã bị ẩn.", 404);
   }
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
     });
     return json({
       ok: true,
-      row: viewForumRow(toObj("forumComments", row), session),
+      row: viewForumRow(toObj("forumComments", row), forumViewerOf(session)),
       verdict: mod.verdict,
       reason: mod.reason ?? null,
     });

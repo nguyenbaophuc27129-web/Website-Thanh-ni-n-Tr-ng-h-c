@@ -1,4 +1,3 @@
-import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
 import { dbEnabled, pool, query } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
@@ -17,8 +16,11 @@ import {
   type DeriveCtx,
 } from "@/lib/server/store-tables";
 import { externalizeDataUrls } from "@/lib/server/media";
+import { writeAuditLogs, type AuditEntry } from "@/lib/server/audit";
+import { clientIpOf } from "@/lib/server/client-ip";
 import { buildReadViewer, readSnapshot } from "@/lib/server/store-read-policy";
 import {
+  API_ONLY_ENTITIES,
   WRITE_POLICIES,
   buildWriteSubject,
   type PolicyEnv,
@@ -45,6 +47,10 @@ export const runtime = "nodejs";
  *                                    store-write-policy (cả dòng cũ trong DB lẫn dòng mới);
  *                                    dòng không đổi bị bỏ qua; có dòng vi phạm → 403 cả lô;
  *                                    mỗi dòng thêm/sửa/xoá ghi nhật ký audit_logs
+ *                                  - Diễn đàn (forumThreads/forumComments) KHÔNG ghi qua đây (403, kể cả
+ *                                    TW): dùng /api/dien-dan/* (đăng, thích, kiem-duyet)
+ *                                  - Cột "người tạo" của dòng mới điền theo tài khoản của phiên (derive),
+ *                                    dòng đã có giữ nguyên người tạo (insertOnlyCols)
  *                                  - Tệp base64 (data:) lọt vào cột tệp được chuyển thành tệp
  *                                    trên ổ đĩa (/uploads/...) trước khi ghi DB
  */
@@ -83,7 +89,7 @@ interface PlannedRow extends RowChange {
   key: string | null;
   /** Object client gửi (để writeEntity ghi) — null khi xoá */
   obj: Obj | null;
-  /** Cột server tự điền/giữ nguyên, ghi lại sau writeEntity */
+  /** Cột server tự điền (khi thêm) / giữ nguyên (khi sửa) — writeEntity ghi thẳng trong câu UPSERT */
   fix: Obj;
   /** Ghi chú thêm cho nhật ký (bảng con của hoạt động) */
   auditOld?: Obj;
@@ -114,11 +120,6 @@ function pickAudit(row: Obj | null | undefined, cols?: string[]): Obj | null {
   const out: Obj = {};
   for (const c of cols ?? Object.keys(row)) if (c in row) out[c] = auditValue(row[c]);
   return out;
-}
-
-function clientIp(request: NextRequest): string | null {
-  const raw = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip")?.trim() || "";
-  return raw && isIP(raw) ? raw : null;
 }
 
 /**
@@ -257,6 +258,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "KHÔNG CÓ QUYỀN GHI DỮ LIỆU" }, { status: 403 });
   }
 
+  // Diễn đàn: chỉ ghi qua /api/dien-dan/* (dòng đã che theo người xem — UPSERT cả dòng sẽ đè mất cột thật)
+  const apiOnly = requested.find((name) => API_ONLY_ENTITIES.has(name));
+  if (apiOnly) {
+    return NextResponse.json(
+      { ok: false, error: `${WRITE_POLICIES[apiOnly]?.label ?? apiOnly} chỉ được ghi qua API riêng (/api/dien-dan/*), không ghi qua đồng bộ.` },
+      { status: 403 },
+    );
+  }
+
   // Bảng khoá tự nhiên không xoá theo id được
   const badDelete = deleteNames.find((name) => ENTITY_SPECS[name].noIdentity);
   if (badDelete) {
@@ -270,7 +280,8 @@ export async function POST(request: NextRequest) {
   const client = (await pool.connect()) as unknown as DbClient & { release: () => void };
   try {
     await client.query("BEGIN");
-    const ctx = await buildDeriveCtx();
+    // Người ghi = tài khoản của phiên: cột "người tạo" của dòng mới (tasks/reports/documents…) điền theo đây
+    const ctx = await buildDeriveCtx({ accountId: Number(session.accountId), orgUnitId: Number(session.orgUnitId) });
     const subject: WriteSubject = buildWriteSubject(session, await scopeIdsOf(client, Number(session.orgUnitId)));
 
     // a) Đối chiếu với DB — dòng hiện có (cache dùng chung cho tra cứu bảng cha)
@@ -410,7 +421,14 @@ export async function POST(request: NextRequest) {
       }
       if (objs.length === 0) continue;
       await externalizeDataUrls(entity, objs, subject.accountId);
-      counts[entity] = await writeEntity(client, entity, objs, ctx);
+      // Cột server quyết định: dòng MỚI nhận giá trị p.fix (người tạo…); cột keepOnUpdate không bao giờ
+      // nằm trong vế DO UPDATE SET nên dòng đã có giữ nguyên giá trị DB — không cần UPDATE vá sau khi ghi
+      const colOverrides = new Map<Obj, Obj>();
+      for (const p of writes) if (p.entity === entity && p.op === "insert" && Object.keys(p.fix).length > 0) colOverrides.set(p.obj!, p.fix);
+      counts[entity] = await writeEntity(client, entity, objs, ctx, {
+        insertOnlyCols: WRITE_POLICIES[entity]?.keepOnUpdate,
+        colOverrides,
+      });
       if (entity === "activities" && changedActivityIds.size > 0) {
         // Danh mục + liên kết của hoạt động gửi kèm là bản ĐẦY ĐỦ → thay hết bản cũ
         // (nếu chỉ UPSERT thì mục người dùng đã bỏ vẫn nằm lại trong DB)
@@ -422,16 +440,7 @@ export async function POST(request: NextRequest) {
           await client.query("DELETE FROM activity_links WHERE activity_id = ANY($1::bigint[])", [ids]);
         }
       }
-      const table = ENTITY_SPECS[entity].table;
       for (const p of writes.filter((w) => w.entity === entity)) {
-        // Cột người tạo / cột không được sửa: ghi đè giá trị server quyết định
-        const fixCols = Object.keys(p.fix);
-        if (fixCols.length > 0 && p.next!.id != null) {
-          await client.query(
-            `UPDATE ${table} SET ${fixCols.map((c, i) => `"${c}" = $${i + 1}`).join(", ")} WHERE id = $${fixCols.length + 1}`,
-            [...fixCols.map((c) => p.fix[c]), p.next!.id],
-          );
-        }
         // UPSERT nơi nhận văn bản là DO NOTHING → cập nhật (đánh dấu đã đọc) ghi riêng
         if (entity === "documentRecipients" && p.op === "update") {
           await client.query(
@@ -450,43 +459,26 @@ export async function POST(request: NextRequest) {
     }
 
     // e) Nhật ký audit_logs cho mỗi dòng thêm/sửa/xoá — lỗi nhật ký không làm hỏng lần lưu
-    const ip = clientIp(request);
-    const ua = request.headers.get("user-agent")?.slice(0, 500) ?? null;
-    const audit = active.map((p) => {
+    const ip = clientIpOf(request);
+    const ua = request.headers.get("user-agent");
+    const audit: AuditEntry[] = active.map((p) => {
       const cols = p.op === "update" ? p.changed.filter((c) => !c.startsWith("#")) : undefined;
       const oldValues = p.op === "insert" ? null : { ...pickAudit(p.old, cols), ...p.auditOld };
       const newValues = p.op === "delete" ? null : { ...pickAudit(p.next, cols), ...p.auditNew };
       const id = Number((p.old ?? p.next)?.id);
-      return [
-        subject.accountId,
-        `SYNC_${p.op.toUpperCase()}`,
-        ENTITY_SPECS[p.entity].table,
-        Number.isFinite(id) ? id : null,
-        oldValues ? JSON.stringify(ENTITY_SPECS[p.entity].noIdentity ? { key: p.key, ...oldValues } : oldValues) : null,
-        newValues ? JSON.stringify(ENTITY_SPECS[p.entity].noIdentity ? { key: p.key, ...newValues } : newValues) : null,
+      const withKey = (v: Obj | null) => (v && ENTITY_SPECS[p.entity].noIdentity ? { key: p.key, ...v } : v);
+      return {
+        accountId: subject.accountId,
+        action: `SYNC_${p.op.toUpperCase()}`,
+        entityType: ENTITY_SPECS[p.entity].table,
+        entityId: Number.isFinite(id) ? id : null,
+        oldValues: withKey(oldValues),
+        newValues: withKey(newValues),
         ip,
-        ua,
-      ];
+        userAgent: ua,
+      };
     });
-    if (audit.length > 0) {
-      await client.query("SAVEPOINT store_audit");
-      try {
-        for (let i = 0; i < audit.length; i += 200) {
-          const chunk = audit.slice(i, i + 200);
-          const values = chunk
-            .map((_, r) => `(${[1, 2, 3, 4, 5, 6, 7, 8].map((c) => `$${r * 8 + c}${c === 5 || c === 6 ? "::jsonb" : c === 7 ? "::inet" : ""}`).join(", ")})`)
-            .join(", ");
-          await client.query(
-            `INSERT INTO audit_logs (account_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent) VALUES ${values}`,
-            chunk.flat(),
-          );
-        }
-        await client.query("RELEASE SAVEPOINT store_audit");
-      } catch (err) {
-        await client.query("ROLLBACK TO SAVEPOINT store_audit");
-        console.warn("[TNTH][STORE] Không ghi được nhật ký audit_logs:", err instanceof Error ? err.message : err);
-      }
-    }
+    await writeAuditLogs(client, audit, "STORE");
 
     await client.query("COMMIT");
     return NextResponse.json({ ok: true, counts, deletes: deleteCounts, skipped: skippedTotal });

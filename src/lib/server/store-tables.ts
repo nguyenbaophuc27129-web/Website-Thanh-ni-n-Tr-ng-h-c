@@ -36,6 +36,11 @@ export interface EntitySpec {
   noIdentity?: boolean;
   /** Cột phái sinh NOT NULL không có phía client */
   derive?: (obj: Record<string, unknown>, ctx: DeriveCtx) => Record<string, unknown>;
+  /**
+   * Cột (DB) chỉ ghi khi INSERT — UPSERT trúng dòng đã có thì GIỮ giá trị trong DB
+   * (người tạo, token truy cập…). Thường là cột do `derive` điền.
+   */
+  insertOnlyCols?: string[];
   /** PK để ORDER BY khi đọc (mặc định id) */
   orderBy?: string;
 }
@@ -43,6 +48,11 @@ export interface EntitySpec {
 /** Ngữ cảnh điền cột phái sinh — dựng 1 lần cho mỗi request sync */
 export interface DeriveCtx {
   accountIdByOrg: Map<number, number>;
+  /**
+   * Người đang ghi (tài khoản + đơn vị của phiên) — cột "người tạo" điền theo đây.
+   * Không có (script nạp dữ liệu) → dùng giá trị mặc định của derive.
+   */
+  actor?: { accountId: number; orgUnitId: number };
 }
 
 const f = (col: string, type: FieldType, get?: FieldSpec["get"]): FieldSpec => ({ col, type, get });
@@ -68,10 +78,9 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       dueDate: f("due_date", "date"), displayOrder: f("display_order", "int"),
       status: f("status", "str"),
     },
-    derive: () => ({
-      // tasks.created_by_org_unit_id NOT NULL — prototype không lưu, mặc định TW (đơn vị 1)
-      created_by_org_unit_id: 1,
-    }),
+    // tasks.created_by_org_unit_id NOT NULL — đơn vị của người tạo; không có người ghi → TW (đơn vị 1)
+    derive: (_o, ctx) => ({ created_by_org_unit_id: ctx.actor?.orgUnitId ?? 1 }),
+    insertOnlyCols: ["created_by_org_unit_id"],
   },
   taskMetrics: {
     table: "task_metrics",
@@ -166,8 +175,9 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       updatedAt: f("updated_at", "ts"),
     },
     derive: (o, ctx) => ({
-      created_by_account_id: ctx.accountIdByOrg.get(Number(o.orgUnitId)) ?? 1,
+      created_by_account_id: ctx.actor?.accountId ?? ctx.accountIdByOrg.get(Number(o.orgUnitId)) ?? 1,
     }),
+    insertOnlyCols: ["created_by_account_id"],
   },
   // Join activity ↔ chuyên mục (client Activity.categoryIds)
   activityCategories: {
@@ -213,7 +223,8 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       aiGeneratedAt: f("ai_generated_at", "ts"), status: f("status", "str"),
       createdAt: f("created_at", "ts"),
     },
-    derive: () => ({ created_by_account_id: 1, finalized_at: null }),
+    derive: (_o, ctx) => ({ created_by_account_id: ctx.actor?.accountId ?? 1, finalized_at: null }),
+    insertOnlyCols: ["created_by_account_id", "finalized_at"],
   },
   documents: {
     table: "documents",
@@ -225,7 +236,8 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       status: f("status", "str"), createdAt: f("created_at", "ts"),
       fileName: f("file_name", "str"), fileDataUrl: f("file_data_url", "str"),
     },
-    derive: () => ({ created_by_account_id: 1 }),
+    derive: (_o, ctx) => ({ created_by_account_id: ctx.actor?.accountId ?? 1 }),
+    insertOnlyCols: ["created_by_account_id"],
   },
   documentRecipients: {
     table: "document_recipients",
@@ -265,6 +277,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       access_token: `seed-${Number(o.id)}-${o.trackingCode ?? ""}`,
       is_spam: false,
     }),
+    insertOnlyCols: ["access_token", "is_spam"],
   },
   feedbackMessages: {
     table: "feedback_messages",
@@ -636,12 +649,26 @@ export async function readEntity(
 }
 
 
-/** Điền account đại diện theo đơn vị (cho cột created_by NOT NULL) */
-export async function buildDeriveCtx(): Promise<DeriveCtx> {
+/**
+ * Điền account đại diện theo đơn vị (cho cột created_by NOT NULL) + người đang ghi.
+ * `actor` = tài khoản/đơn vị của phiên: cột "người tạo" của dòng MỚI điền theo người này.
+ */
+export async function buildDeriveCtx(actor?: DeriveCtx["actor"]): Promise<DeriveCtx> {
   const rows = await query<{ org_unit_id: number; id: number }>(
     "SELECT DISTINCT ON (org_unit_id) org_unit_id, id FROM accounts WHERE deleted_at IS NULL ORDER BY org_unit_id, id",
   );
-  return { accountIdByOrg: new Map(rows.map((r) => [Number(r.org_unit_id), Number(r.id)])) };
+  return { accountIdByOrg: new Map(rows.map((r) => [Number(r.org_unit_id), Number(r.id)])), actor };
+}
+
+/** Tuỳ chọn ghi của writeEntity */
+export interface WriteOptions {
+  /** Cột chỉ ghi khi INSERT (cộng với `insertOnlyCols` của spec) — UPSERT trúng dòng đã có thì giữ giá trị DB */
+  insertOnlyCols?: string[];
+  /**
+   * Giá trị server quyết định cho từng object (khoá = chính object truyền vào, theo tên cột DB):
+   * ghi đè giá trị client gửi khi INSERT (vd. người tạo = tài khoản của phiên).
+   */
+  colOverrides?: Map<Record<string, unknown>, Record<string, unknown>>;
 }
 
 /**
@@ -653,22 +680,33 @@ export async function writeEntity(
   entity: string,
   objs: Record<string, unknown>[],
   ctx: DeriveCtx,
+  opts: WriteOptions = {},
 ): Promise<number> {
   const spec = ENTITY_SPECS[entity];
   if (!spec || objs.length === 0) return 0;
 
   const overriding = spec.noIdentity ? "" : " OVERRIDING SYSTEM VALUE";
   const nullable = await nullableColsOf(client, spec.table);
+  // Cột chỉ ghi lúc INSERT: không nằm trong vế DO UPDATE SET → dòng đã có giữ nguyên giá trị
+  const insertOnly = new Set([...(spec.insertOnlyCols ?? []), ...(opts.insertOnlyCols ?? [])]);
   for (const obj of objs) {
     const { cols, values, nullCols } = toRow(entity, obj, ctx);
+    for (const [col, v] of Object.entries(opts.colOverrides?.get(obj) ?? {})) {
+      const at = cols.indexOf(col);
+      if (at >= 0) values[at] = v;
+      else {
+        cols.push(col);
+        values.push(v);
+      }
+    }
     if (cols.length === 0) continue;
-    const clearCols = nullCols.filter((c) => nullable.has(c));
+    const clearCols = nullCols.filter((c) => nullable.has(c) && !insertOnly.has(c));
     const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
     const colList = cols.map((c) => `"${c}"`).join(", ");
 
     let conflictClause = "";
     if (entity === "settings") {
-      const updateCols = cols.filter((c) => c !== "setting_key");
+      const updateCols = cols.filter((c) => c !== "setting_key" && !insertOnly.has(c));
       conflictClause = updateCols.length > 0
         ? ` ON CONFLICT (setting_key) DO UPDATE SET ${updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")}`
         : " ON CONFLICT (setting_key) DO NOTHING";
@@ -678,7 +716,7 @@ export async function writeEntity(
       conflictClause = " ON CONFLICT (document_id, org_unit_id) DO NOTHING";
     } else if (cols.includes("id")) {
       const sets = [
-        ...cols.filter((c) => c !== "id").map((c) => `"${c}" = EXCLUDED."${c}"`),
+        ...cols.filter((c) => c !== "id" && !insertOnly.has(c)).map((c) => `"${c}" = EXCLUDED."${c}"`),
         ...clearCols.map((c) => `"${c}" = NULL`),
       ];
       conflictClause = sets.length > 0

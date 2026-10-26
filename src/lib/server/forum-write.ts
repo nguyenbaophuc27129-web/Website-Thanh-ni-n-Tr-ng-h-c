@@ -1,7 +1,21 @@
 import { aliasCandidates, fallbackAlias } from "@/lib/forum-alias";
 import { FORUM_MEDIA_MAX_ITEMS } from "@/lib/forum-media";
 import { UPLOAD_EXTS, isUploadPath } from "@/lib/server/member-write";
+import type { SessionDto } from "@/lib/server/auth";
+import type { ForumViewer } from "@/lib/server/forum-view";
+import { effectivePermissions, hasPerm } from "@/lib/permissions";
 import type { ForumMedia } from "@/types";
+
+/** Quyền kiểm duyệt diễn đàn của phiên (mã quyền forum.manage) */
+export const canModerateForum = (session: SessionDto): boolean =>
+  session.role !== "DOAN_VIEN" && hasPerm(effectivePermissions(session), "forum.manage");
+
+/** Người xem để che dòng diễn đàn trả cho phiên đăng nhập — xem forum-view.ts */
+export const forumViewerOf = (session: SessionDto): ForumViewer => ({
+  accountId: session.accountId,
+  isTW: session.role === "QUAN_TRI_TW",
+  canModerate: canModerateForum(session),
+});
 
 /** Kiểm tra danh sách ảnh/video đính kèm bài/bình luận diễn đàn do trình duyệt gửi */
 export function parseForumMedia(raw: unknown): { media: ForumMedia[] } | { error: string } {

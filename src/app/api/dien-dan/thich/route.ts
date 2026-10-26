@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { query } from "@/lib/db";
 import { toObj } from "@/lib/server/store-tables";
 import { viewForumRow } from "@/lib/server/forum-view";
+import { canModerateForum, forumViewerOf } from "@/lib/server/forum-write";
 import { fail, json, rateLimit, readBody, requireSession, serverError } from "@/lib/server/member-write";
 
 export const runtime = "nodejs";
@@ -11,7 +12,7 @@ export const runtime = "nodejs";
  *   { kind: "THREAD" | "COMMENT", id } → { ok, liked, likeCount, row }
  * - Đổi NGUYÊN TỬ trong 1 câu UPDATE (thêm/bớt đúng id người dùng trong
  *   liked_account_ids) → bấm cùng lúc từ nhiều máy không mất lượt thích.
- * - Chỉ thích được nội dung đang công khai hoặc của chính mình (cán bộ: mọi nội dung).
+ * - Chỉ thích được nội dung đang công khai hoặc của chính mình (cán bộ có quyền kiểm duyệt diễn đàn: mọi nội dung).
  */
 export async function POST(request: NextRequest) {
   const session = await requireSession(request);
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
                                        ELSE array_append(liked_account_ids, $2::bigint) END
         WHERE id = $1 AND (status = 'PUBLISHED' OR author_account_id = $2 OR $3::boolean)
         RETURNING *`,
-      [id, session.accountId, session.role !== "DOAN_VIEN"],
+      [id, session.accountId, canModerateForum(session)],
     );
     if (!rows[0]) return fail("Không tìm thấy nội dung hoặc nội dung đã bị ẩn.", 404);
     const obj = toObj(entity, rows[0]);
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       liked: likedIds.includes(session.accountId),
       likeCount: likedIds.length,
-      row: viewForumRow(obj, session),
+      row: viewForumRow(obj, forumViewerOf(session)),
     });
   } catch (err) {
     return serverError("FORUM", err);
