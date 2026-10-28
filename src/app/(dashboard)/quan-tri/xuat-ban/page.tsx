@@ -29,14 +29,13 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { PostStatusBadge } from "@/components/dashboard/status-badge";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
-import type { PublishedPost } from "@/types";
 import { formatNumber, formatDateTime, slugify } from "@/lib/utils";
 import { isExternalUrl, uploadFile, uploadFromUrl } from "@/lib/upload-client";
 import { parseCover, postCoverRaw, withCoverFocus } from "@/lib/cover";
 import { CoverFocusEditor } from "@/components/dashboard/cover-focus-editor";
 import { RichEditor } from "@/components/editor";
 import { docToPlainText, emptyDoc, isDocEmpty, type PostDoc } from "@/lib/editor/doc-utils";
-import { legacyMarkdownToDoc, postDocOf } from "@/lib/editor/legacy-markdown";
+import { legacyMarkdownToDoc } from "@/lib/editor/legacy-markdown";
 
 /** Kết quả trích xuất từ đường link */
 interface ImportedArticle {
@@ -125,14 +124,6 @@ export default function XuatBanPage() {
   // Đang tải ảnh bìa / lấy ảnh link ngoài về máy chủ — khoá các nút lưu
   const [busyMedia, setBusyMedia] = useState(false);
 
-  // Chỉnh sửa bài đã có
-  const [editing, setEditing] = useState<PublishedPost | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", excerpt: "", coverUrl: "" });
-  const [editDraft, setEditDraft] = useState<DocDraft>(() => newDraft(emptyDoc(), "edit-0"));
-  const [editKeywords, setEditKeywords] = useState<string[]>([]);
-  const [editCover, setEditCover] = useState<string | null | undefined>(undefined);
-  const editCoverInputRef = useRef<HTMLInputElement>(null);
-
   // Nhập tin từ đường link
   const [importOpen, setImportOpen] = useState(false);
   const [importUrl, setImportUrl] = useState("");
@@ -186,8 +177,12 @@ export default function XuatBanPage() {
     return d.uploading > 0;
   };
 
-  const pickCover = (file: File | undefined) => readCover(file, setCoverDataUrl);
-  const pickEditCover = (file: File | undefined) => readCover(file, setEditCover);
+  // Ảnh vừa tải lên thay cho link đang dán (link luôn được ưu tiên khi lưu)
+  const pickCover = (file: File | undefined) =>
+    readCover(file, (url) => {
+      setCoverDataUrl(url);
+      setForm((f) => ({ ...f, coverUrl: "" }));
+    });
 
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
 
@@ -335,52 +330,6 @@ export default function XuatBanPage() {
     setImportOpen(false);
     setImported(null);
     setImportUrl("");
-  };
-
-  const openEdit = (p: PublishedPost) => {
-    setEditing(p);
-    setEditForm({
-      title: p.title,
-      excerpt: p.excerpt,
-      coverUrl: p.coverDataUrl?.startsWith("http") ? p.coverDataUrl : "",
-    });
-    setEditDraft(newDraft(postDocOf(p), `edit-${p.id}-${Date.now()}`));
-    setEditKeywords(p.categoryNames);
-    setEditCover(undefined);
-  };
-
-  const saveEdit = async () => {
-    if (!editing) return;
-    if (!editForm.title.trim()) {
-      toast("Tiêu đề bài viết không được để trống.", "warning");
-      return;
-    }
-    if (stillUploading(editDraft)) return;
-
-    let finalCover: string | undefined = undefined;
-    if (editForm.coverUrl.trim()) {
-      finalCover = editForm.coverUrl.trim();
-    } else if (editCover === undefined) {
-      finalCover = editing.coverDataUrl;
-    } else {
-      // null = người dùng bấm bỏ ảnh → ghi chuỗi rỗng để DB xoá theo
-      finalCover = editCover ?? "";
-    }
-
-    const cover = await localizeCover(finalCover);
-
-    store.savePost({
-      ...editing,
-      title: editForm.title.trim(),
-      excerpt: editForm.excerpt.trim(),
-      content: docToPlainText(editDraft.doc),
-      contentDoc: editDraft.doc,
-      categoryNames: editKeywords,
-      metaDescription: editForm.excerpt.trim().slice(0, 160),
-      coverDataUrl: cover,
-    });
-    toast("Đã cập nhật bài viết.");
-    setEditing(null);
   };
 
   const changeStatus = (id: number, status: "DRAFT" | "SCHEDULED" | "PUBLISHED" | "UNPUBLISHED") => {
@@ -770,128 +719,6 @@ export default function XuatBanPage() {
           ) : (
             <p className="text-[11px] text-stone-400">Chưa có nội dung — dán đường dẫn rồi bấm "Trích xuất".</p>
           )}
-        </div>
-      </Modal>
-
-      {/* Modal Chỉnh sửa bài viết */}
-      <Modal
-        open={editing !== null}
-        onClose={() => setEditing(null)}
-        title={`Chỉnh sửa bài viết${editing ? ` — ${editing.title.slice(0, 40)}` : ""}`}
-        wide
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setEditing(null)}>
-              Hủy
-            </Button>
-            <Button onClick={() => void saveEdit()} disabled={busyMedia || editDraft.uploading > 0}>
-              <Pencil className="h-4 w-4" /> Lưu thay đổi
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Field label="Tiêu đề bài viết" required hint="Đổi tiêu đề không làm thay đổi đường dẫn đã đăng.">
-            <Input
-              value={editForm.title}
-              onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
-            />
-          </Field>
-          <Field label="Tóm tắt (lead)">
-            <Textarea
-              value={editForm.excerpt}
-              onChange={(e) => setEditForm((f) => ({ ...f, excerpt: e.target.value }))}
-              rows={2}
-            />
-          </Field>
-
-          <div>
-            <label className="text-xs font-medium text-stone-600">Nội dung bài viết</label>
-            <div className="mt-1">
-              <RichEditor
-                initialDoc={editDraft.doc}
-                resetKey={editDraft.key}
-                onChange={(doc) => setEditDraft((d) => ({ ...d, doc }))}
-                onPendingUploadsChange={(n) => setEditDraft((d) => (d.uploading === n ? d : { ...d, uploading: n }))}
-                minHeight={260}
-              />
-            </div>
-          </div>
-
-          <Field
-            label="Từ khóa &amp; chuyên mục"
-            hint="Chọn từ danh mục cố định — thống nhất thẻ (#) và bộ lọc trên trang tin tức."
-          >
-            <KeywordPicker value={editKeywords} onChange={setEditKeywords} />
-          </Field>
-
-          <Field label="Ảnh bìa" hint="Dán link ảnh hoặc tải tệp lên (JPG/PNG/WebP tối đa 10MB) — ảnh luôn được lưu trên máy chủ của Cổng.">
-            <input
-              ref={editCoverInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                pickEditCover(e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  value={parseCover(editForm.coverUrl).src}
-                  onChange={(e) => setEditForm((f) => ({ ...f, coverUrl: e.target.value }))}
-                  placeholder="https://... dán link ảnh mới"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => editCoverInputRef.current?.click()}
-                  className="shrink-0"
-                >
-                  {busyMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />} Tải tệp lên
-                </Button>
-              </div>
-
-              {(() => {
-                const preview =
-                  editForm.coverUrl.trim() ||
-                  (editCover === undefined ? (editing?.coverDataUrl ?? null) : editCover);
-                if (preview) {
-                  return (
-                    <div className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
-                      {/* Kéo ảnh để chỉnh vị trí căn khung — ghi lại vào nguồn ảnh đang dùng */}
-                      <div className="w-full max-w-sm">
-                        <CoverFocusEditor
-                          compact
-                          value={preview}
-                          onChange={(raw) =>
-                            editForm.coverUrl.trim() ? setEditForm((f) => ({ ...f, coverUrl: raw })) : setEditCover(raw)
-                          }
-                        />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => editCoverInputRef.current?.click()}>
-                          <ImagePlus className="h-3.5 w-3.5" /> Đổi ảnh
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => {
-                            setEditCover(null);
-                            setEditForm((f) => ({ ...f, coverUrl: "" }));
-                          }}
-                        >
-                          <X className="h-3.5 w-3.5" /> Bỏ ảnh
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          </Field>
         </div>
       </Modal>
     </div>
