@@ -32,6 +32,8 @@ import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
 import type { PublishedPost } from "@/types";
 import { formatNumber, formatDateTime, slugify } from "@/lib/utils";
 import { isExternalUrl, uploadFile, uploadFromUrl } from "@/lib/upload-client";
+import { parseCover, postCoverRaw, withCoverFocus } from "@/lib/cover";
+import { CoverFocusEditor } from "@/components/dashboard/cover-focus-editor";
 import { RichEditor } from "@/components/editor";
 import { docToPlainText, emptyDoc, isDocEmpty, type PostDoc } from "@/lib/editor/doc-utils";
 import { legacyMarkdownToDoc, postDocOf } from "@/lib/editor/legacy-markdown";
@@ -165,9 +167,11 @@ export default function XuatBanPage() {
    */
   const localizeCover = async (cover: string | undefined) => {
     if (!isExternalUrl(cover)) return cover;
+    // Tách #focus (vị trí căn ảnh) trước khi tải về, rồi ghép lại vào đường dẫn mới
+    const { src, focus } = parseCover(cover);
     setBusyMedia(true);
     try {
-      return (await uploadFromUrl(cover, "bai-viet")).url;
+      return withCoverFocus((await uploadFromUrl(src, "bai-viet")).url, focus);
     } catch {
       toast("Ảnh bìa từ link ngoài không tải về được — ảnh vẫn dùng link gốc.", "warning");
       return cover;
@@ -450,7 +454,7 @@ export default function XuatBanPage() {
           {posts.map((p) => (
           <Card key={p.id} className="overflow-hidden">
             <div className="relative">
-              <PhotoPlaceholder seed={p.coverSeed} src={p.coverDataUrl} className="h-32 w-full" />
+              <PhotoPlaceholder seed={p.coverSeed} src={postCoverRaw(p)} className="h-32 w-full" />
               <div className="absolute left-2 top-2">
                 <PostStatusBadge status={p.status} />
               </div>
@@ -628,7 +632,7 @@ export default function XuatBanPage() {
               />
               <div className="flex gap-2">
                 <Input
-                  value={form.coverUrl}
+                  value={parseCover(form.coverUrl).src}
                   onChange={(e) => setForm((f) => ({ ...f, coverUrl: e.target.value }))}
                   placeholder="https://... dán link ảnh trực tuyến"
                 />
@@ -643,14 +647,18 @@ export default function XuatBanPage() {
               </div>
 
               {form.coverUrl.trim() || coverDataUrl ? (
-                <div className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={form.coverUrl.trim() || coverDataUrl || ""}
-                    alt="Xem trước ảnh bìa"
-                    className="h-24 w-40 rounded-lg border border-stone-200 object-cover"
-                  />
-                  <div className="space-y-1.5">
+                <div className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+                  {/* Kéo ảnh để chỉnh vị trí căn khung — ghi lại vào nguồn ảnh đang dùng */}
+                  <div className="w-full max-w-sm">
+                    <CoverFocusEditor
+                      compact
+                      value={form.coverUrl.trim() || coverDataUrl || ""}
+                      onChange={(raw) =>
+                        form.coverUrl.trim() ? setForm((f) => ({ ...f, coverUrl: raw })) : setCoverDataUrl(raw)
+                      }
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <p className="text-xs font-semibold text-stone-700">Xem trước ảnh bìa</p>
                     <p className="text-[11px] text-stone-500">Kích thước khuyến nghị: 1200 x 630 hoặc 600 x 315</p>
                     <Button
@@ -831,7 +839,7 @@ export default function XuatBanPage() {
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Input
-                  value={editForm.coverUrl}
+                  value={parseCover(editForm.coverUrl).src}
                   onChange={(e) => setEditForm((f) => ({ ...f, coverUrl: e.target.value }))}
                   placeholder="https://... dán link ảnh mới"
                 />
@@ -851,14 +859,18 @@ export default function XuatBanPage() {
                   (editCover === undefined ? (editing?.coverDataUrl ?? null) : editCover);
                 if (preview) {
                   return (
-                    <div className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={preview}
-                        alt="Ảnh bìa"
-                        className="h-24 w-40 rounded-lg border border-stone-200 object-cover"
-                      />
-                      <div className="space-y-1.5">
+                    <div className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+                      {/* Kéo ảnh để chỉnh vị trí căn khung — ghi lại vào nguồn ảnh đang dùng */}
+                      <div className="w-full max-w-sm">
+                        <CoverFocusEditor
+                          compact
+                          value={preview}
+                          onChange={(raw) =>
+                            editForm.coverUrl.trim() ? setEditForm((f) => ({ ...f, coverUrl: raw })) : setEditCover(raw)
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button size="sm" variant="outline" onClick={() => editCoverInputRef.current?.click()}>
                           <ImagePlus className="h-3.5 w-3.5" /> Đổi ảnh
                         </Button>

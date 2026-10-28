@@ -30,6 +30,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { SPECIAL_CATEGORIES, SECTION_TAGS } from "@/data/categories";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
+import { postCoverRaw } from "@/lib/cover";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { formatDateTime, formatNumber } from "@/lib/utils";
@@ -298,7 +299,7 @@ export default function TinTucPage() {
                   <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
                     <PhotoPlaceholder
                       seed={heroLead.coverSeed}
-                      src={heroLead.coverDataUrl || heroLead.coverUrl}
+                      src={postCoverRaw(heroLead)}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
                     <div className="absolute left-3 top-3 flex items-center gap-2">
@@ -353,7 +354,7 @@ export default function TinTucPage() {
                     <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-slate-100">
                       <PhotoPlaceholder
                         seed={p.coverSeed}
-                        src={p.coverDataUrl || p.coverUrl}
+                        src={postCoverRaw(p)}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       />
                       <span className="absolute left-2 top-2 rounded bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white">
@@ -456,7 +457,7 @@ export default function TinTucPage() {
                     <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
                       <PhotoPlaceholder
                         seed={p.coverSeed}
-                        src={p.coverDataUrl || p.coverUrl}
+                        src={postCoverRaw(p)}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       />
                     </div>
@@ -510,7 +511,7 @@ export default function TinTucPage() {
                     <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
                       <PhotoPlaceholder
                         seed={p.coverSeed}
-                        src={p.coverDataUrl || p.coverUrl}
+                        src={postCoverRaw(p)}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       />
                     </div>
@@ -554,7 +555,7 @@ export default function TinTucPage() {
                   <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                     <PhotoPlaceholder
                       seed={p.coverSeed}
-                      src={p.coverDataUrl || p.coverUrl}
+                      src={postCoverRaw(p)}
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                     />
                   </div>

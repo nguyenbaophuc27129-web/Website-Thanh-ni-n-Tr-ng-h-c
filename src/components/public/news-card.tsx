@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Eye, CalendarDays } from "lucide-react";
 import type { PublishedPost } from "@/types";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
+import { postCoverRaw } from "@/lib/cover";
 import { formatDate, formatNumber } from "@/lib/utils";
 
 export function NewsCard({ post, compact }: { post: PublishedPost; compact?: boolean }) {
@@ -13,7 +14,7 @@ export function NewsCard({ post, compact }: { post: PublishedPost; compact?: boo
       <div className="relative">
         <PhotoPlaceholder
           seed={post.coverSeed}
-          src={post.coverDataUrl}
+          src={postCoverRaw(post)}
           className="h-40 w-full"
         />
         {post.isFeatured ? (

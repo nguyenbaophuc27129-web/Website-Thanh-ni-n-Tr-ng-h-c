@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Heart } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
+import { postCoverRaw } from "@/lib/cover";
 import type { PublishedPost } from "@/types";
 
 /**
@@ -123,7 +124,7 @@ function StoryCard({
       <div className="relative h-[54%] w-full shrink-0 overflow-hidden">
         <PhotoPlaceholder
           seed={post.coverSeed}
-          src={post.coverDataUrl}
+          src={postCoverRaw(post)}
           className="h-full w-full"
           icon={false}
         />

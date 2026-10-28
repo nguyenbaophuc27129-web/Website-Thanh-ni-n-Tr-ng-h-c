@@ -10,6 +10,7 @@ import { NewsCard } from "@/components/public/news-card";
 import { PostContent } from "@/components/public/post-content";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { parseCover, postCoverRaw } from "@/lib/cover";
 
 export default function ChiTietTinPage() {
   const params = useParams<{ slug: string }>();
@@ -52,6 +53,9 @@ export default function ChiTietTinPage() {
     );
   }
 
+  /* Ảnh bìa có thể kèm #focus — trang chi tiết hiện nguyên tỉ lệ nên chỉ cần đường dẫn sạch */
+  const coverSrc = parseCover(postCoverRaw(post)).src;
+
   return (
     <article className="mx-auto max-w-4xl px-4 py-10">
       <Link href="/tin-tuc" className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-500 hover:text-doan-600">
@@ -79,7 +83,24 @@ export default function ChiTietTinPage() {
         ) : null}
       </div>
 
-      <PhotoPlaceholder seed={post.coverSeed} src={post.coverDataUrl || post.coverUrl} className="mt-6 h-64 w-full rounded-xl sm:h-80" />
+      {coverSrc ? (
+        /* Hiện nguyên tỉ lệ, không cắt; ảnh dọc cao thì giới hạn chiều cao, hiện đủ ảnh trên nền nhạt */
+        <figure className="mt-6 space-y-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={coverSrc}
+            alt={post.title}
+            className="mx-auto block h-auto max-h-[75vh] w-full rounded-xl bg-stone-100 object-contain"
+          />
+          {post.imageCaption?.trim() ? (
+            <figcaption className="text-center font-serif text-xs italic text-stone-500">
+              {post.imageCaption.trim()}
+            </figcaption>
+          ) : null}
+        </figure>
+      ) : (
+        <PhotoPlaceholder seed={post.coverSeed} className="mt-6 h-64 w-full rounded-xl sm:h-80" />
+      )}
 
       {post.excerpt ? (
         <p className="mt-6 border-l-4 border-doan-600 bg-doan-50/60 px-4 py-3 text-sm font-medium italic leading-relaxed text-stone-700">

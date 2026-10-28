@@ -40,6 +40,8 @@ import { RichEditor } from "@/components/editor";
 import { docToPlainText, emptyDoc, isDocEmpty, type PostDoc } from "@/lib/editor/doc-utils";
 import { postDocOf } from "@/lib/editor/legacy-markdown";
 import { isExternalUrl, uploadFile, uploadFromUrl } from "@/lib/upload-client";
+import { CoverFocusEditor } from "@/components/dashboard/cover-focus-editor";
+import { parseCover, withCoverFocus } from "@/lib/cover";
 
 const STANDARD_CATEGORIES = [
   "Thời sự",
@@ -271,7 +273,9 @@ function DangBaiInner() {
       let finalCover = coverDataUrl || "";
       if (isExternalUrl(finalCover)) {
         try {
-          finalCover = (await uploadFromUrl(finalCover, "bai-viet")).url;
+          // Giữ vị trí căn ảnh (#focus) qua bước tải về máy chủ
+          const { src, focus } = parseCover(finalCover);
+          finalCover = withCoverFocus((await uploadFromUrl(src, "bai-viet")).url, focus);
         } catch {
           toast("Ảnh đại diện từ link ngoài không tải về được — ảnh vẫn dùng link gốc.", "warning");
         }
@@ -610,33 +614,27 @@ function DangBaiInner() {
               </div>
 
               <div className="mt-3.5 space-y-3">
-                {/* Khung preview */}
-                <div className="relative aspect-[470/250] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                  {effectiveCover ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={effectiveCover}
-                        alt="Ảnh đại diện bài viết"
-                        className="h-full w-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setCoverDataUrl(null)}
-                        className="absolute right-2 top-2 rounded-lg bg-black/60 p-1 text-white hover:bg-black/80"
-                        title="Bỏ ảnh"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </>
-                  ) : (
+                {/* Khung preview — kéo để chỉnh vị trí ảnh */}
+                {effectiveCover ? (
+                  <CoverFocusEditor value={effectiveCover} onChange={setCoverDataUrl}>
+                    <button
+                      type="button"
+                      onClick={() => setCoverDataUrl(null)}
+                      className="absolute right-2 top-2 rounded-lg bg-black/60 p-1 text-white hover:bg-black/80"
+                      title="Bỏ ảnh"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </CoverFocusEditor>
+                ) : (
+                  <div className="relative aspect-[470/250] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                     <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center text-slate-400">
                       <ImagePlus className="h-8 w-8 text-slate-300" />
                       <p className="mt-1 text-xs">Chưa có ảnh đại diện</p>
                       <p className="text-[10px] text-slate-400">Kích thước chuẩn: 470 × 250 px</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Nút upload hoặc URL */}
                 <div className="flex items-center gap-2">
@@ -992,9 +990,9 @@ function DangBaiInner() {
             <figure className="space-y-1.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={effectiveCover}
+                src={parseCover(effectiveCover).src}
                 alt={title}
-                className="aspect-[470/250] w-full rounded-2xl object-cover shadow-sm"
+                className="h-auto max-h-[75vh] w-full rounded-2xl bg-slate-100 object-contain shadow-sm"
               />
               {imageCaption ? (
                 <figcaption className="text-center font-serif text-xs italic text-slate-500">

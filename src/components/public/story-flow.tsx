@@ -24,6 +24,7 @@ import {
 import type { PublishedPost } from "@/types";
 import { CountUp } from "@/components/public/reveal";
 import { usePublicStats } from "@/lib/public-stats";
+import { coverPosition, parseCover, postCoverRaw } from "@/lib/cover";
 
 /**
  * 🌌 STORY FLOW — Dòng Chảy Câu Chuyện Bất Tận (Horizontal Storytelling Flow)
@@ -276,7 +277,11 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
   }
   const featured = posts[0];
   const satellites = posts.slice(1, 4);
-  const featuredSrc = featured.coverDataUrl ?? FALLBACKS[0];
+  /* Ảnh bìa có thể kèm #focus=x,y — tách ra để lấy src sạch + object-position; rỗng thì dùng ảnh mẫu */
+  const featuredCover = parseCover(postCoverRaw(featured));
+  const featuredSrc = featuredCover.src || FALLBACKS[0];
+  const featuredPos = coverPosition(featuredCover.focus);
+  const satCovers = satellites.map((p) => parseCover(postCoverRaw(p)));
   const featuredDate = (featured.publishedAt ?? featured.createdAt).slice(0, 10).split("-").reverse().join(".");
   const satShape = ["aspect-square w-56 sm:w-64", "aspect-[4/5] w-48 sm:w-56", "aspect-square w-52 sm:w-60"];
   const satOffset = ["-translate-y-10 sm:-translate-y-16", "translate-y-2", "-translate-y-5 sm:-translate-y-9"];
@@ -377,7 +382,12 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
               className="relative block w-full cursor-zoom-in overflow-hidden rounded-[2rem] border border-white/25 shadow-2xl shadow-black/50"
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- ảnh data URL bài đăng + ảnh mẫu ngoài */}
-              <img src={featuredSrc} alt={featured.title} className="aspect-[16/10] w-full object-cover" />
+              <img
+                src={featuredSrc}
+                alt={featured.title}
+                className="aspect-[16/10] w-full object-cover"
+                style={{ objectPosition: featuredPos }}
+              />
               <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-slate-950/10" />
               <span className="pointer-events-none absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 scale-75 items-center justify-center rounded-full border border-white/30 bg-slate-950/50 opacity-0 backdrop-blur-md transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
                 <ZoomIn className="h-6 w-6 text-cyan-200" strokeWidth={1.5} />
@@ -420,9 +430,10 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- ảnh data URL bài đăng + ảnh mẫu ngoài */}
                 <img
-                  src={p.coverDataUrl ?? FALLBACKS[(i + 1) % FALLBACKS.length]}
+                  src={satCovers[i].src || FALLBACKS[(i + 1) % FALLBACKS.length]}
                   alt={p.title}
                   className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                  style={{ objectPosition: coverPosition(satCovers[i].focus) }}
                 />
                 <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
                 <span className="absolute inset-x-3 bottom-3 rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 backdrop-blur-md">
