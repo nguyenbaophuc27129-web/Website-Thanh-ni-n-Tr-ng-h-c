@@ -564,6 +564,112 @@ body {
   }
 }
 
+/* ═══════════ Đông Sơn — cổng bình chọn HS3T (nhung đỏ + vàng kim) ═══════════ */
+@keyframes gold-slide {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+@keyframes foil-sweep {
+  0% {
+    transform: translateX(-150%) skewX(-16deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(250%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+@keyframes dust-float {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: var(--dust-o, 0.7);
+  }
+  88% {
+    opacity: var(--dust-o, 0.7);
+  }
+  100% {
+    transform: translate3d(var(--dust-x, 10px), var(--dust-y, -70px), 0);
+    opacity: 0;
+  }
+}
+@keyframes confetti-pop {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--dx, 0px), var(--dy, -60px), 0) rotate(var(--rot, 120deg)) scale(0.55);
+    opacity: 0;
+  }
+}
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spin-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+.ds-spin {
+  animation: spin-slow 120s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ds-spin-rev {
+  animation: spin-rev 80s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ds-dust {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(242, 101, 34, 0.75), rgba(255, 223, 126, 0.35) 62%, transparent 72%);
+  animation: dust-float linear infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(229, 192, 123, 0.45), 0 0 28px rgba(229, 192, 123, 0.2);
+    border-color: rgba(229, 192, 123, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(229, 192, 123, 0.85), 0 0 48px rgba(229, 192, 123, 0.5);
+    border-color: rgba(255, 233, 168, 0.95);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2.2s ease-in-out infinite;
+}
+
+.ds-confetti {
+  position: fixed;
+  border-radius: 2px;
+  animation: confetti-pop 0.9s cubic-bezier(0.16, 0.84, 0.44, 1) forwards;
+  box-shadow: 0 0 6px rgba(229, 192, 123, 0.55);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-spin,
+  .ds-spin-rev,
+  .ds-dust,
+  .ds-confetti {
+    animation: none !important;
+  }
+}
+
 /* ============ Google Translate (chức năng dịch 5 ngôn ngữ) ============ */
 /* Ẩn banner đỉnh + khung gốc của Google, chỉ dùng combo ẩn điều khiển từ dropdown riêng */
 iframe.goog-te-banner-frame,

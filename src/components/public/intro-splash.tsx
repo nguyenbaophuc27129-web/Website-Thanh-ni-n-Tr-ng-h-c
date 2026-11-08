@@ -106,13 +106,13 @@ export function IntroSplash() {
         />
         <img
           src="/logo-tnth-03.png"
-          alt="Thanh niên Trường học — Trung ương Đoàn TNCS Hồ Chí Minh"
+          alt="Thanh niên Trường học — Ban Thanh niên Trường học"
           className="intro-banner-logo relative w-full h-auto object-contain drop-shadow-[0_0_45px_rgba(56,150,255,0.65)]"
         />
       </div>
 
       <p className="intro-sub mt-6 text-center text-[11px] font-semibold uppercase tracking-[0.35em] text-sky-100/70 sm:text-xs">
-        Trung ương Đoàn TNCS Hồ Chí Minh
+        Ban Thanh niên Trường học
       </p>
       <p className="intro-sub mt-2 text-center text-xs font-medium text-vang-200/80" style={{ animationDelay: "1.5s" }}>
         Kết nối · Thi đua · Tiên phong

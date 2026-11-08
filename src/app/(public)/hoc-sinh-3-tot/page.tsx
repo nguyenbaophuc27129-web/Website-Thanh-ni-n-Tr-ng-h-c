@@ -75,7 +75,7 @@ export default function HocSinh3TotPage() {
         </span>
         <h1 className="mt-4 text-xl font-bold text-stone-900">Hồ sơ Học sinh 3 tốt</h1>
         <p className="mt-2 text-sm leading-relaxed text-stone-500">
-          Chương trình dành cho học sinh — Trung ương Đoàn TNCS Hồ Chí Minh đã chính thức triển khai Cổng quản lý hồ sơ và khen thưởng trực tuyến.
+          Chương trình dành cho học sinh — Ban Thanh niên Trường học đã chính thức triển khai Cổng quản lý hồ sơ và khen thưởng trực tuyến.
         </p>
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
           <a
@@ -172,10 +172,10 @@ export default function HocSinh3TotPage() {
             </span>
             <div>
               <p className="text-sm font-bold text-slate-900">
-                Hệ thống Quản lý Khen thưởng & Danh hiệu Học sinh 3 tốt — TW Đoàn
+                Hệ thống Quản lý Khen thưởng & Danh hiệu Học sinh 3 tốt
               </p>
               <p className="text-xs text-slate-600">
-                Trung ương Đoàn TNCS Hồ Chí Minh đã triển khai Cổng nộp và xét duyệt hồ sơ trực tuyến chính thức.
+                Ban Thanh niên Trường học đã triển khai Cổng nộp và xét duyệt hồ sơ trực tuyến chính thức.
               </p>
             </div>
           </div>
@@ -203,7 +203,7 @@ export default function HocSinh3TotPage() {
           href="/hoc-sinh-3-tot/quy-che"
           className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
         >
-          <Scale className="h-3.5 w-3.5" /> Quy chế chuẩn Trung ương Đoàn (QĐ 317)
+          <Scale className="h-3.5 w-3.5" /> Quy chế danh hiệu (QĐ 317)
         </Link>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-medium text-stone-500">
           Thành tích tính từ 01/9 năm trước đến hết 31/8 năm xét trao

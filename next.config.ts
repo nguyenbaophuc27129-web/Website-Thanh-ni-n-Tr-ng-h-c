@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Thư viện parse PDF/DOCX chỉ chạy Node thuần — tránh Next bundle sai
+  serverExternalPackages: ["mammoth", "unpdf"],
   // Gói bản build tối giản vào .next/standalone để chạy trong Docker (deploy/)
   output: "standalone",
   async redirects() {

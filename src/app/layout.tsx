@@ -19,7 +19,7 @@ const beVietnam = Be_Vietnam_Pro({
 
 export const metadata: Metadata = {
   title: {
-    default: "Cổng Thanh niên Trường học — Trung ương Đoàn",
+    default: "Cổng Thanh niên Trường học",
     template: "%s | Thanh niên Trường học",
   },
   description:

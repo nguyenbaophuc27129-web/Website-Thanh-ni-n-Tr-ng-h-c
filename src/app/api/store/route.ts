@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       } else if (session?.role === "DOAN_VIEN" && entity === "feedbackMessages") {
         data[entity] = await readEntity(entity, {
           where:
-            "feedback_id IN (SELECT id FROM citizen_feedbacks WHERE sender_account_id = $1)",
+            "feedback_id IN (SELECT id FROM feedbacks WHERE sender_account_id = $1)",
           params: [session.accountId],
         });
       } else {

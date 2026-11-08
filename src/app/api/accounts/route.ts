@@ -24,6 +24,9 @@ const ALLOWED_ADMIN_ROLES: RoleCode[] = [
   "QUAN_TRI_CAP3",
 ];
 
+/** GET cho phép thêm DON_VI — TK trường duyệt hồ sơ Đoàn viên đăng ký (R5) */
+const VIEW_ACCOUNT_ROLES: RoleCode[] = [...ALLOWED_ADMIN_ROLES, "DON_VI"];
+
 /** GET /api/accounts — danh sách tài khoản cho trang Phân quyền (kèm số quyền gán riêng). */
 export async function GET(request: NextRequest) {
   if (!dbEnabled()) {
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ ok: false, error: "YÊU CẦU ĐĂNG NHẬP" }, { status: 401 });
   }
-  if (!ALLOWED_ADMIN_ROLES.includes(session.role as RoleCode)) {
+  if (!VIEW_ACCOUNT_ROLES.includes(session.role as RoleCode)) {
     return NextResponse.json({ ok: false, error: "KHÔNG CÓ QUYỀN XEM TÀI KHOẢN" }, { status: 403 });
   }
 
@@ -53,7 +56,8 @@ export async function GET(request: NextRequest) {
      ORDER BY o.org_level, o.path, a.id`,
   );
 
-  // Phạm vi: TW xem tất cả; tỉnh/cấp 3 chỉ xem tài khoản trong cây đơn vị của mình
+  // Phạm vi: TW xem tất cả; tỉnh/cấp 3/DV-trường chỉ xem tài khoản trong cây đơn vị của mình.
+  // TK trường (DON_VI) CHỈ thấy role DOAN_VIEN (hồ sơ học sinh đăng ký chờ duyệt) — mirror PATCH guard.
   let scoped = rows;
   if (session.role !== "QUAN_TRI_TW") {
     const caller = await query<{ path: string }>(
@@ -66,6 +70,9 @@ export async function GET(request: NextRequest) {
       units.filter((u) => callerPath && u.path.startsWith(callerPath)).map((u) => Number(u.id)),
     );
     scoped = rows.filter((r) => okUnits.has(Number(r.org_unit_id)));
+  }
+  if (session.role === "DON_VI") {
+    scoped = scoped.filter((r) => r.role_code === "DOAN_VIEN");
   }
 
   return NextResponse.json({

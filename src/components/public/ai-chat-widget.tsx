@@ -16,7 +16,7 @@ export function AiChatWidget() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { from: "bot", text: "Xin chào! Tôi là Trợ lý AI của Cổng Thông tin Thanh niên Trường học — Trung ương Đoàn TNCS Hồ Chí Minh. Tôi có thể hỗ trợ gì cho bạn?" },
+    { from: "bot", text: "Xin chào! Tôi là Trợ lý AI của Cổng Thanh niên Trường học — Ban Thanh niên Trường học. Tôi có thể hỗ trợ gì cho bạn?" },
   ]);
   const [typing, setTyping] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);

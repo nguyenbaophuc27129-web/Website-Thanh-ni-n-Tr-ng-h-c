@@ -26,7 +26,7 @@ export function HeroBanner({
   const p = featured[0];
 
   const defaultTicker = [
-    "Cổng thông tin Thanh niên Trường học — Ban Thanh niên Trường học Trung ương Đoàn",
+    "Cổng thông tin Thanh niên Trường học — Ban Thanh niên Trường học",
     "Số hoá công tác Đoàn và phong trào thanh niên trường học toàn quốc",
     "Chương trình Học sinh 3 tốt — Hồ sơ thành tích và tuyên dương",
     "Hệ thống quản lý hoạt động, minh chứng và đánh giá thi đua trực tuyến",
@@ -80,11 +80,11 @@ export function HeroBanner({
           <p className="my-4 line-clamp-3 max-w-2xl text-sm font-normal leading-relaxed text-slate-300 sm:text-[15px]">
             {p
               ? p.excerpt
-              : "Hệ thống thông tin quản lý, truyền thông số hoá và đánh giá thi đua công tác Đoàn và phong trào thanh niên trường học toàn quốc thuộc Trung ương Đoàn TNCS Hồ Chí Minh."}
+              : "Hệ thống thông tin quản lý, truyền thông số hoá và đánh giá thi đua công tác Đoàn và phong trào thanh niên trường học toàn quốc."}
           </p>
 
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-medium text-slate-400">
-            <span>{p ? p.authorOrgUnitName : "Trung ương Đoàn TNCS Hồ Chí Minh"}</span>
+            <span>{p ? p.authorOrgUnitName : "Ban Thanh niên Trường học"}</span>
             <span className="text-slate-600">•</span>
             <span>{p ? formatDate(p.publishedAt ?? p.createdAt) : "Hệ thống toàn quốc"}</span>
             {p ? (

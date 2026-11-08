@@ -90,7 +90,7 @@ export default function TrucTiepPage() {
 
   /**
    * Danh sách đơn vị trực thuộc cần theo dõi:
-   * - Trung ương (QUAN_TRI_TW): Theo dõi toàn bộ 63 Tỉnh/Thành/Trực thuộc (orgLevel === 2)
+   * - Trung ương (QUAN_TRI_TW): Theo dõi toàn bộ 39 Tỉnh/Thành/Trực thuộc (orgLevel === 2)
    * - Tỉnh/Thành (QUAN_TRI_TINH): Theo dõi các Quận/Huyện/Thị xã, Đoàn trường trực thuộc (cấp dưới)
    * - Cấp 3 / Trường (QUAN_TRI_CAP3 / DON_VI): Theo dõi các chi đoàn lớp / đơn vị cơ sở
    */
@@ -216,7 +216,7 @@ export default function TrucTiepPage() {
 
           <p className="mt-1 text-xs text-blue-200">
             {isTW
-              ? "Trung ương Đoàn giám sát hoạt động & điểm nghẽn của 63 Tỉnh / Thành / Đoàn trực thuộc theo thời gian thực."
+              ? "Trung ương Đoàn giám sát hoạt động & điểm nghẽn của 39 Tỉnh / Thành / Đoàn trực thuộc theo thời gian thực."
               : isTinh
               ? "Tỉnh / Thành đoàn giám sát toàn bộ hoạt động & tiến độ của các đơn vị Quận, Huyện và Đoàn trường trực thuộc."
               : "Giám sát tiến độ nhiệm vụ và hoạt động trực tiếp của đơn vị."}
@@ -242,7 +242,7 @@ export default function TrucTiepPage() {
             <CardHeader
               title={
                 isTW
-                  ? "Bảng đèn cảnh báo 63 Tỉnh/Thành/Trực thuộc"
+                  ? "Bảng đèn cảnh báo 39 Tỉnh/Thành/Trực thuộc"
                   : isTinh
                   ? "Bảng đèn cảnh báo các đơn vị trực thuộc Tỉnh/Thành"
                   : "Bảng đèn cảnh báo đơn vị trực thuộc"

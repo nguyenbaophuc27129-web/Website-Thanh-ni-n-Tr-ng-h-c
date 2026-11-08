@@ -25,7 +25,7 @@ import type {
 import { CONTRIBUTION_POINTS } from "@/types";
 import { orgUnits as seedOrgUnits, descendantIds } from "@/data/org-units";
 import { accounts as seedAccounts } from "@/data/accounts";
-import { contentCategories, documentCategories, resourceTypes, feedbackTopics } from "@/data/categories";
+import { contentCategories, documentCategories, resourceTypes, feedbackTopics, DEFAULT_POST_CATEGORY } from "@/data/categories";
 import { activities as seedActivities } from "@/data/activities";
 import { criteriaSets as seedCriteriaSets, tasks as seedTasks, taskMetrics as seedTaskMetrics } from "@/data/criteria-tasks";
 import { taskAssignments as seedAssignments, assignmentTargets as seedTargets, taskResults as seedResults, assignmentReviews as seedReviews } from "@/data/task-assignments";
@@ -279,7 +279,7 @@ interface StoreValue {
 
   /* system */
   updateSetting: (key: string, value: string) => void;
-  updateAccountStatus: (accountId: number, status: Account["status"]) => void;
+  updateAccountStatus: (accountId: number, status: Account["status"]) => Promise<{ ok: boolean; error?: string }>;
   updateAccount: (id: number, patch: {
     contactPerson?: string; email?: string; phone?: string;
     contactPosition?: string; chucDanh?: string; className?: string; status?: Account["status"];
@@ -838,7 +838,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         status: "DRAFT", isFeatured: false, viewCount: 0,
         authorOrgUnitName: act ? orgName(act.orgUnitId) : orgName(session.orgUnitId),
         editorAccountId: session.accountId,
-        categoryNames: [],
+        categoryNames: [DEFAULT_POST_CATEGORY],
         createdAt: nowISO(),
         ...extras,
       };
@@ -1488,19 +1488,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const updateAccountStatus = useCallback((accountId: number, status: Account["status"]) => {
+  const updateAccountStatus = useCallback(async (accountId: number, status: Account["status"]): Promise<{ ok: boolean; error?: string }> => {
+    const before = accounts;
     setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, status } : a)));
     // Đổi trạng thái ở DB — khoá/vô hiệu sẽ thu hồi phiên đăng nhập đang chạy
-    void fetch(`/api/accounts/${accountId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    })
-      .then(async (r) => {
-        if (!r.ok) console.warn("[TNTH][AUTH] Đổi trạng thái tài khoản trên DB thất bại (HTTP", r.status, ")");
-      })
-      .catch(() => {});
-  }, []);
+    try {
+      const r = await fetch(`/api/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null;
+        // Lỗi → revert optimistic để UI không hiện sai
+        setAccounts(before);
+        return { ok: false, error: body?.error ?? `HTTP ${r.status}` };
+      }
+      return { ok: true };
+    } catch {
+      setAccounts(before);
+      return { ok: false, error: "NETWORK" };
+    }
+  }, [accounts]);
 
   /* Tạo tài khoản mới (đơn lẻ hoặc từ import) — ghi DB qua /api/accounts, lỗi mạng thì lưu local */
   const createAccount = useCallback(

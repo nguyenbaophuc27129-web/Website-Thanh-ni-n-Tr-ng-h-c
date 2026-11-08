@@ -197,6 +197,14 @@ export default function TaiNguyenPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // ?type=<code> — link sâu từ nhan-tai (vd CHU_TRUONG_CHINH_SACH)
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("type");
+    const rt = code ? resourceTypes.find((r) => r.code === code) : null;
+    if (rt) setType(String(rt.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const list = useMemo(
     () =>
       publicPool

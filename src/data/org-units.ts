@@ -38,12 +38,12 @@ export const ORG_BLOCK_LABEL: Record<string, string> = Object.fromEntries(
   ORG_BLOCKS.map((b) => [b.value, b.label])
 );
 
-/** Nhãn 5 cấp tổ chức */
+/** Nhãn 5 cấp tổ chức — theo Meet 07/11: cấp 3 = cấp cơ sở (xã/phường), cấp 4 = trường */
 export const ORG_LEVEL_LABEL: Record<number, string> = {
   1: "Trung ương Đoàn",
   2: "Tỉnh / Thành đoàn, Đoàn trực thuộc TW",
-  3: "Cấp trên cơ sở (Quận, Huyện, Thị, Thành đoàn, Khối…)",
-  4: "Đoàn cơ sở (xã, phường, trường, cơ quan…)",
+  3: "Xã / Phường (cấp cơ sở)",
+  4: "Trường / Cơ sở đào tạo (tổ chức cơ sở Đoàn)",
   5: "Dưới cơ sở (Liên chi, Chi đoàn)",
 };
 
@@ -51,8 +51,8 @@ export const ORG_LEVEL_LABEL: Record<number, string> = {
 export const ORG_LEVEL_SHORT: Record<number, string> = {
   1: "Trung ương",
   2: "Tỉnh / Thành",
-  3: "Cấp trên cơ sở",
-  4: "Cơ sở",
+  3: "Xã / Phường",
+  4: "Trường",
   5: "Dưới cơ sở",
 };
 

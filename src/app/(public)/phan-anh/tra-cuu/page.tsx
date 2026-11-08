@@ -117,7 +117,7 @@ export default function TraCuuPage() {
                 Hệ thống Phản ánh - Kiến nghị
               </p>
               <p className="mt-1 text-[10px] text-white/45">
-                Trung ương Đoàn TNCS Hồ Chí Minh
+                Ban Thanh niên Trường học
               </p>
             </div>
             <Sparkles className="h-5 w-5 text-amber-400/80" strokeWidth={1.5} />

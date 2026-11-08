@@ -16,12 +16,14 @@ export interface OrgUnit {
   code: string;
   name: string;
   shortName: string;
-  orgLevel: 1 | 2 | 3 | 4 | 5; // 1=TW · 2=Tỉnh,Thành/Trực thuộc TW · 3=Cấp trên cơ sở · 4=Cơ sở · 5=Dưới cơ sở
+  orgLevel: 1 | 2 | 3 | 4 | 5; // 1=TW · 2=Tỉnh,Thành/Trực thuộc TW (39 đơn vị) · 3=Cấp cơ sở · 4=Dưới cơ sở · 5=Dưới cơ sở
   adminUnitName: string;
   schoolTypeName?: string;
   address?: string;
   isActive: boolean;
   block?: OrgBlock;
+  /** Đường dẫn cây tổ chức "/1/115/149/150/" — chỉ có ở dữ liệu nạp từ DB (seed tĩnh không có) */
+  path?: string;
 }
 
 export interface SchoolType {
@@ -261,6 +263,8 @@ export interface PublishedPost {
   contributorAccountId?: number;
   categoryNames: string[];
   metaDescription?: string;
+  /** Đường dẫn bài gốc khi nhập tin từ link (Facebook / báo điện tử) */
+  sourceUrl?: string;
   createdAt: string;
 }
 
@@ -773,4 +777,159 @@ export interface Hs3tAchievement {
   addedByRole: "STUDENT" | "SCHOOL";
   addedByAccountId: number;
   createdAt: string;
+}
+
+// ═══════════ Bình chọn "Học sinh 3 tốt tiêu biểu" ═══════════
+
+export type VoteCampaignStatus = "DRAFT" | "LIVE" | "ENDED";
+
+export interface VoteCampaign {
+  id: number;
+  code: string;
+  title: string;
+  year: number;
+  startsAt: string;
+  endsAt: string;
+  status: VoteCampaignStatus;
+  /** Loại chiến dịch: HS3T (học sinh) | DOAN_TRUONG (hồ sơ trường) */
+  kind?: "HS3T" | "DOAN_TRUONG";
+  giftNote?: string;
+}
+
+export type BinhChonStoryStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+/** Danh hiệu đã đạt — 3 cấp theo góp ý chị Ngọc Anh */
+export type HonorLevel = "TRUONG" | "TINH" | "TW_DE_CU";
+
+/** Bài dự thi bình chọn HS3T — list công khai chỉ kèm ảnh thumb */
+export interface BinhChonStory {
+  id: number;
+  campaignId: number;
+  studentName: string;
+  schoolOrgUnitId: number;
+  schoolName: string;
+  provinceName?: string;
+  wardName?: string;
+  className?: string;
+  quote?: string;
+  story: string;
+  /** Ô "Thành tích nổi bật" nhập riêng (b cũ có thể để trống — fallback parse từ story) */
+  achievements?: string;
+  /** Tên đơn vị học sinh tự nhập (bỏ trống → fallback schoolName từ cây tổ chức) */
+  orgDisplayName?: string;
+  photoThumbDataUrl: string;
+  /** Chỉ endpoint detail (?storyId=N) mới trả ảnh full */
+  photoDataUrl?: string;
+  voteCount: number;
+  approvedAt?: string;
+  createdAt: string;
+  /** Danh hiệu đã đạt — HS tự khai trong form nộp bài, admin chỉnh được khi duyệt */
+  honorLevel?: HonorLevel;
+  // Các trường admin / chủ bài
+  status?: BinhChonStoryStatus;
+  aiVerdict?: "CLEAN" | "FLAGGED";
+  aiReason?: string;
+  rejectionReason?: string;
+  accountUsername?: string;
+}
+
+// ═══════════ Đề cử gương mặt nhân tài ═══════════
+
+export type NominationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface Nomination {
+  id: number;
+  nomineeName: string;
+  nomineePosition?: string;
+  orgUnitId: number;
+  orgUnitName?: string;
+  provinceName?: string;
+  field: string;
+  quote?: string;
+  achievements: string;
+  evidenceThumbDataUrl: string;
+  /** Chỉ endpoint detail (?id=N) mới trả ảnh full */
+  evidenceDataUrl?: string;
+  submitterAccountId?: number;
+  submitterUsername?: string;
+  aiVerdict?: "CLEAN" | "FLAGGED";
+  aiReason?: string;
+  aiModel?: string;
+  status?: NominationStatus;
+  rejectionReason?: string;
+  reviewedByAccountId?: number;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ═══════════ Bình chọn hồ sơ Đoàn trường ═══════════
+
+export interface UnitStory {
+  id: number;
+  campaignId: number;
+  orgUnitId: number;
+  schoolName: string;
+  provinceName?: string;
+  title: string;
+  intro: string;
+  achievements?: string;
+  photoThumbDataUrl: string;
+  photoDataUrl?: string;
+  voteCount: number;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  aiVerdict?: "CLEAN" | "FLAGGED";
+  aiReason?: string;
+  rejectionReason?: string;
+  approvedAt?: string;
+  createdAt: string;
+  accountUsername?: string;
+}
+
+// ═══════════ Khảo sát xã hội ═══════════
+
+export type SurveyStatus = "DRAFT" | "LIVE" | "ENDED";
+export type SurveyQuestionType = "SINGLE" | "MULTI" | "TEXT";
+
+export interface SurveyQuestion {
+  id: string;
+  text: string;
+  type: SurveyQuestionType;
+  options?: string[];
+  required?: boolean;
+}
+
+export interface Survey {
+  id: number;
+  code: string;
+  title: string;
+  description?: string;
+  status: SurveyStatus;
+  startsAt?: string;
+  endsAt?: string;
+  questions: SurveyQuestion[];
+  responseCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SurveyAnswer {
+  questionId: string;
+  value: string | string[];
+}
+
+export interface SurveyResponse {
+  id: number;
+  surveyId: number;
+  accountId?: number;
+  guestToken?: string;
+  answers: SurveyAnswer[];
+  submittedAt: string;
+}
+
+export interface SurveyTally {
+  questionId: string;
+  optionCounts: Record<string, number>;
+  textResponses: string[];
+  totalAnswered: number;
 }

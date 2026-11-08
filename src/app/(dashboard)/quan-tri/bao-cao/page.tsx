@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileBarChart, Plus, Sparkles, CheckCircle2, Loader2, FileText, History, FileDown, LayoutTemplate, Database, RefreshCw } from "lucide-react";
+import { FileBarChart, Plus, Sparkles, CheckCircle2, Loader2, FileText, History, FileDown, LayoutTemplate, Database, RefreshCw, Copy, Check, Download, Calendar, Code, CheckSquare } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -18,8 +18,8 @@ const TYPE_LABEL: Record<string, string> = {
   MONTHLY: "Báo cáo tháng", QUARTERLY: "Báo cáo quý", ANNUAL: "Báo cáo năm", CUSTOM: "Báo cáo đột xuất",
 };
 
-const TYPE_TO_TEMPLATE: Record<string, "WEEKLY" | "MONTHLY" | "PROGRESS" | "SUMMARY"> = {
-  MONTHLY: "MONTHLY", QUARTERLY: "SUMMARY", ANNUAL: "SUMMARY", CUSTOM: "PROGRESS",
+const TYPE_TO_TEMPLATE: Record<string, "DINH_KY" | "CHINH_TRI_TONG_KET"> = {
+  MONTHLY: "DINH_KY", QUARTERLY: "DINH_KY", ANNUAL: "DINH_KY", CUSTOM: "DINH_KY",
 };
 
 const periodLabelOf = (r: { reportType: string; periodNumber?: number; periodYear: number; periodStart?: string; periodEnd?: string }) => {
@@ -44,12 +44,29 @@ export default function BaoCaoPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
 
+  // Chat chỉnh nháp AI — yêu cầu 1 lượt rồi thay bản nháp
+  const [aiEditId, setAiEditId] = useState<number | null>(null);
+  const [aiEditInstruction, setAiEditInstruction] = useState("");
+  const [aiEditBusy, setAiEditBusy] = useState(false);
+
   // Modal xuất Word
   const [exportFor, setExportFor] = useState<number | null>(null);
-  const [tplId, setTplId] = useState<"WEEKLY" | "MONTHLY" | "PROGRESS" | "SUMMARY">("MONTHLY");
+  const [tplId, setTplId] = useState<"DINH_KY" | "CHINH_TRI_TONG_KET">("DINH_KY");
   const [docCode, setDocCode] = useState("");
   const [checkedBases, setCheckedBases] = useState<string[]>([]);
   const [extraBase, setExtraBase] = useState("");
+
+  // Modal xuất dữ liệu nguồn cho AI (JSON)
+  const [jsonExportOpen, setJsonExportOpen] = useState(false);
+  const [jsonExportMode, setJsonExportMode] = useState<"period" | "activity">("period");
+  const [jsonPeriodStart, setJsonPeriodStart] = useState("2026-09-01");
+  const [jsonPeriodEnd, setJsonPeriodEnd] = useState("2026-09-30");
+  const [jsonSelectedActIds, setJsonSelectedActIds] = useState<number[]>([]);
+  const [jsonResult, setResultJson] = useState<string | null>(null);
+  const [jsonRawData, setJsonRawData] = useState<any>(null);
+  const [jsonExportBusy, setJsonExportBusy] = useState(false);
+  const [copiedJson, setCopiedJson] = useState(false);
+  const [aiSendingBusy, setAiSendingBusy] = useState(false);
 
   // Modal nhập số liệu — xuất Word tự động từ kho mẫu
   const [fillTpl, setFillTpl] = useState<string | null>(null);
@@ -66,7 +83,7 @@ export default function BaoCaoPage() {
   const openExport = (reportId: number) => {
     const rep = store.reports.find((r) => r.id === reportId);
     if (!rep) return;
-    const tpl = templateById(TYPE_TO_TEMPLATE[rep.reportType] ?? "MONTHLY") ?? reportTemplates[1];
+    const tpl = templateById(TYPE_TO_TEMPLATE[rep.reportType] ?? "DINH_KY") ?? reportTemplates[0];
     setExportFor(reportId);
     setTplId(tpl.id);
     setDocCode(suggestDocCode(rep.exports.length, tpl.docPrefix));
@@ -161,6 +178,103 @@ export default function BaoCaoPage() {
     ].join("\n\n");
   };
 
+  const myActivities = useMemo(() => {
+    if (!session) return [];
+    return store.activities
+      .filter((a) => a.orgUnitId === session.orgUnitId)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  }, [store.activities, session]);
+
+  const handleExportJson = async () => {
+    if (!session) return;
+    setJsonExportBusy(true);
+    try {
+      const res = await fetch("/api/bao-cao/xuat-du-lieu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: jsonExportMode,
+          periodStart: jsonExportMode === "period" ? jsonPeriodStart : undefined,
+          periodEnd: jsonExportMode === "period" ? jsonPeriodEnd : undefined,
+          activityIds: jsonExportMode === "activity" ? jsonSelectedActIds : undefined,
+          orgUnitId: session.orgUnitId,
+          clientFallbackData: {
+            orgUnits: store.orgUnits,
+            activities: store.activities,
+            tasks: store.tasks,
+            taskAssignments: store.taskAssignments,
+            publishedPosts: store.publishedPosts,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setJsonRawData(data);
+      setResultJson(JSON.stringify(data.contextForAi, null, 2));
+      toast(`Đã trích xuất ${data.metadata.activityCount} hoạt động thành dữ liệu JSON chuẩn cho AI!`, "success");
+    } catch (err) {
+      toast(`Lỗi trích xuất dữ liệu: ${err instanceof Error ? err.message : "không rõ"}`, "warning");
+    } finally {
+      setJsonExportBusy(false);
+    }
+  };
+
+  const handleCopyJson = () => {
+    if (!jsonResult) return;
+    navigator.clipboard.writeText(jsonResult);
+    setCopiedJson(true);
+    setTimeout(() => setCopiedJson(false), 2000);
+    toast("Đã sao chép dữ liệu JSON vào bộ nhớ đệm.");
+  };
+
+  const handleDownloadJson = () => {
+    if (!jsonResult) return;
+    const blob = new Blob([jsonResult], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `du-lieu-bao-cao-ai-${jsonExportMode}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("Đã tải xuống tệp dữ liệu JSON.");
+  };
+
+  const handleSendToAi = async () => {
+    if (!jsonRawData?.contextForAi || !session) return;
+    setAiSendingBusy(true);
+    try {
+      const res = await fetch("/api/ai/nhap-bao-cao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ctx: jsonRawData.contextForAi }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok || !data.content) throw new Error(data.error || `HTTP ${res.status}`);
+      const periodLabel = jsonRawData.contextForAi.period || "Kỳ báo cáo";
+      const newId = store.createReport(session, {
+        orgUnitId: session.orgUnitId,
+        reportType: "MONTHLY",
+        periodYear: new Date().getFullYear(),
+        periodNumber: new Date().getMonth() + 1,
+        periodStart: jsonExportMode === "period" ? jsonPeriodStart : new Date().toISOString().slice(0, 10),
+        periodEnd: jsonExportMode === "period" ? jsonPeriodEnd : new Date().toISOString().slice(0, 10),
+        title: `Báo cáo công tác Đoàn (${periodLabel}) - Tạo từ AI`,
+      });
+      store.updateReport(newId, {
+        content: data.content,
+        aiDraftContent: data.content,
+        aiModel: data.model || "Gemini AI",
+        aiGeneratedAt: new Date().toISOString(),
+      });
+      toast("Đã tạo báo cáo mới từ dữ liệu JSON và bản nháp AI thành công!", "success");
+      setJsonExportOpen(false);
+    } catch (err) {
+      toast(`Không gọi được AI: ${err instanceof Error ? err.message : "lỗi không rõ"}`, "warning");
+    } finally {
+      setAiSendingBusy(false);
+    }
+  };
+
   const openFill = (tid: string) => {
     const tpl = templateById(tid);
     if (!tpl) return;
@@ -239,26 +353,33 @@ export default function BaoCaoPage() {
     setAiBusy(reportId);
     try {
       const rep = store.reports.find((r) => r.id === reportId);
-      const acts = store.activities.filter((a) => a.orgUnitId === rep?.orgUnitId);
-      const asgs = store.taskAssignments.filter((a) => a.orgUnitId === rep?.orgUnitId);
-      // Gom số liệu hệ thống gửi lên API — AI thật sẽ dùng đây làm ngữ cảnh
-      const res = await fetch("/api/ai/nhap-bao-cao", {
+      // Gọi BE trích xuất JSON dữ liệu kỳ báo cáo (hoặc client fallback)
+      const exportRes = await fetch("/api/bao-cao/xuat-du-lieu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ctx: {
-            orgUnitName: store.orgName(rep?.orgUnitId ?? 0),
-            period: rep ? periodLabelOf(rep) : "kỳ báo cáo",
-            activityCount: acts.length,
-            participantCount: acts.reduce((s, a) => s + (a.participantCount ?? 0), 0),
-            taskLines: asgs.map(
-              (a) => `${store.tasks.find((t) => t.id === a.taskId)?.code ?? "?"} đạt ${a.completionRate.toFixed(1)}%`
-            ),
-            postCount: store.publishedPosts.filter(
-              (p) => p.status === "PUBLISHED" && p.authorOrgUnitName === store.orgName(rep?.orgUnitId ?? 0)
-            ).length,
+          mode: "period",
+          periodStart: rep?.periodStart,
+          periodEnd: rep?.periodEnd,
+          periodLabel: rep ? periodLabelOf(rep) : "kỳ báo cáo",
+          orgUnitId: rep?.orgUnitId,
+          clientFallbackData: {
+            orgUnits: store.orgUnits,
+            activities: store.activities,
+            tasks: store.tasks,
+            taskAssignments: store.taskAssignments,
+            publishedPosts: store.publishedPosts,
           },
         }),
+      });
+      const exportData = await exportRes.json().catch(() => null);
+      const aiCtx = exportData?.ok ? exportData.contextForAi : null;
+
+      // Gom số liệu gửi lên AI agent
+      const res = await fetch("/api/ai/nhap-bao-cao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ctx: aiCtx }),
       });
       const data = (await res.json().catch(() => null)) as
         | { ok?: boolean; content?: string; model?: string; error?: string }
@@ -283,6 +404,34 @@ export default function BaoCaoPage() {
     setEditContent(rep?.content ?? rep?.aiDraftContent ?? "");
   };
 
+  /** Gửi yêu cầu chỉnh nháp lên AI — thay lại aiDraftContent */
+  const applyAiEdit = async (reportId: number) => {
+    const rep = store.reports.find((r) => r.id === reportId);
+    const draft = rep?.aiDraftContent ?? "";
+    const instruction = aiEditInstruction.trim();
+    if (!draft || !instruction || aiEditBusy) return;
+    setAiEditBusy(true);
+    try {
+      const res = await fetch("/api/ai/chinh-bao-cao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: draft, instruction }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; content?: string; error?: string }
+        | null;
+      if (!res.ok || !data?.ok || !data.content) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      store.updateReport(reportId, { aiDraftContent: data.content });
+      setAiEditInstruction("");
+      setAiEditId(null);
+      toast("AI đã chỉnh xong bản nháp — bạn xem lại trước khi chốt báo cáo.");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Không chỉnh được báo cáo bằng AI.", "warning");
+    } finally {
+      setAiEditBusy(false);
+    }
+  };
+
   const saveContent = () => {
     if (editingId === null) return;
     store.updateReport(editingId, { content: editContent });
@@ -304,9 +453,14 @@ export default function BaoCaoPage() {
             Lập báo cáo tháng/quý/năm từ dữ liệu hệ thống, có bản nháp gợi ý bằng AI và xuất Word.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> Tạo báo cáo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => { setJsonExportOpen(true); setResultJson(null); setJsonRawData(null); }} className="flex items-center gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50">
+            <Code className="h-4 w-4 text-blue-600" /> Xuất JSON cho AI
+          </Button>
+          <Button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5">
+            <Plus className="h-4 w-4" /> Tạo báo cáo
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -332,9 +486,34 @@ export default function BaoCaoPage() {
                       {r.aiModel} · {formatDateTime(r.aiGeneratedAt)}
                     </span>
                   </p>
-                  <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-stone-600">
-                    {r.aiDraftContent.split("\n\n").map((para, i) => <p key={i}>{para}</p>)}
+                  <div className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-600">
+                    {r.aiDraftContent}
                   </div>
+                  {aiEditId === r.id ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Input
+                        value={aiEditInstruction}
+                        onChange={(e) => setAiEditInstruction(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && applyAiEdit(r.id)}
+                        placeholder="VD: rút gọn phần C, thêm mục triển khai quý 4…"
+                        className="h-8 min-w-56 flex-1 text-xs"
+                      />
+                      <Button size="sm" onClick={() => applyAiEdit(r.id)} disabled={aiEditBusy}>
+                        {aiEditBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        {aiEditBusy ? "Đang chỉnh…" : "Chỉnh bằng AI"}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setAiEditId(null); setAiEditInstruction(""); }}>
+                        Bỏ
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setAiEditId(r.id); setAiEditInstruction(""); }}
+                      className="mt-2 text-[11px] font-medium text-violet-700 hover:underline"
+                    >
+                      Chỉnh sửa bản nháp bằng AI…
+                    </button>
+                  )}
                 </div>
               ) : null}
 
@@ -349,7 +528,7 @@ export default function BaoCaoPage() {
               ) : r.content ? (
                 <div className="rounded-lg border border-stone-200 bg-white p-3.5 text-xs leading-relaxed text-stone-700">
                   <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">Nội dung đã biên tập</p>
-                  {r.content.split("\n\n").map((para, i) => <p key={i} className="mb-1.5">{para}</p>)}
+                  <div className="whitespace-pre-wrap">{r.content}</div>
                 </div>
               ) : null}
 
@@ -414,8 +593,8 @@ export default function BaoCaoPage() {
 
       <Card>
         <CardHeader
-          title="Kho mẫu văn bản (truy suất)"
-          subtitle="Nhập số liệu theo mẫu → hệ thống tự soạn nội dung và xuất Word thể thức hoàn chỉnh. Hoặc tải mẫu trắng để tham khảo."
+          title="Kho mẫu văn bản chính thức (02 mẫu quy định)"
+          subtitle="Áp dụng chuẩn 02 mẫu văn bản chính thức: Báo cáo định kỳ (Tuần/Tháng/Quý/Năm) và Báo cáo chính trị Đại hội Đoàn."
         />
         <CardBody className="p-0">
           <ul className="divide-y divide-stone-100">
@@ -688,6 +867,229 @@ export default function BaoCaoPage() {
               <Input type="date" value={form.periodEnd} onChange={(e) => setForm((f) => ({ ...f, periodEnd: e.target.value }))} />
             </Field>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal Xuất dữ liệu nguồn thành JSON gửi thẳng vào AI */}
+      <Modal
+        open={jsonExportOpen}
+        onClose={() => setJsonExportOpen(false)}
+        title="Dữ liệu nguồn cho AI (Xuất JSON & Gửi AI)"
+        wide
+        footer={
+          <div className="flex flex-wrap items-center justify-between w-full gap-2">
+            <div className="flex items-center gap-2">
+              {jsonResult && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCopyJson}
+                    className="flex items-center gap-1.5"
+                  >
+                    {copiedJson ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedJson ? "Đã chép" : "Sao chép JSON"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadJson}
+                    className="flex items-center gap-1.5"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Tải file .json
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setJsonExportOpen(false)}>
+                Đóng
+              </Button>
+              {jsonResult && (
+                <Button
+                  onClick={handleSendToAi}
+                  disabled={aiSendingBusy}
+                  className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5"
+                >
+                  {aiSendingBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {aiSendingBusy ? "Đang gửi vào AI…" : "Gửi thẳng vào AI tạo nháp"}
+                </Button>
+              )}
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl bg-blue-50/70 p-3.5 border border-blue-200 text-xs text-blue-900 leading-relaxed">
+            Hệ thống tự động lọc toàn bộ hoạt động, số lượt tham gia, tiến độ nhiệm vụ thi đua và tin bài theo kỳ báo cáo hoặc danh sách chọn, chuyển thành cấu trúc JSON chuẩn theo <strong>Đặc tả huấn luyện AI agent báo cáo Đoàn</strong> để nạp thẳng vào AI.
+          </div>
+
+          <div className="flex items-center gap-4 border-b border-stone-200 pb-3">
+            <label className="flex items-center gap-2 text-xs font-semibold text-stone-800 cursor-pointer">
+              <input
+                type="radio"
+                name="jsonMode"
+                value="period"
+                checked={jsonExportMode === "period"}
+                onChange={() => setJsonExportMode("period")}
+                className="accent-blue-600"
+              />
+              <span>1. Theo kỳ báo cáo (Thời gian)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-stone-800 cursor-pointer">
+              <input
+                type="radio"
+                name="jsonMode"
+                value="activity"
+                checked={jsonExportMode === "activity"}
+                onChange={() => setJsonExportMode("activity")}
+                className="accent-blue-600"
+              />
+              <span>2. Chọn hoạt động cụ thể ({jsonSelectedActIds.length} đã chọn)</span>
+            </label>
+          </div>
+
+          {jsonExportMode === "period" ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Từ ngày">
+                  <Input
+                    type="date"
+                    value={jsonPeriodStart}
+                    onChange={(e) => setJsonPeriodStart(e.target.value)}
+                  />
+                </Field>
+                <Field label="Đến ngày">
+                  <Input
+                    type="date"
+                    value={jsonPeriodEnd}
+                    onChange={(e) => setJsonPeriodEnd(e.target.value)}
+                  />
+                </Field>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                <span>Chọn nhanh:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJsonPeriodStart("2026-10-01");
+                    setJsonPeriodEnd("2026-10-31");
+                  }}
+                  className="rounded-md bg-stone-100 px-2 py-1 hover:bg-stone-200"
+                >
+                  Tháng 10/2026
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJsonPeriodStart("2026-09-01");
+                    setJsonPeriodEnd("2026-09-30");
+                  }}
+                  className="rounded-md bg-stone-100 px-2 py-1 hover:bg-stone-200"
+                >
+                  Tháng 9/2026
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJsonPeriodStart("2026-10-06");
+                    setJsonPeriodEnd("2026-10-12");
+                  }}
+                  className="rounded-md bg-stone-100 px-2 py-1 hover:bg-stone-200"
+                >
+                  Tuần 41 (06 - 12/10)
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-stone-500">
+                <span>Chọn các hoạt động cần tổng hợp báo cáo:</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setJsonSelectedActIds(myActivities.map((a) => a.id))}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Chọn tất cả
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={() => setJsonSelectedActIds([])}
+                    className="text-stone-500 hover:underline"
+                  >
+                    Bỏ chọn
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-lg border border-stone-200 bg-stone-50 p-2.5">
+                {myActivities.length === 0 ? (
+                  <p className="text-xs text-stone-400 py-3 text-center">Đơn vị chưa có hoạt động nào được tạo.</p>
+                ) : (
+                  myActivities.map((act) => {
+                    const isChecked = jsonSelectedActIds.includes(act.id);
+                    return (
+                      <label
+                        key={act.id}
+                        className={`flex items-start gap-2.5 rounded-md p-2 text-xs cursor-pointer transition-colors ${
+                          isChecked ? "bg-blue-50 border border-blue-200" : "bg-white border border-stone-100 hover:bg-stone-100/50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 accent-blue-600"
+                          checked={isChecked}
+                          onChange={() => {
+                            setJsonSelectedActIds((prev) =>
+                              prev.includes(act.id) ? prev.filter((id) => id !== act.id) : [...prev, act.id]
+                            );
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-stone-900 truncate">{act.title}</p>
+                          <p className="text-[11px] text-stone-500">
+                            Ngày: {formatDate(act.startDate)} {act.location ? `· ${act.location}` : ""} · {act.participantCount || 0} lượt tham gia
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <Button
+              onClick={handleExportJson}
+              disabled={jsonExportBusy || (jsonExportMode === "activity" && jsonSelectedActIds.length === 0)}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {jsonExportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Code className="h-4 w-4" />}
+              {jsonExportBusy ? "Đang trích xuất JSON từ Backend..." : "Trích xuất JSON từ dữ liệu hệ thống"}
+            </Button>
+          </div>
+
+          {jsonResult && (
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-stone-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  JSON đầu vào AI ({jsonRawData?.metadata?.activityCount || 0} hoạt động, {jsonRawData?.metadata?.participantCount || 0} lượt tham gia)
+                </span>
+                <span className="text-[11px] text-stone-500 font-mono">
+                  {jsonRawData?.metadata?.orgUnitName}
+                </span>
+              </div>
+              <textarea
+                readOnly
+                value={jsonResult}
+                rows={10}
+                className="w-full rounded-xl border border-stone-200 bg-stone-900 p-3 font-mono text-xs text-emerald-400 focus:outline-none"
+              />
+            </div>
+          )}
         </div>
       </Modal>
     </div>

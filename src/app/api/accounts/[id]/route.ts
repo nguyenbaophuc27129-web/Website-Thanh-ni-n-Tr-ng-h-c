@@ -8,6 +8,7 @@ const ALLOWED_ADMIN_ROLES: RoleCode[] = [
   "QUAN_TRI_TW",
   "QUAN_TRI_TINH",
   "QUAN_TRI_CAP3",
+  "DON_VI",
 ];
 
 /** PATCH /api/accounts/[id] — đổi trạng thái (status) hoặc sửa thông tin
@@ -102,6 +103,14 @@ export async function PATCH(
 
     // Khi sửa tài khoản người khác: kiểm tra phân cấp quản lý
     if (!isSelf) {
+      // Đoàn trường (DON_VI) chỉ được duyệt / chỉnh sửa tài khoản Đoàn viên
+      if (session.role === "DON_VI" && target.role_code !== "DOAN_VIEN") {
+        return NextResponse.json(
+          { ok: false, error: "ĐOÀN TRƯỜNG CHỈ ĐƯỢC QUẢN LÝ / DUYỆT TÀI KHOẢN ĐOÀN VIÊN" },
+          { status: 403 },
+        );
+      }
+
       // Chỉ QUAN_TRI_TW mới được chỉnh sửa tài khoản QUAN_TRI_TW khác
       if (target.role_code === "QUAN_TRI_TW" && session.role !== "QUAN_TRI_TW") {
         return NextResponse.json(

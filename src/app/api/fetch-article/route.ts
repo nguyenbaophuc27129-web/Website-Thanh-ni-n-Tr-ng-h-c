@@ -39,9 +39,10 @@ const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 const FACEBOOK_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 
-/** fetch tự đi theo chuyển hướng (≤5 lần) và kiểm tra lại host ở từng bước. */
-async function fetchPublic(start: URL, userAgent = BROWSER_UA): Promise<Response> {
-  const signal = AbortSignal.timeout(9000);
+/** fetch tự đi theo chuyển hướng (≤5 lần) và kiểm tra lại host ở từng bước.
+ * Facebook trả trang rất chậm (thường >20s) nên cần timeout riêng dài hơn web thường. */
+async function fetchPublic(start: URL, userAgent = BROWSER_UA, timeoutMs = 12000): Promise<Response> {
+  const signal = AbortSignal.timeout(timeoutMs);
   const headers = {
     "User-Agent": userAgent,
     Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -134,6 +135,14 @@ function metaContent(html: string, attributeName: "property" | "name", key: stri
   );
   const raw = html.match(re)?.[1] ?? html.match(alt)?.[1] ?? "";
   return decodeEntities(raw).trim();
+}
+
+/** Tách đoạn văn từ mô tả bài đăng Facebook (og:description giữ nguyên xuống dòng) */
+function paragraphsOf(text: string): string[] {
+  return text
+    .split(/\n+/)
+    .map((s) => s.replace(/\s+/g, " ").trim())
+    .filter((s) => s.length >= 2);
 }
 
 function stripBlocks(html: string): string {
@@ -234,7 +243,7 @@ export async function POST(request: Request) {
     target.hostname.includes("fb.watch");
 
   try {
-    const res = await fetchPublic(target, isFacebook ? FACEBOOK_UA : BROWSER_UA);
+    const res = await fetchPublic(target, isFacebook ? FACEBOOK_UA : BROWSER_UA, isFacebook ? 25000 : 12000);
     if (!res.ok && !isFacebook) {
       return NextResponse.json({ ok: false, error: `Trang trả về lỗi HTTP ${res.status}` }, { status: 502 });
     }
@@ -270,20 +279,37 @@ export async function POST(request: Request) {
 
     let contentBlocks = extractRichContent(html, target.href);
 
-    // Fallback cho bài đăng Facebook khi bị chặn crawler
+    // Bài đăng Facebook: og:description chính là TOÀN BỘ chữ bài đăng, og:image là ảnh bài đăng
     if (isFacebook) {
-      if (!title || title.toLowerCase().includes("log in") || title.toLowerCase().includes("đăng nhập")) {
-        title = `Bài viết chia sẻ từ Facebook: ${target.pathname.replace(/^\//, "").slice(0, 40)}`;
-      }
-      if (!excerpt || excerpt.toLowerCase().includes("log in")) {
-        excerpt = `Nội dung chia sẻ từ liên kết Facebook (${target.href})`;
-      }
-      if (contentBlocks.length === 0) {
+      const isPermalink =
+        /\/(posts|permalink\.php|story\.php|photos|videos|reel|share\/p)\//.test(target.href) ||
+        /story_fbid|fb\.watch/.test(target.href);
+      const descParas = paragraphsOf(excerpt);
+      const looksLogin = !title || /log\s?in|đăng nhập/i.test(title);
+
+      if (isPermalink && descParas.length > 0) {
+        // Tiêu đề chuẩn: dòng đầu của bài đăng (og:title chỉ là tên fanpage)
+        const firstLine = descParas[0];
+        title = firstLine.length > 110 ? `${firstLine.slice(0, 107)}…` : firstLine;
+        excerpt = descParas.join(" ").slice(0, 300);
+        // Nội dung = TOÀN BỘ chữ bài đăng — bỏ markup rác FB scrape được (ảnh lookaside
+        // crawler không xem được ngoài trình duyệt; ảnh thật đã tải về làm cover dataUrl)
         contentBlocks = [
-          excerpt,
-          `*(Bài viết được trích xuất từ bài đăng Facebook: [Xem bài gốc](${target.href})).*`,
-          "Bạn có thể bổ sung chi tiết nội dung, hình ảnh hoặc các liên kết bổ sung của bài viết ở phần soạn thảo này.",
+          ...descParas,
+          `*Nguồn: [Bài viết gốc trên Facebook](${target.href})*`,
         ];
+      } else {
+        if (looksLogin) {
+          title = `Trang Facebook: ${target.pathname.replace(/^\//, "").split("/")[0] || target.hostname}`;
+        }
+        excerpt = paragraphsOf(excerpt).join(" ").slice(0, 300);
+      }
+
+      if (contentBlocks.length === 0 && !title) {
+        return NextResponse.json(
+          { ok: false, error: "Không đọc được nội dung bài viết từ Facebook (bài có thể ở chế độ riêng tư). Bạn hãy dán nội dung thủ công." },
+          { status: 422 }
+        );
       }
     }
 
@@ -293,20 +319,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Không đọc được nội dung nào từ trang này." }, { status: 422 });
     }
 
-    return NextResponse.json({ ok: true, title, excerpt, imageUrl, content });
+    // Tải ảnh về phía server và chuyển sang Data URL (tránh lỗi hotlink chặn từ domain gốc)
+    let imageDataUrl: string | undefined;
+    if (imageUrl) {
+      try {
+        const imgTarget = new URL(imageUrl);
+        const imgRes = await fetchPublic(imgTarget, isFacebook ? FACEBOOK_UA : BROWSER_UA, 15000);
+        if (imgRes.ok) {
+          const rawContentType = imgRes.headers.get("content-type") || "";
+          const contentType = rawContentType.split(";")[0].trim().toLowerCase();
+          const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
+          if (validTypes.includes(contentType) || contentType.startsWith("image/")) {
+            const arrayBuf = await imgRes.arrayBuffer();
+            if (arrayBuf.byteLength > 0 && arrayBuf.byteLength <= 3 * 1024 * 1024) {
+              const b64 = Buffer.from(arrayBuf).toString("base64");
+              imageDataUrl = `data:${contentType || "image/jpeg"};base64,${b64}`;
+            }
+          }
+        }
+      } catch (imgErr) {
+        console.warn("[TNTH][fetch-article] Không tải được ảnh đính kèm để chuyển dataUrl:", imgErr);
+      }
+    }
+
+    return NextResponse.json({ ok: true, title, excerpt, imageUrl, imageDataUrl, content });
   } catch (err) {
     const message = err instanceof Error ? err.message : "FETCH_FAILED";
     console.warn("[TNTH][fetch-article] Lỗi trích xuất:", message);
 
-    // Nếu là Facebook hoặc mạng bị chặn, tạo khung mô phỏng chứ không báo lỗi gãy
+    // Facebook: báo lỗi rõ ràng thay vì trả khung mô phỏng — dữ liệu phải thật
     if (isFacebook) {
-      return NextResponse.json({
-        ok: true,
-        title: `Bài viết Facebook (${target.pathname.slice(0, 30)})`,
-        excerpt: `Bài đăng trích dẫn từ Facebook: ${target.href}`,
-        imageUrl: undefined,
-        content: `*(Bài viết trích xuất từ Facebook: ${target.href}. Vui lòng dán nội dung chi tiết nếu trang yêu cầu quyền riêng tư).*`,
-      });
+      return NextResponse.json(
+        { ok: false, error: "Không tải được bài viết từ Facebook (mạng chậm hoặc bài ở chế độ riêng tư). Bạn hãy dán nội dung và ảnh thủ công." },
+        { status: 502 }
+      );
     }
     return NextResponse.json({ ok: false, error: `Không tải được trang (${message})` }, { status: 502 });
   }

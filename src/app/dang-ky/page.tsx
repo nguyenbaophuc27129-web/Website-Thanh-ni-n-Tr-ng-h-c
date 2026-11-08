@@ -4,21 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, LogIn, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, LogIn, MailCheck, UserPlus, Users } from "lucide-react";
 import { DEMO_ACCOUNTS, useAuth, type Role } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
+import type { OrgUnit } from "@/types";
 import { orgUnits } from "@/data/org-units";
 import { DV_HOI_POSITION_GROUPS } from "@/data/positions";
 
 const SOFT_INPUT =
   "mt-1.5 w-full rounded-xl border border-transparent bg-slate-100/60 px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500/40 focus:bg-white focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]";
 
-const SCHOOLS = orgUnits.filter((u) => u.orgLevel === 4);
-const COMMUNES = orgUnits.filter((u) => u.orgLevel === 3);
-const PROVINCES = orgUnits.filter((u) => u.orgLevel === 2);
-
 export default function DangKyPage() {
-  const { session, ready, login } = useAuth();
+  const { session, ready } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [form, setForm] = useState({
@@ -33,27 +30,52 @@ export default function DangKyPage() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [registered, setRegistered] = useState<string | null>(null);
   const [selectedProvinceId, setSelectedProvinceId] = useState<string>("");
   const [selectedCommuneId, setSelectedCommuneId] = useState<string>("");
+
+  /* Cây đơn vị sống từ DB (có cả trường tạo runtime) — seed tĩnh chỉ là fallback offline */
+  const [units, setUnits] = useState<OrgUnit[]>(orgUnits);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/org-units")
+      .then(async (r) => {
+        const data = (await r.json().catch(() => null)) as { ok?: boolean; units?: OrgUnit[] } | null;
+        if (!cancelled && r.ok && data?.ok && Array.isArray(data.units) && data.units.length > 0) {
+          setUnits(data.units);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const PROVINCES = useMemo(() => units.filter((u) => u.orgLevel === 2), [units]);
+  const COMMUNES = useMemo(() => units.filter((u) => u.orgLevel === 3), [units]);
+  const SCHOOLS = useMemo(() => units.filter((u) => u.orgLevel === 4), [units]);
 
   const filteredCommunes = useMemo(() => {
     if (!selectedProvinceId) return [];
     const pId = Number(selectedProvinceId);
     return COMMUNES.filter((c) => c.parentId === pId);
-  }, [selectedProvinceId]);
+  }, [selectedProvinceId, COMMUNES]);
 
+  // Lọc trường theo path prefix của cấp trên (chịu mọi độ sâu trung gian) — seed không path thì lọc theo parentId
   const filteredSchools = useMemo(() => {
+    const inSubtree = (s: OrgUnit, ancestor: OrgUnit) =>
+      (s.path && ancestor.path && s.path.startsWith(ancestor.path)) ||
+      (!s.path && s.parentId === ancestor.id);
     if (selectedCommuneId) {
-      const cId = Number(selectedCommuneId);
-      return SCHOOLS.filter((s) => s.parentId === cId);
+      const c = units.find((u) => u.id === Number(selectedCommuneId));
+      return c ? SCHOOLS.filter((s) => inSubtree(s, c)) : [];
     }
     if (selectedProvinceId) {
-      const pId = Number(selectedProvinceId);
-      const cIds = filteredCommunes.map((c) => c.id);
-      return SCHOOLS.filter((s) => s.parentId === pId || (s.parentId !== null && cIds.includes(s.parentId)));
+      const p = units.find((u) => u.id === Number(selectedProvinceId));
+      return p ? SCHOOLS.filter((s) => inSubtree(s, p)) : [];
     }
     return SCHOOLS;
-  }, [selectedProvinceId, selectedCommuneId, filteredCommunes]);
+  }, [units, selectedProvinceId, selectedCommuneId, SCHOOLS]);
 
   // Đổi đơn vị thuộc nhóm khác thì reset chọn (value chưa tồn tại trong nhóm mới)
 
@@ -125,9 +147,10 @@ export default function DangKyPage() {
       return;
     }
 
-    await login(username, form.password);
-    toast("Đăng ký thành công! Chào mừng bạn đến với Diễn đàn Đoàn viên.", "success");
-    router.push("/dien-dan");
+    // Đăng ký thành công → TÀI KHOẢN CHỜ DUYỆT (PENDING) — không tự đăng nhập
+    setSubmitting(false);
+    setRegistered(username);
+    toast("Đã gửi đăng ký — vui lòng chờ duyệt kích hoạt tài khoản.", "success");
   };
 
   return (
@@ -159,6 +182,34 @@ export default function DangKyPage() {
           </div>
         </div>
 
+        {registered ? (
+          <div className="mt-7 text-center py-4">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-600 shadow-sm">
+              <MailCheck className="h-7 w-7" strokeWidth={2} />
+            </span>
+            <h2 className="mt-4 text-xl font-bold text-slate-900">Đã gửi đăng ký tài khoản</h2>
+            <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+              Tài khoản <strong className="text-blue-600 font-semibold">{registered}</strong> đã được gửi thành công và đang chờ Đoàn trường / quản trị viên duyệt kích hoạt.
+            </p>
+            <p className="mt-1.5 text-xs text-slate-400">
+              Sau khi được duyệt kích hoạt, bạn có thể đăng nhập để tham gia Diễn đàn và các hoạt động.
+            </p>
+            <div className="mt-6 flex flex-col gap-2.5">
+              <Link
+                href="/dang-nhap"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all hover:brightness-110"
+              >
+                <LogIn className="h-4 w-4" /> Đăng nhập ngay
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Về màn hình chính
+              </Link>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -227,7 +278,7 @@ export default function DangKyPage() {
 
               <div>
                 <label className="text-xs font-medium text-slate-600">
-                  2. Quận / Huyện / Phường / Xã
+                  2. Xã / Phường (cấp cơ sở)
                 </label>
                 <select
                   value={selectedCommuneId}
@@ -260,7 +311,7 @@ export default function DangKyPage() {
               >
                 <option value="">
                   {filteredSchools.length === 0
-                    ? "— Không tìm thấy trường thuộc phân cấp này —"
+                    ? "— Chưa có trường trong danh mục — liên hệ Đoàn trường bổ sung"
                     : "— Chọn trường / cơ sở giáo dục —"}
                 </option>
                 {filteredSchools.map((s) => (
@@ -310,10 +361,13 @@ export default function DangKyPage() {
             <LogIn className="h-4 w-4" /> Đã có tài khoản? Đăng nhập
           </button>
         </form>
+        )}
 
-        <p className="mt-5 text-center text-[11px] leading-relaxed text-slate-400">
-          Thông tin đăng ký sẽ được Đoàn trường xác thực và kích hoạt theo quy định quản lý Đoàn viên.
-        </p>
+        {!registered && (
+          <p className="mt-5 text-center text-[11px] leading-relaxed text-slate-400">
+            Thông tin đăng ký sẽ được Đoàn trường xác thực và kích hoạt theo quy định quản lý Đoàn viên.
+          </p>
+        )}
       </motion.div>
     </div>
   );

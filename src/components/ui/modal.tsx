@@ -11,6 +11,7 @@ export function Modal({
   children,
   footer,
   wide,
+  className,
 }: {
   open: boolean;
   onClose: () => void;
@@ -18,6 +19,7 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  className?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -39,7 +41,8 @@ export function Modal({
       <div
         className={cn(
           "animate-modal-in relative flex max-h-[88vh] w-full flex-col rounded-xl bg-white shadow-2xl",
-          wide ? "max-w-3xl" : "max-w-lg"
+          wide ? "max-w-3xl" : "max-w-lg",
+          className
         )}
       >
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">

@@ -29,6 +29,17 @@ const SYSTEM_PROMPT =
   "Khi nghi ngờ văn bản mang lập trường chính trị chống phá → bắt buộc chọn FLAGGED (thà chặn nhầm, không được bỏ sót). " +
   "Nội dung học tập, hoạt động Đoàn, góp ý xây dựng thì CLEAN.";
 
+// Schema thống nhất — ép AI trả đúng cấu trúc (Gemini responseSchema / Claude prompt-lock)
+const VERDICT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    verdict: { type: "STRING", enum: ["CLEAN", "FLAGGED"] },
+    reason: { type: "STRING" },
+  },
+  required: ["verdict", "reason"],
+  propertyOrdering: ["verdict", "reason"],
+};
+
 function parseVerdict(raw: string): { verdict: "CLEAN" | "FLAGGED"; reason?: string } {
   const cleaned = raw.replace(/```json/gi, "```").split("```").join("\n");
   const match = cleaned.match(/\{[\s\S]*\}/);
@@ -53,6 +64,8 @@ async function moderateWithAI(text: string): Promise<{ verdict: "CLEAN" | "FLAGG
     user: text,
     maxTokens: 300,
     temperature: 0,
+    json: true,
+    jsonSchema: VERDICT_SCHEMA,
   });
   return { ...parseVerdict(raw), model };
 }

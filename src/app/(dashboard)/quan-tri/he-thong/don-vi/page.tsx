@@ -452,7 +452,7 @@ export default function DonViPage() {
         <div>
           <h1 className="font-serif-display text-xl font-bold text-stone-900">Cây đơn vị tổ chức</h1>
           <p className="mt-0.5 text-sm text-stone-500">
-            TW Đoàn → 34 tỉnh/thành + đoàn trực thuộc TW → các cấp dưới do tỉnh/thành đoàn tự tạo. Bấm vào đơn vị để xem cấp dưới.
+            TW Đoàn → 39 Tỉnh/Thành & trực thuộc TW → các cấp dưới (Cấp cơ sở, Chi đoàn) do đơn vị tự tạo. Bấm vào đơn vị để xem cấp dưới.
           </p>
         </div>
         <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={refreshing}>
@@ -570,7 +570,7 @@ export default function DonViPage() {
 
           <p className="flex items-start gap-1.5 text-[11px] text-stone-400">
             <Network className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Cây đơn vị lưu tại bảng org_units (materialized path, 5 cấp: TW → Tỉnh/Thành → Cấp trên cơ sở → Cơ sở → Dưới cơ sở). Mọi thay đổi đồng bộ ngay lên máy chủ.
+            Cây đơn vị lưu tại bảng org_units (materialized path: TW → Tỉnh/Thành/Trực thuộc (39 đơn vị) → Cấp cơ sở → Dưới cơ sở). Mọi thay đổi đồng bộ ngay lên máy chủ.
           </p>
         </div>
       </div>

@@ -372,6 +372,14 @@ export default function PhanQuyenVaTaiKhoanPage() {
     }
   };
 
+  /* ================= Xử lý duyệt nhanh tài khoản PENDING ================= */
+  const handleQuickApprove = (account: Account) => {
+    void store.updateAccountStatus(account.id, "ACTIVE").then((res) => {
+      if (!res.ok) toast(res.error ?? "Không kích hoạt được tài khoản.", "warning");
+      else toast(`Đã kích hoạt tài khoản @${account.username} (${account.contactPerson}) thành công!`, "success");
+    });
+  };
+
   /* ================= Xử lý sửa thông tin tài khoản ================= */
   const openEditModal = (account: Account) => {
     setEditingAccount(account);
@@ -928,8 +936,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
                     <option value="all">Tất cả Cấp đơn vị</option>
                     <option value="1">Thuộc Trung ương Đoàn (Cấp 1)</option>
                     <option value="2">Tỉnh / Thành đoàn &amp; Trực thuộc (Cấp 2)</option>
-                    <option value="3">Cấp trên cơ sở (Cấp 3)</option>
-                    <option value="4">Đoàn trường THPT &amp; Cơ sở (Cấp 4)</option>
+                    <option value="3">Cấp cơ sở (Đoàn trường, Xã/Phường…) (Cấp 3)</option>
+                    <option value="4">Dưới cơ sở (Chi đoàn) (Cấp 4)</option>
                     <option value="doanvien">Tài khoản Đoàn viên</option>
                   </select>
                 </div>
@@ -1009,6 +1017,21 @@ export default function PhanQuyenVaTaiKhoanPage() {
                                       Tài khoản của bạn
                                     </span>
                                   )}
+                                  {account.status === "PENDING" && (
+                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                                      Chờ duyệt
+                                    </span>
+                                  )}
+                                  {account.status === "LOCKED" && (
+                                    <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
+                                      Đã khóa
+                                    </span>
+                                  )}
+                                  {account.status === "DISABLED" && (
+                                    <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-semibold text-stone-600">
+                                      Vô hiệu
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="text-xs font-semibold text-stone-900">{account.contactPerson}</p>
                                 <p className="text-[11px] text-stone-500">{account.email}</p>
@@ -1027,8 +1050,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
                                 : unit?.orgLevel === 2
                                 ? "Cấp 2 · Tỉnh / Thành / Trực thuộc"
                                 : unit?.orgLevel === 3
-                                ? "Cấp 3 · Quận / Huyện"
-                                : "Cấp 4 · Cơ sở"}
+                                ? "Cấp 3 · Cấp cơ sở"
+                                : "Cấp 4 · Dưới cơ sở"}
                             </span>
                           </Td>
 
@@ -1075,6 +1098,17 @@ export default function PhanQuyenVaTaiKhoanPage() {
                           {/* Cột Thao tác: Phân quyền, Sửa, Đổi MK, Xóa */}
                           <Td className="text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* Nút Duyệt nhanh nếu tài khoản PENDING */}
+                              {account.status === "PENDING" && canManage && (
+                                <button
+                                  onClick={() => handleQuickApprove(account)}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700 active:scale-95"
+                                  title="Kích hoạt tài khoản này ngay"
+                                >
+                                  <CircleCheck className="h-3.5 w-3.5" /> Duyệt
+                                </button>
+                              )}
+
                               {/* Nút Phân quyền */}
                               <Link
                                 href={`/quan-tri/he-thong/phan-quyen/${account.id}`}
@@ -1443,7 +1477,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 </optgroup>
               )}
               {creatableUnits.filter((u) => u.orgLevel === 3).length > 0 && (
-                <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
+                <optgroup label="Cấp 3 — Cấp cơ sở (Đoàn trường, Đoàn xã/phường…)">
                   {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
@@ -1452,7 +1486,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 </optgroup>
               )}
               {creatableUnits.filter((u) => u.orgLevel === 4).length > 0 && (
-                <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
+                <optgroup label="Cấp 4 — Dưới cơ sở (Chi đoàn)">
                   {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
@@ -1683,7 +1717,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   </optgroup>
                 )}
                 {creatableUnits.filter((u) => u.orgLevel === 3).length > 0 && (
-                  <optgroup label="Cấp 3 — Cấp trên cơ sở (Quận, Huyện, Khối…)">
+                  <optgroup label="Cấp 3 — Cấp cơ sở (Đoàn trường, Đoàn xã/phường…)">
                     {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}
@@ -1692,7 +1726,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   </optgroup>
                 )}
                 {creatableUnits.filter((u) => u.orgLevel === 4).length > 0 && (
-                  <optgroup label="Cấp 4 — Đoàn trường THPT & Cơ sở">
+                  <optgroup label="Cấp 4 — Dưới cơ sở (Chi đoàn)">
                     {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}

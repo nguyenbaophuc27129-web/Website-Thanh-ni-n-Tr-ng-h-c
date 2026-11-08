@@ -34,22 +34,12 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
+import { EVENT_KEYWORDS, SECTION_TAGS, contentCategories, DEFAULT_POST_CATEGORY } from "@/data/categories";
 import type { PublishedPost } from "@/types";
 import { slugify, formatDateTime, formatNumber } from "@/lib/utils";
 
-const STANDARD_CATEGORIES = [
-  "Thời sự",
-  "Thanh niên trường học",
-  "Hoạt động Đoàn - Hội",
-  "Chuyển đổi số & Đổi mới sáng tạo",
-  "Khen thưởng - Gương sáng",
-  "Học sinh 3 tốt",
-  "Khoa học trẻ",
-  "Đảng viên trẻ",
-  "Kỹ năng & Hướng nghiệp",
-  "Văn bản - Chỉ đạo",
-];
+/** Chuyên mục chuẩn — khớp contentCategories DB (migration 0026) */
+const STANDARD_CATEGORIES = contentCategories.map((c) => c.name);
 
 const PREDEFINED_ATTRIBUTES = [
   { key: "TIEU_DIEM", label: "Tin tiêu điểm (Hero spotlight)" },
@@ -69,6 +59,7 @@ function DangBaiInner() {
   const { toast } = useToast();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const contentImageInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Form State
@@ -82,7 +73,7 @@ function DangBaiInner() {
   const [status, setStatus] = useState<PublishedPost["status"]>("DRAFT");
   const [isFeatured, setIsFeatured] = useState(false);
   const [publishedAt, setPublishedAt] = useState<string>("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(["Thanh niên trường học"]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([DEFAULT_POST_CATEGORY]);
   const [customCategoryInput, setCustomCategoryInput] = useState("");
   const [postAttributes, setPostAttributes] = useState<string[]>([]);
   const [customAttributeInput, setCustomAttributeInput] = useState("");
@@ -119,7 +110,7 @@ function DangBaiInner() {
         setStatus(existing.status);
         setIsFeatured(existing.isFeatured);
         setPublishedAt(existing.publishedAt ? existing.publishedAt.slice(0, 16) : "");
-        setSelectedCategories(existing.categoryNames || ["Thanh niên trường học"]);
+        setSelectedCategories(existing.categoryNames || [DEFAULT_POST_CATEGORY]);
         setPostAttributes(existing.postAttributes || (existing.isFeatured ? ["TIEU_DIEM"] : []));
         setRelatedPosts(existing.relatedPosts || []);
         setRelatedTopics(existing.relatedTopics || []);
@@ -151,6 +142,52 @@ function DangBaiInner() {
       toast("Đã tải ảnh đại diện bài viết thành công!", "success");
     };
     reader.readAsDataURL(file);
+  };
+
+  // Tải ảnh trực tiếp từ máy tính lên chèn vào nội dung bài viết
+  const handleContentImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast("Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, WebP, GIF).", "warning");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast("Dung lượng ảnh tối đa là 15MB.", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const defaultCaption = file.name.replace(/\.[^/.]+$/, "");
+      const caption = window.prompt("Nhập chú thích ảnh minh họa (tùy chọn):", defaultCaption) || "";
+      insertText(`\n\n![${caption || "Ảnh minh họa"}](${dataUrl})` + (caption ? `\n*${caption}*\n\n` : "\n\n"));
+      toast(`Đã tải ảnh "${file.name}" trực tiếp từ máy tính lên thành công!`, "success");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  // Cho phép dán ảnh (Ctrl+V) trực tiếp từ bộ nhớ tạm máy tính vào nội dung
+  const handleContentPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            insertText(`\n\n![Ảnh dán từ clipboard](${dataUrl})\n\n`);
+            toast("Đã dán ảnh trực tiếp từ máy tính vào bài viết thành công!", "success");
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    }
   };
 
   // Editor toolbar helper
@@ -280,7 +317,7 @@ function DangBaiInner() {
         viewCount: 0,
         authorOrgUnitName: session?.orgUnitName || "Ban Công tác Thanh Thiếu Nhi",
         editorAccountId: session?.accountId || 1,
-        categoryNames: selectedCategories.length > 0 ? selectedCategories : ["Thanh niên trường học"],
+        categoryNames: selectedCategories.length > 0 ? selectedCategories : [DEFAULT_POST_CATEGORY],
         postAttributes,
         relatedPosts,
         relatedTopics,
@@ -514,13 +551,28 @@ function DangBaiInner() {
 
                       <span className="mx-1 h-4 w-px bg-slate-300" />
 
+                      <input
+                        ref={contentImageInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleContentImageUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => contentImageInputRef.current?.click()}
+                        title="Tải ảnh trực tiếp từ máy tính lên bài viết"
+                        className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+                      >
+                        <Upload className="h-3.5 w-3.5" /> Đăng ảnh từ máy tính
+                      </button>
                       <button
                         type="button"
                         onClick={insertImage}
-                        title="Chèn hình ảnh vào bài viết"
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
+                        title="Chèn ảnh qua đường dẫn link URL"
+                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-200 transition-colors"
                       >
-                        <ImagePlus className="h-3.5 w-3.5" /> Chèn ảnh
+                        <ImagePlus className="h-3.5 w-3.5" /> Link ảnh
                       </button>
                       <button
                         type="button"
@@ -538,6 +590,7 @@ function DangBaiInner() {
                     rows={16}
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
+                    onPaste={handleContentPaste}
                     placeholder="Viết hoặc dán nội dung chi tiết của bài viết tại đây. Hỗ trợ định dạng in đậm, in nghiêng, tiêu đề đoạn H2/H3, danh sách và hình ảnh minh họa..."
                     className="w-full bg-white p-4 text-sm leading-relaxed text-slate-800 outline-none transition focus:bg-slate-50/30"
                   />
@@ -955,44 +1008,6 @@ function DangBaiInner() {
                 <p className="text-[11px] text-slate-400">
                   Để trống để tự động lấy thời điểm xuất bản hiện tại.
                 </p>
-              </div>
-            </div>
-
-            {/* 8. Nhuận bút */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                <DollarSign className="h-4 w-4 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-800">Nhuận bút</h3>
-              </div>
-
-              <div className="mt-3 space-y-3">
-                <div>
-                  <label className="text-[11px] font-medium text-slate-600">Số tiền nhuận bút (VNĐ):</label>
-                  <input
-                    type="number"
-                    value={royaltyAmount || ""}
-                    onChange={(e) => setRoyaltyAmount(Number(e.target.value))}
-                    placeholder="Ví dụ: 300000"
-                    step={50000}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-400"
-                  />
-                  {royaltyAmount > 0 ? (
-                    <p className="mt-1 text-[11px] font-medium text-emerald-600">
-                      Định mức: {formatNumber(royaltyAmount)} đ
-                    </p>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-medium text-slate-600">Ghi chú nhuận bút:</label>
-                  <input
-                    type="text"
-                    value={royaltyNotes}
-                    onChange={(e) => setRoyaltyNotes(e.target.value)}
-                    placeholder="Chuyển khoản theo số TK tác giả hoặc đoàn trường..."
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400"
-                  />
-                </div>
               </div>
             </div>
           </div>
