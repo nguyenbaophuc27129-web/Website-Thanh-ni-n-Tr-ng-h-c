@@ -73,12 +73,22 @@ const NODE_META: Array<Omit<DataNode, "code" | "value">> = [
 /* Cột dữ liệu trang trí trên chân ấn phẩm */
 const BAR_HEIGHTS = [38, 62, 84, 52];
 
-/* Ảnh mẫu cho poster nghiên cứu khi bài chưa có ảnh bìa */
-const FALLBACKS = [
-  "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1600&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1600&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1600&auto=format&fit=crop",
-];
+/* Poster dự phòng vẽ CỤC BỘ (SVG data URL, không tải ảnh ngoài) khi bài chưa có ảnh bìa */
+const fallbackPoster = (seed: number) => {
+  const hue = 205 + (Math.abs(seed) % 3) * 15;
+  const svg =
+    "<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='750'>" +
+    "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
+    `<stop offset='0' stop-color='hsl(${hue},72%,26%)'/><stop offset='1' stop-color='hsl(${hue + 26},82%,44%)'/>` +
+    "</linearGradient></defs>" +
+    "<rect width='1200' height='750' fill='url(#g)'/>" +
+    "<g fill='none' stroke='rgba(255,255,255,0.35)' stroke-width='6'>" +
+    "<rect x='480' y='275' width='240' height='190' rx='26'/>" +
+    "<circle cx='562' cy='348' r='17'/>" +
+    "<path d='M536 428l62-56 76 66'/></g></svg>";
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+const FALLBACKS = [fallbackPoster(1), fallbackPoster(2), fallbackPoster(3)];
 
 /* Bụi sao lấp lánh — vị trí seed cứng (tránh lệch hydration) */
 const STARS = [

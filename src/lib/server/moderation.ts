@@ -27,6 +27,17 @@ export const MODERATION_SYSTEM_PROMPT =
   "Khi nghi ngờ văn bản mang lập trường chính trị chống phá → bắt buộc chọn FLAGGED (thà chặn nhầm, không được bỏ sót). " +
   "Nội dung học tập, hoạt động Đoàn, góp ý xây dựng thì CLEAN.";
 
+// Schema thống nhất — ép AI trả đúng cấu trúc (Gemini responseSchema / Claude prompt-lock)
+const VERDICT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    verdict: { type: "STRING", enum: ["CLEAN", "FLAGGED"] },
+    reason: { type: "STRING" },
+  },
+  required: ["verdict", "reason"],
+  propertyOrdering: ["verdict", "reason"],
+};
+
 /** Thời gian chờ AI tối đa — quá hạn thì dùng luật để người dùng không phải đợi lâu */
 const AI_TIMEOUT_MS = 15_000;
 
@@ -55,6 +66,8 @@ export async function moderateWithAI(text: string): Promise<ModerationResult> {
     user: text,
     maxTokens: 300,
     temperature: 0,
+    json: true,
+    jsonSchema: VERDICT_SCHEMA,
   });
   return { ...parseVerdict(raw), model };
 }

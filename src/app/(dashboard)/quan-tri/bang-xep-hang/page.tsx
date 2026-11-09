@@ -211,8 +211,8 @@ export default function BangXepHangAdminPage() {
             <Field label="Xếp hạng đơn vị cấp">
               <Select value={form.rankedOrgLevel} onChange={(e) => setForm((f) => ({ ...f, rankedOrgLevel: e.target.value }))}>
                 <option value="2">Cấp 2 — Tỉnh Đoàn / Thành Đoàn</option>
-                <option value="3">Cấp 3 — Đoàn xã/phường</option>
-                <option value="4">Cấp 4 — Đoàn trường</option>
+                <option value="3">Cấp 3 — Cấp cơ sở (Đoàn trường / Xã phường)</option>
+                <option value="4">Cấp 4 — Dưới cơ sở (Chi đoàn)</option>
               </Select>
             </Field>
             <Field label="Kiểu xếp hạng">

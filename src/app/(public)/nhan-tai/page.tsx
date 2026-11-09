@@ -1,13 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Sparkles, Telescope, GraduationCap, Trophy, ArrowRight, Quote,
-  Lightbulb, FileText, Megaphone,
+  Sparkles,
+  Telescope,
+  GraduationCap,
+  Trophy,
+  ArrowRight,
+  Quote,
+  Lightbulb,
+  FileText,
+  Megaphone,
+  Award,
+  BookOpen,
+  MapPin,
+  Calendar,
 } from "lucide-react";
 import { Reveal } from "@/components/public/reveal";
 import { useStore } from "@/lib/store-context";
+import { fetchNominations } from "@/lib/de-cu";
+import type { Nomination } from "@/types";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
 
 /** Ba trụ cột của cổng nhân tài */
 const PILLARS = [
@@ -36,27 +51,39 @@ const ACTIONS = [
     icon: Megaphone,
     title: "Đề cử gương mặt",
     desc: "Đoàn trường đề cử học sinh, sinh viên tiêu biểu kèm minh chứng qua cổng — xét công khai theo quý.",
-    href: "/hoc-sinh-3-tot",
-    cta: "Vào hồ sơ thành tích",
+    href: "/nhan-tai/de-cu",
+    cta: "Đề cử gương mặt ngay",
   },
   {
     icon: FileText,
     title: "Chủ trương, chính sách",
     desc: "Văn bản chỉ đạo, bộ tiêu chí phát hiện và chính sách bồi dưỡng nhân tài được tập hợp tại kho tài nguyên.",
-    href: "/tai-nguyen",
-    cta: "Xem kho tài nguyên",
+    href: "/tai-nguyen?type=CHU_TRUONG_CHINH_SACH",
+    cta: "Xem chủ trương, chính sách",
   },
   {
     icon: Lightbulb,
     title: "Giới thiệu nghiên cứu",
     desc: "Có sản phẩm, đề tài khoa học muốn phổ biến? Gửi bài về Ban biên tập qua chức năng đóng góp bài viết.",
-    href: "/tin-tuc",
-    cta: "Đóng góp bài viết",
+    href: `/tin-tuc?cat=${encodeURIComponent("Hành trình khoa học trẻ")}`,
+    cta: "Xem Hành trình khoa học trẻ",
   },
 ];
 
 export default function NhanTaiPage() {
   const { publishedPosts } = useStore();
+  const [nominations, setNominations] = useState<Nomination[]>([]);
+  const [nominationsLoading, setNominationsLoading] = useState(true);
+  const [selectedNomination, setSelectedNomination] = useState<Nomination | null>(null);
+
+  useEffect(() => {
+    fetchNominations({ limit: 12 })
+      .then((res) => {
+        if (res.ok) setNominations(res.nominations);
+      })
+      .catch(() => undefined)
+      .finally(() => setNominationsLoading(false));
+  }, []);
 
   const posts = useMemo(
     () =>
@@ -139,11 +166,101 @@ export default function NhanTaiPage() {
           ))}
         </div>
 
+        {/* ===== Gương mặt nhân tài tiêu biểu (Được đề cử & Phê duyệt) ===== */}
+        <div className="mt-14">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="inline-flex items-center gap-2 text-xl font-bold text-slate-900">
+                <Award className="h-5 w-5 text-amber-500" /> Gương mặt nhân tài được vinh danh
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Hồ sơ đề cử từ Đoàn các trường được hội đồng phê duyệt và vinh danh
+              </p>
+            </div>
+            <Link
+              href="/nhan-tai/de-cu"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:brightness-110"
+            >
+              <Megaphone className="h-3.5 w-3.5" /> Gửi hồ sơ đề cử
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {nominationsLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center sm:col-span-2 lg:col-span-3 xl:col-span-4">
+                <p className="text-xs text-slate-500">Đang tải danh sách gương mặt nhân tài...</p>
+              </div>
+            ) : nominations.length === 0 ? (
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/70 p-8 text-center sm:col-span-2 lg:col-span-3 xl:col-span-4">
+                <Award className="mx-auto h-10 w-10 text-amber-400/80 mb-2" />
+                <h3 className="text-sm font-bold text-slate-800">Chưa có hồ sơ nhân tài trong đợt này</h3>
+                <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
+                  Các tổ chức Đoàn trường có thể gửi hồ sơ đề cử gương mặt tiêu biểu qua nút &ldquo;Gửi hồ sơ đề cử&rdquo;.
+                </p>
+                <div className="mt-4">
+                  <Link
+                    href="/nhan-tai/de-cu"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+                  >
+                    Đề cử gương mặt ngay
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              nominations.map((n) => (
+                <div
+                  key={n.id}
+                  onClick={() => setSelectedNomination(n)}
+                  className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-all hover:-translate-y-1 hover:border-amber-300 hover:shadow-lg"
+                >
+                  <div className="relative aspect-4/3 w-full overflow-hidden bg-slate-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={n.evidenceThumbDataUrl}
+                      alt={n.nomineeName}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <span className="absolute left-2.5 top-2.5 rounded-full bg-slate-900/75 px-2.5 py-0.5 text-[10px] font-bold text-amber-300 backdrop-blur-sm border border-amber-400/30">
+                      {n.field}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-4">
+                    <h3 className="font-serif-display text-base font-bold text-slate-900 group-hover:text-amber-800 transition-colors">
+                      {n.nomineeName}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {n.nomineePosition ? `${n.nomineePosition} · ` : ""}
+                      {n.orgUnitName}
+                    </p>
+                    {n.provinceName && (
+                      <p className="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-slate-400" /> {n.provinceName}
+                      </p>
+                    )}
+
+                    {n.quote && (
+                      <p className="mt-2 text-xs italic text-slate-600 line-clamp-2 border-l-2 border-amber-400 pl-2">
+                        &ldquo;{n.quote}&rdquo;
+                      </p>
+                    )}
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-600">
+                      <span>Xem hồ sơ thành tích</span>
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* ===== Gương mặt — tin tức ===== */}
-        <div className="mt-10">
+        <div className="mt-14">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="inline-flex items-center gap-2 text-lg font-bold text-slate-900">
-              <Trophy className="h-5 w-5 text-amber-500" /> Gương mặt — tin tức nhân tài
+              <BookOpen className="h-5 w-5 text-blue-500" /> Tin tức &amp; Hoạt động bồi dưỡng nhân tài
             </h2>
             <Link href="/tin-tuc" className="text-xs font-semibold text-blue-600 hover:underline">
               Xem tất cả tin tức →
@@ -152,7 +269,7 @@ export default function NhanTaiPage() {
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {posts.length === 0 ? (
               <p className="rounded-2xl bg-stone-50 px-5 py-8 text-center text-sm text-stone-500 md:col-span-2 xl:col-span-3">
-                Danh sách gương mặt nhân tài sẽ được công bố trong các đợt cập nhật tiếp theo.
+                Các bài viết về công tác nhân tài sẽ được cập nhật trong chuyên mục này.
               </p>
             ) : (
               posts.slice(0, 6).map((p, i) => (
@@ -173,6 +290,72 @@ export default function NhanTaiPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal chi tiết nhân tài */}
+      <Modal
+        open={!!selectedNomination}
+        onClose={() => setSelectedNomination(null)}
+        title={selectedNomination ? `Hồ sơ nhân tài: ${selectedNomination.nomineeName}` : ""}
+        wide
+      >
+        {selectedNomination ? (
+          <div className="grid gap-6 md:grid-cols-[240px_1fr] items-start">
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-2xl border border-amber-300 bg-amber-50 p-1.5 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedNomination.evidenceThumbDataUrl}
+                  alt={selectedNomination.nomineeName}
+                  className="w-full rounded-xl object-cover max-h-72"
+                />
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1.5">
+                <span className="inline-block rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-950 border border-amber-300">
+                  {selectedNomination.field}
+                </span>
+                <p className="font-bold text-slate-800">{selectedNomination.nomineeName}</p>
+                <p className="text-slate-600">
+                  {selectedNomination.nomineePosition ? `${selectedNomination.nomineePosition} · ` : ""}
+                  {selectedNomination.orgUnitName}
+                </p>
+                {selectedNomination.provinceName && (
+                  <p className="text-slate-500">{selectedNomination.provinceName}</p>
+                )}
+                {selectedNomination.createdAt && (
+                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-200 flex items-center gap-1">
+                    <Calendar className="h-3 w-3" /> Được vinh danh:{" "}
+                    {new Date(selectedNomination.createdAt).toLocaleDateString("vi-VN")}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {selectedNomination.quote && (
+                <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50/80 p-3.5 text-xs italic text-slate-700 shadow-2xs">
+                  &ldquo;{selectedNomination.quote}&rdquo;
+                </div>
+              )}
+
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 mb-2 flex items-center gap-1.5">
+                  <Award className="h-4 w-4 text-amber-600" /> Quá trình phấn đấu &amp; Thành tích nổi bật
+                </h4>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs leading-relaxed text-slate-700 whitespace-pre-line shadow-xs">
+                  {selectedNomination.achievements}
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setSelectedNomination(null)}>
+                  Đóng
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

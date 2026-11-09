@@ -207,7 +207,7 @@ export function SiteFooter() {
         <div className="relative mx-auto max-w-7xl px-4">
           <div className="flex flex-col items-center justify-between gap-3 border-t border-white/5 py-5 text-[11px] font-light text-slate-500 sm:flex-row">
             <p>
-              © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh. Bản quyền thuộc Cổng thông tin Thanh niên Trường học.
+              © 2026 Ban Thanh niên Trường học. Bản quyền thuộc Cổng thông tin Thanh niên Trường học.
             </p>
             <div className="flex items-center gap-5">
               <Link href="/gioi-thieu" className="transition-colors hover:text-cyan-300">Giới thiệu</Link>

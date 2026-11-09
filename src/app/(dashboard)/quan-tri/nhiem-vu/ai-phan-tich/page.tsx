@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Sparkles, Trash2, Loader2, CheckCircle2, Info, ShieldAlert, Eraser,
-  ClipboardPaste, ArrowRight, BellRing,
+  ClipboardPaste, ArrowRight, BellRing, Upload,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -25,6 +25,12 @@ interface EditableDraft extends DirectiveDraft {
 const STEP_BADGE =
   "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-doan-600 text-xs font-bold text-white";
 const STEP_TITLE = "text-sm font-semibold text-stone-900";
+const chipCls = (active: boolean) =>
+  `max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 transition-colors ${
+    active
+      ? "bg-doan-600 text-white ring-doan-600"
+      : "bg-white text-stone-600 ring-stone-200 hover:bg-slate-50"
+  }`;
 
 export default function AiPhanTichPage() {
   const { session } = useAuth();
@@ -39,9 +45,83 @@ export default function AiPhanTichPage() {
   const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
   const [done, setDone] = useState<{ taskId: number; assignmentCount: number } | null>(null);
   /** Tên model AI trả về từ API — hiện thị góc phải tiêu đề */
-  const [model, setModel] = useState("tnth-kpi-v1 (mô phỏng quy tắc)");
+  const [model, setModel] = useState("tnth-kpi-v1 (quy tắc)");
+  /** Ý đang chọn để lượng hoá riêng (index theo `clauses`) — null = toàn bộ văn bản */
+  const [selectedClause, setSelectedClause] = useState<number | null>(null);
+  const [parsingFile, setParsingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const allowed = !!session && (MANAGERS as readonly string[]).includes(session.role);
+
+  /** Các ý = từng dòng không trống của công văn (tối đa 20 ý) */
+  const clauses = useMemo(
+    () => text.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 20),
+    [text]
+  );
+  useEffect(() => {
+    if (selectedClause !== null && selectedClause >= clauses.length) setSelectedClause(null);
+  }, [clauses.length, selectedClause]);
+
+  /** Bôi đen đoạn trong textarea → tự chọn ý chứa đoạn đó (tiện, không bắt buộc) */
+  const onSelectText = (el: HTMLTextAreaElement) => {
+    const { selectionStart, selectionEnd } = el;
+    if (selectionEnd - selectionStart < 5) return;
+    let clauseIdx = 0;
+    let cursor = 0;
+    for (const line of text.split("\n")) {
+      const start = cursor;
+      const end = cursor + line.length;
+      cursor = end + 1; // +1 cho ký tự xuống dòng
+      if (!line.trim()) continue;
+      if (selectionStart >= start && selectionStart <= end && clauseIdx < clauses.length) {
+        setSelectedClause(clauseIdx);
+        return;
+      }
+      clauseIdx += 1;
+    }
+  };
+
+  /** Tải file công văn (PDF/DOCX/TXT) → server trích text → đổ vào textarea */
+  const pickFile = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      toast("Tệp quá lớn — tối đa 4MB.", "warning");
+      return;
+    }
+    setParsingFile(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch("/api/ai/trich-van-ban", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: file.name, fileDataUrl: String(reader.result ?? "") }),
+        });
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; text?: string; error?: string }
+          | null;
+        if (!res.ok || !data?.ok || !data.text) throw new Error(data?.error ?? `HTTP ${res.status}`);
+        setText(data.text);
+        setDrafts([]);
+        setDone(null);
+        setSelectedClause(null);
+        setModel("tnth-kpi-v1 (quy tắc)");
+        toast(`Đã trích nội dung từ "${file.name}" — rà soát lại rồi bấm AI phân tích.`);
+      } catch (err) {
+        toast(
+          err instanceof Error ? err.message : "Không trích được tệp — hãy dán nội dung bằng tay.",
+          "warning"
+        );
+      } finally {
+        setParsingFile(false);
+      }
+    };
+    reader.onerror = () => {
+      setParsingFile(false);
+      toast("Không đọc được tệp trên máy — thử lại hoặc dán nội dung bằng tay.", "warning");
+    };
+    reader.readAsDataURL(file);
+  };
 
   /** Đơn vị con trực tiếp đang hoạt động */
   const childUnits = useMemo(() => {
@@ -86,6 +166,7 @@ export default function AiPhanTichPage() {
     setDrafts([]);
     setSelectedUnits([]);
     setDone(null);
+    setSelectedClause(null);
   };
 
   const pasteDemo = () => {
@@ -99,13 +180,15 @@ export default function AiPhanTichPage() {
     setAnalyzing(true);
     setDone(null);
     const started = Date.now();
+    // Chọn ý nào → gửi đúng đoạn đó đánh dấu, AI chỉ trích chỉ tiêu của ý đó
+    const excerpt = selectedClause !== null ? clauses[selectedClause] ?? "" : "";
     let parsed: DirectiveDraft[] = [];
     try {
       // Gọi API AI — mặc định là parser quy tắc trên máy chủ, dễ thay bằng AI thật (xem route)
       const res = await fetch("/api/ai/phan-tich-cong-van", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, excerpt }),
       });
       const data = (await res.json().catch(() => null)) as
         | { ok?: boolean; drafts?: DirectiveDraft[]; model?: string; error?: string }
@@ -120,7 +203,7 @@ export default function AiPhanTichPage() {
     } catch {
       // API không gọi được → fallback parser cục bộ để demo không gãy
       parsed = parseDirective(text);
-      setModel("tnth-kpi-v1 (mô phỏng cục bộ)");
+      setModel("tnth-kpi-v1 (cục bộ)");
     }
     // Giữ spinner tối thiểu 1.2s cho mượt (AI thật sẽ chậm hơn sẵn)
     const elapsed = Date.now() - started;
@@ -172,7 +255,7 @@ export default function AiPhanTichPage() {
             <Sparkles className="h-5 w-5 text-doan-600" /> AI phân tích công văn
           </h1>
           <p className="mt-0.5 text-sm text-stone-500">
-            Dán nội dung công văn — AI lượng hoá thành chỉ tiêu KPI để giao xuống đơn vị cơ sở.
+            Tải file hoặc dán nội dung công văn — chọn ý nào, AI lượng hoá đúng ý đó thành chỉ tiêu KPI để giao xuống đơn vị cơ sở.
           </p>
         </div>
         <span className="rounded-full bg-stone-100 px-3 py-1 font-mono text-[10px] text-stone-500" title="Model AI đang phục vụ — đổi tại src/app/api/ai/phan-tich-cong-van/route.ts">
@@ -208,18 +291,70 @@ export default function AiPhanTichPage() {
           {/* ===== Bước 1 — Dán công văn ===== */}
           <Card>
             <CardBody className="space-y-3">
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <span className={STEP_BADGE}>1</span>
                 <p className={STEP_TITLE}>Dán nội dung công văn</p>
+                <span className="text-[11px] text-stone-400">— hoặc tải tệp lên (.pdf / .docx / .txt, tối đa 4MB)</span>
+                <div className="ml-auto">
+                  <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={parsingFile}>
+                    {parsingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                    {parsingFile ? "Đang trích văn bản…" : "Tải công văn lên"}
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      pickFile(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
               </div>
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+                onSelect={(e) => onSelectText(e.currentTarget)}
                 placeholder={
                   "Ví dụ:\nPhấn đấu đạt 1.200 lượt đoàn viên tham gia hoạt động tình nguyện, hoàn thành trước ngày 15/10/2026.\nMỗi trường phải tổ chức 3 sân chơi an toàn cho học sinh trong hè."
                 }
                 className="min-h-44 font-[15px] leading-relaxed"
               />
+              {/* Chọn ý cần lượng hoá — bôi đen trong ô văn bản cũng tự chọn ý tương ứng */}
+              {clauses.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-medium text-stone-500">
+                    Phạm vi phân tích — chọn đúng ý, AI chỉ trích chỉ tiêu của ý đó:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedClause(null)}
+                      className={chipCls(selectedClause === null)}
+                    >
+                      Toàn bộ văn bản
+                    </button>
+                    {clauses.map((c, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        title={c}
+                        onClick={() => setSelectedClause(selectedClause === i ? null : i)}
+                        className={chipCls(selectedClause === i)}
+                      >
+                        Ý {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedClause !== null ? (
+                    <p className="rounded-lg bg-doan-50 px-2.5 py-1.5 text-[11px] leading-relaxed text-doan-700">
+                      <strong>Ý {selectedClause + 1}:</strong> {clauses[selectedClause].slice(0, 200)}
+                      {clauses[selectedClause].length > 200 ? "…" : ""}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={runAnalyze} disabled={analyzing || text.trim().length < 40}>
                   {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

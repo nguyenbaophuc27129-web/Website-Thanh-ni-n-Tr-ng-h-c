@@ -63,7 +63,7 @@ export default function NotFound() {
         </div>
 
         <p className="mt-6 text-[11px] text-slate-400">
-          Cổng thông tin số Thanh niên Trường học — Trung ương Đoàn TNCS Hồ Chí Minh
+          Cổng thông tin số Thanh niên Trường học — Ban Thanh niên Trường học
         </p>
       </div>
     </div>

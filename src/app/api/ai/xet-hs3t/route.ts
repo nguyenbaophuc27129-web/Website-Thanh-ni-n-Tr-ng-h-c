@@ -27,6 +27,18 @@ const SYSTEM_PROMPT =
   "Trả về DUY NHẤT một JSON (không thêm chữ nào khác): " +
   '{"suggestedLevel":"XA"|"TINH"|"TW"|null,"reasoning":"lý do ngắn gọn tiếng Việt","missing":["điều còn thiếu"]}. ';
 
+// Schema thống nhất — nullable cho phép AI trả null khi không đề xuất cấp nào
+const LEVEL_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    suggestedLevel: { type: "STRING", enum: ["XA", "TINH", "TW"], nullable: true },
+    reasoning: { type: "STRING" },
+    missing: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["suggestedLevel", "reasoning", "missing"],
+  propertyOrdering: ["suggestedLevel", "reasoning", "missing"],
+};
+
 interface EvalPayload {
   studentName?: string;
   counts?: Record<string, number>;
@@ -66,6 +78,8 @@ async function evaluateWithAI(
     user: JSON.stringify(payload),
     maxTokens: 800,
     temperature: 0,
+    json: true,
+    jsonSchema: LEVEL_SCHEMA,
   });
   return { ...parseLevel(raw), model };
 }
@@ -118,6 +132,6 @@ export async function POST(request: Request) {
     const fallback = ruleEvaluateHs3t(profile, achievements);
     const message = err instanceof Error ? err.message : "AI_FAILED";
     console.warn("[TNTH][AI] Xét HS3T thất bại, dùng quy tắc cục bộ:", message);
-    return NextResponse.json({ ok: true, ...fallback, model: "tnth-hs3t-rule (mô phỏng)" });
+    return NextResponse.json({ ok: true, ...fallback, model: "tnth-hs3t-rule" });
   }
 }

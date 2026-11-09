@@ -22,6 +22,15 @@ export interface AiCallOptions {
   user: string;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * Ép đầu ra JSON đúng schema (structured output):
+   * - Gemini: generationConfig.responseMimeType = "application/json" + responseSchema (jsonSchema).
+   * - Claude: chèn mô tả schema vào system prompt (Claude không có JSON mode riêng).
+   * Route JSON nên luôn bật cờ này để đầu ra không bao giờ lệch schema đã thống nhất.
+   */
+  json?: boolean;
+  /** Schema dạng OpenAPI rút gọn (type/properties/required/enum/items) — dùng kèm json: true. */
+  jsonSchema?: Record<string, unknown>;
 }
 
 export interface AiCallResult {
@@ -56,6 +65,13 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
 
   if (provider === "claude") {
     const model = overrideModel ?? "claude-haiku-4-5-20251001";
+    // Claude không có JSON mode riêng → khoá schema bằng chính system prompt
+    const system = options.json
+      ? options.system +
+        (options.jsonSchema
+          ? `\n[FORMAT BẮT BUỘC] Trả về DUY NHẤT một JSON hợp lệ, không markdown, không chữ nào ngoài JSON. Cấu trúc chính xác: ${JSON.stringify(options.jsonSchema)}`
+          : "\n[FORMAT BẮT BUỘC] Trả về DUY NHẤT một JSON hợp lệ, không markdown, không chữ nào ngoài JSON.")
+      : options.system;
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -67,7 +83,7 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
         model,
         max_tokens: options.maxTokens ?? 512,
         temperature: options.temperature ?? 0.3,
-        system: options.system,
+        system,
         messages: [{ role: "user", content: options.user }],
       }),
     });
@@ -82,33 +98,73 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
   }
 
   // ---- GEMINI (mặc định) ----
-  const model = overrideModel ?? "gemini-2.5-flash";
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY ?? "",
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: options.system }] },
-        contents: [{ role: "user", parts: [{ text: options.user }] }],
-        generationConfig: {
-          temperature: options.temperature ?? 0.3,
-          maxOutputTokens: options.maxTokens ?? 512,
-          // Tắt "suy nghĩ" nội bộ để trả lời nhanh + không ăn mất hạn mức output
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
+  if (!apiKey) {
+    throw new Error("Chưa cấu hình GEMINI_API_KEY trong .env.local trên máy chủ.");
+  }
+
+  const candidateModels = overrideModel
+    ? [overrideModel]
+    : ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-2.5-flash"];
+
+  let lastError: Error | null = null;
+  for (const model of candidateModels) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: options.system }] },
+            contents: [{ role: "user", parts: [{ text: options.user }] }],
+            generationConfig: {
+              temperature: options.temperature ?? 0.3,
+              maxOutputTokens: options.maxTokens ?? 1024,
+              // JSON mode: khoá đầu ra đúng schema thay vì chỉ dựa vào prompt
+              ...(options.json
+                ? {
+                    responseMimeType: "application/json",
+                    ...(options.jsonSchema ? { responseSchema: options.jsonSchema } : {}),
+                  }
+                : {}),
+            },
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        const errMsg = errJson?.error?.message ?? `HTTP ${res.status}`;
+        // Nếu lỗi quá tải 429 hoặc model hết hạn 404, thử model tiếp theo trong danh sách
+        if ((res.status === 429 || res.status === 404 || res.status === 503) && candidateModels.length > 1) {
+          console.warn(`[TNTH][AI] Model ${model} gặp lỗi (${errMsg}), chuyển sang model dự phòng...`);
+          lastError = new Error(`Gemini (${model}): ${errMsg}`);
+          continue;
+        }
+        throw new Error(`Gemini HTTP ${res.status}: ${errMsg}`);
+      }
+
+      const data = (await res.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        modelVersion?: string;
+      };
+      const text = (data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "").trim();
+      if (!text) {
+        throw new Error("Gemini trả về nội dung rỗng (có thể do bộ lọc an toàn)");
+      }
+      return { text, model: data.modelVersion ?? model };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Nếu còn model trong danh sách, thử tiếp
+      if (model !== candidateModels[candidateModels.length - 1]) {
+        continue;
+      }
     }
-  );
-  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
-  const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    modelVersion?: string;
-  };
-  const text = (data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "").trim();
-  if (!text) throw new Error("Gemini trả về nội dung rỗng (có thể do bộ lọc an toàn hoặc hết hạn mức free trong ngày)");
-  return { text, model: data.modelVersion ?? model };
+  }
+
+  throw lastError ?? new Error("Tất cả các model Gemini đều không khả dụng.");
 }

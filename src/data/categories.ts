@@ -17,6 +17,8 @@ export const contentCategories: ContentCategory[] = [
   { id: 9, code: "HANH_TRINH_KHOA_HOC_TRE", name: "Hành trình khoa học trẻ", description: "Câu chuyện nghiên cứu khoa học, sáng tạo trẻ" },
   { id: 10, code: "CONG_DAN_TOAN_CAU", name: "Học sinh THPT - Công dân toàn cầu", description: "Học sinh THPT với kỹ năng công dân toàn cầu" },
   { id: 11, code: "TOI_LA_DANG_VIEN_TRE", name: "Câu chuyện \"Tôi là Đảng viên trẻ\"", description: "Gương đảng viên trẻ - học sinh THPT" },
+  { id: 12, code: "MOI_TUAN_MOT_CAU_CHUYEN", name: "Mỗi tuần một câu chuyện đẹp", description: "Câu chuyện đẹp mỗi tuần — đồng bộ migration 0026" },
+  { id: 13, code: "TIN_TUC_HOAT_DONG_DOAN", name: "Tin tức hoạt động Đoàn", description: "Chuyên mục chuẩn cho tin hoạt động Đoàn - Hội" },
 ];
 
 export const documentCategories: DocumentCategory[] = [
@@ -40,6 +42,7 @@ export const resourceTypes: ResourceType[] = [
   },
   { id: 6, code: "THONG_DIEP", name: "Thông điệp tuổi trẻ" },
   { id: 7, code: "HINH_ANH", name: "Hình ảnh (jpg, png)" },
+  { id: 8, code: "CHU_TRUONG_CHINH_SACH", name: "Chủ trương, chính sách", short: "Chủ trương, chính sách" },
 ];
 
 export const feedbackTopics: FeedbackTopic[] = [
@@ -100,10 +103,13 @@ export const SECTION_TAGS: string[] = [
  */
 export const SPECIAL_CATEGORIES: { name: string; href: string }[] = [
   { name: "3 Chiến dịch tình nguyện chủ lực", href: "/tin-tuc?q=Chiến dịch" },
-  { name: "Gương mặt Học sinh 3 tốt", href: "/tin-tuc?q=Gương mặt Học sinh 3 tốt" },
-  { name: "Mỗi ngày một tin tốt, mỗi tuần một câu chuyện đẹp", href: "/tin-tuc?q=Mỗi tuần một câu chuyện đẹp" },
-  { name: "Hành trình khoa học trẻ", href: "/tin-tuc?q=Hành trình khoa học trẻ" },
-  { name: "Học sinh THPT — Công dân toàn cầu", href: "/tin-tuc?q=Công dân toàn cầu" },
-  { name: "Câu chuyện \"Tôi là Đảng viên trẻ\"", href: "/tin-tuc?q=Đảng viên trẻ" },
-  { name: "Tin tức hoạt động Đoàn", href: "/tin-tuc" },
+  { name: "Gương mặt Học sinh 3 tốt", href: `/tin-tuc?cat=${encodeURIComponent("Gương mặt Học sinh 3 tốt cấp Trung ương")}` },
+  { name: "Mỗi ngày một tin tốt, mỗi tuần một câu chuyện đẹp", href: `/tin-tuc?cat=${encodeURIComponent("Mỗi tuần một câu chuyện đẹp")}` },
+  { name: "Hành trình khoa học trẻ", href: `/tin-tuc?cat=${encodeURIComponent("Hành trình khoa học trẻ")}` },
+  { name: "Học sinh THPT — Công dân toàn cầu", href: `/tin-tuc?cat=${encodeURIComponent("Học sinh THPT - Công dân toàn cầu")}` },
+  { name: "Câu chuyện \"Tôi là Đảng viên trẻ\"", href: `/tin-tuc?cat=${encodeURIComponent('Câu chuyện "Tôi là Đảng viên trẻ"')}` },
+  { name: "Tin tức hoạt động Đoàn", href: `/tin-tuc?cat=${encodeURIComponent("Tin tức hoạt động Đoàn")}` },
 ];
+
+/** Chuyên mục mặc định khi đăng bài / nhập tin từ hoạt động (id 13) */
+export const DEFAULT_POST_CATEGORY = "Tin tức hoạt động Đoàn";

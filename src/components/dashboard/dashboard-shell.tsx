@@ -8,7 +8,7 @@ import {
   FileBarChart, BarChart3, Trophy, FileText, BellRing, LifeBuoy, FolderOpen,
   Network, Users, ShieldCheck, Database, Settings, LogOut, Globe, Menu, X, ChevronDown,
   Radio, Sparkles, Flag, MessagesSquare, PenLine, MonitorPlay, BookMarked, MapPinned,
-  GraduationCap, UserCircle,
+  GraduationCap, UserCircle, Bot, Vote, UserCheck, Award,
 } from "lucide-react";
 import { useAuth, ROLE_LABELS } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
@@ -43,6 +43,9 @@ export const ROUTE_PERMS: Record<string, string[]> = {
   "/quan-tri/nhiem-vu/xac-nhan": ["task.review"],
   "/quan-tri/nhiem-vu/cham-diem": ["score.view", "score.manage"],
 
+  // Trợ lý AI cán bộ — mọi cán bộ quản trị (DOAN_VIEN bị chặn ở shell)
+  "/quan-tri/tro-ly-ai": [],
+
   // Truyền thông
   "/quan-tri/xuat-ban": ["post.manage", "post.publish"],
   "/quan-tri/xuat-ban/dang-bai": ["post.manage", "post.publish"],
@@ -63,10 +66,14 @@ export const ROUTE_PERMS: Record<string, string[]> = {
   "/quan-tri/tai-nguyen": ["resource.manage", "resource.view"],
 
   // Cộng đồng & chương trình
+  "/quan-tri/duyet-doan-vien": [],
   "/quan-tri/dien-dan": ["forum.interact", "forum.manage"],
   "/quan-tri/danh-ba": ["system.orgtree.view", "activity.view"],
   "/quan-tri/du-an": ["project.manage"],
   "/quan-tri/hs3t": ["hs3t.view", "hs3t.review"],
+  "/quan-tri/binh-chon-hs3t": ["hs3t.view", "hs3t.review"],
+  "/quan-tri/de-cu": [],
+  "/quan-tri/khao-sat": [],
 
   // Hệ thống
   "/quan-tri/he-thong/don-vi": ["system.orgtree.view"],
@@ -236,6 +243,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   // Dự án tình nguyện chờ duyệt đăng kho
   const pendingProjects = store.volunteerProjects.filter((p) => p.status === "PENDING").length;
 
+  // Đoàn viên chờ duyệt kích hoạt tài khoản
+  const pendingDoanVien = store.accounts.filter(
+    (a) =>
+      a.role === "DOAN_VIEN" &&
+      a.status === "PENDING" &&
+      store.scopeIds(session).includes(a.orgUnitId)
+  ).length;
+
   const groups: NavGroup[] = [];
   const overviewItems: NavItem[] = [
     { href: "/quan-tri", label: "Bảng điều khiển", icon: LayoutDashboard },
@@ -243,6 +258,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   ];
   if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3") {
     overviewItems.push({ href: "/quan-tri/truc-tiep", label: "Trực tiếp & cảnh báo", icon: Radio });
+  }
+  if (role === "QUAN_TRI_TW") {
+    overviewItems.push({ href: "/quan-tri/khao-sat", label: "Khảo sát ý kiến", icon: ClipboardList });
   }
   groups.push({ title: "Tổng quan", items: overviewItems });
 
@@ -256,6 +274,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     taskItems.push({ href: "/quan-tri/nhiem-vu/ai-phan-tich", label: "AI phân tích công văn", icon: Sparkles });
     taskItems.push({ href: "/quan-tri/nhiem-vu/xac-nhan", label: "Xác nhận báo cáo", icon: CheckSquare, badge: pendingReviews || undefined });
   }
+  // Trợ lý AI riêng cho cán bộ — mọi vai trò quản trị (Đoàn viên bị chặn ở shell)
+  taskItems.push({ href: "/quan-tri/tro-ly-ai", label: "Trợ lý AI", icon: Bot });
   if (role !== "BIEN_TAP_VIEN") {
     taskItems.push({ href: "/quan-tri/nhiem-vu/cham-diem", label: "Chấm điểm thi đua", icon: Calculator });
   }
@@ -292,13 +312,23 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   groups.push({ title: "Phản ánh & tài nguyên", items: fbResItems });
 
   const communityItems: NavItem[] = [];
+  if (role === "QUAN_TRI_TW" || role === "QUAN_TRI_TINH" || role === "QUAN_TRI_CAP3" || role === "DON_VI") {
+    communityItems.push({
+      href: "/quan-tri/duyet-doan-vien",
+      label: "Duyệt đoàn viên",
+      icon: UserCheck,
+      badge: pendingDoanVien || undefined,
+    });
+  }
   if (role === "QUAN_TRI_TW") {
     communityItems.push({ href: "/quan-tri/dien-dan", label: "Kiểm duyệt Diễn đàn", icon: MessagesSquare, badge: pendingForum || undefined });
   }
   communityItems.push(
     { href: "/quan-tri/danh-ba", label: "Danh bạ Đoàn trường", icon: BookMarked },
     { href: "/quan-tri/du-an", label: "Dự án tình nguyện", icon: MapPinned, badge: pendingProjects || undefined },
-    { href: "/quan-tri/hs3t", label: "Hồ sơ HS3T", icon: GraduationCap }
+    { href: "/quan-tri/hs3t", label: "Hồ sơ HS3T", icon: GraduationCap },
+    { href: "/quan-tri/binh-chon-hs3t", label: "Bình chọn HS3T", icon: Vote },
+    { href: "/quan-tri/de-cu", label: "Đề cử nhân tài", icon: Award }
   );
   groups.push({ title: "Cộng đồng & chương trình", items: communityItems });
 

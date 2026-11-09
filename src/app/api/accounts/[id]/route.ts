@@ -23,7 +23,8 @@ async function checkManageScope(
   target: TargetAccount,
   verb: "THAY ĐỔI" | "XÓA",
 ): Promise<NextResponse | null> {
-  const denial = await accountScopeDenial(session, target, verb);
+  // Đoàn trường (DON_VI) chỉ được sửa/duyệt Đoàn viên — không được xoá
+  const denial = await accountScopeDenial(session, target, verb, { schoolMembers: verb === "THAY ĐỔI" });
   return denial ? NextResponse.json({ ok: false, error: denial }, { status: 403 }) : null;
 }
 
@@ -49,8 +50,8 @@ export async function PATCH(
     const isSelf = session.accountId === accountId;
 
     // Người dùng được quyền sửa thông tin của chính mình;
-    // Sửa tài khoản người khác đòi hỏi vai trò quản trị.
-    if (!isSelf && !ALLOWED_ADMIN_ROLES.includes(session.role as RoleCode)) {
+    // Sửa tài khoản người khác đòi hỏi vai trò quản trị (Đoàn trường: chỉ Đoàn viên, kiểm ở checkManageScope).
+    if (!isSelf && !ALLOWED_ADMIN_ROLES.includes(session.role as RoleCode) && session.role !== "DON_VI") {
       return NextResponse.json(
         { ok: false, error: "BẠN KHÔNG CÓ QUYỀN THAY ĐỔI TÀI KHOẢN KHÁC" },
         { status: 403 },

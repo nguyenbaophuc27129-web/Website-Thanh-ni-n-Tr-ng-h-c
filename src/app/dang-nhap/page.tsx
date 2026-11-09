@@ -200,7 +200,7 @@ export default function DangNhapPage() {
           </span>
           <div>
             <p className="text-[15px] font-bold leading-tight tracking-tight">Cổng Thanh niên Trường học</p>
-            <p className="text-[11px] text-white/55">Trung ương Đoàn TNCS Hồ Chí Minh</p>
+            <p className="text-[11px] text-white/55">Ban Thanh niên Trường học</p>
           </div>
         </motion.div>
 
@@ -220,7 +220,7 @@ export default function DangNhapPage() {
             </span>
           </h1>
           <p className="mt-5 max-w-md text-sm leading-relaxed text-white/65">
-            Một hệ thống duy nhất cho phân quyền 4 cấp — từ Trung ương Đoàn đến trường THPT:
+            Một hệ thống duy nhất cho phân quyền 4 cấp — từ cấp Trung ương đến trường THPT:
             giao nhiệm vụ, chấm điểm từng điều kiện, xuất bản tin bài và theo dõi toàn diện.
           </p>
           <div className="mt-8 flex flex-wrap gap-2">
@@ -246,7 +246,7 @@ export default function DangNhapPage() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="relative text-xs text-white/40"
         >
-          © 2026 Ban Công tác Thanh Thiếu Nhi — Trung ương Đoàn TNCS Hồ Chí Minh
+          © 2026 Ban Thanh niên Trường học — Cổng Thanh niên Trường học
         </motion.p>
       </div>
 

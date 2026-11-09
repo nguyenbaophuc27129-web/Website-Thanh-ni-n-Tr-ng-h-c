@@ -2,21 +2,41 @@ import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes, HTMLAttributes } fr
 import { cn } from "@/lib/utils";
 
 export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
+  const isTable =
+    children &&
+    typeof children === "object" &&
+    "type" in (children as unknown as Record<string, unknown>) &&
+    (children as unknown as { type: unknown }).type === "table";
+
   return (
     <div className={cn("thin-scrollbar overflow-x-auto", className)}>
-      <table className="w-full min-w-full border-collapse text-sm">
-        {children}
-      </table>
+      {isTable ? (
+        children
+      ) : (
+        <table className="w-full min-w-full border-collapse text-sm">
+          {children}
+        </table>
+      )}
     </div>
   );
 }
 
 export function THead({ children }: { children: ReactNode }) {
+  const isRow =
+    children &&
+    typeof children === "object" &&
+    "type" in (children as unknown as Record<string, unknown>) &&
+    ((children as unknown as { type: unknown }).type === "tr" || (children as unknown as { type: unknown }).type === Tr);
+
   return (
     <thead>
-      <tr className="border-b border-stone-200 bg-stone-50 text-left">
-        {children}
-      </tr>
+      {isRow ? (
+        children
+      ) : (
+        <tr className="border-b border-stone-200 bg-stone-50 text-left">
+          {children}
+        </tr>
+      )}
     </thead>
   );
 }

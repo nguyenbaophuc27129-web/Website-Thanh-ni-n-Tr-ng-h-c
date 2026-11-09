@@ -10,6 +10,8 @@ import {
 import { useStore } from "@/lib/store-context";
 import { usePublicStats } from "@/lib/public-stats";
 import { HeroBanner, Hs3tBanner } from "@/components/public/hero-banner";
+import { BinhChonBand } from "@/components/public/binh-chon/band";
+import { DoanTruongBand } from "@/components/public/binh-chon/doan-truong-band";
 import { NewsCard } from "@/components/public/news-card";
 import { Reveal, CountUp } from "@/components/public/reveal";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
@@ -62,11 +64,16 @@ export default function HomePage() {
         .sort((a, b) => (b.publishedAt ?? b.createdAt).localeCompare(a.publishedAt ?? a.createdAt)),
     [publishedPosts]
   );
-  const featured = useMemo(
-    () => {
-      const f = published.filter((p) => p.isFeatured);
-      return f.length > 0 ? f : published.slice(0, 3);
-    },
+  const featured = useMemo(() => {
+    const f = published.filter((p) => p.isFeatured);
+    return f.length > 0 ? f : published.slice(0, 3);
+  }, [published]);
+  // Bảng tin fanpage — các bài đã công khai có nguồn Facebook (nhập từ link, dữ liệu thật DB)
+  const fanPosts = useMemo(
+    () =>
+      published
+        .filter((p) => p.sourceUrl?.includes("facebook.com") || p.sourceUrl?.includes("fb.watch"))
+        .slice(0, 6),
     [published]
   );
   // Tin tiêu điểm 01–06; lưới "mới nhất" = 6 tin tiếp theo
@@ -136,7 +143,7 @@ export default function HomePage() {
 
           {/* Ô cổng dịch vụ nội bộ — hồ sơ Học sinh 3 tốt */}
           {[
-            { label: "Học sinh 3 TỐT", sub: "Cổng khen thưởng Trung ương Đoàn", href: "https://khenthuong.doanthanhnien.vn/login", icon: GraduationCap, external: true },
+            { label: "Học sinh 3 TỐT", sub: "Hành trình 3 tốt — Cổng khen thưởng", href: "https://khenthuong.doanthanhnien.vn/login", icon: GraduationCap, external: true },
           ].map((s) => (
             <a
               key={s.label}
@@ -371,7 +378,7 @@ export default function HomePage() {
                     <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/50 p-6 text-center">
                       <Trophy className="mx-auto h-8 w-8 text-stone-300" />
                       <p className="mt-2 text-xs font-semibold text-stone-700">Chưa công bố bảng xếp hạng kỳ này</p>
-                      <p className="mt-1 text-[11px] text-stone-400">Kết quả thi đua sẽ được công bố sau khi Trung ương Đoàn chốt điểm.</p>
+                      <p className="mt-1 text-[11px] text-stone-400">Kết quả thi đua sẽ được công bố sau khi cấp trên chốt điểm.</p>
                       <Link
                         href="/bang-xep-hang"
                         className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-doan-600 hover:underline"
@@ -384,6 +391,8 @@ export default function HomePage() {
               )}
 
               <Hs3tBanner />
+              <BinhChonBand />
+              <DoanTruongBand />
             </aside>
           </div>
         </Reveal>
@@ -444,7 +453,7 @@ export default function HomePage() {
                       <FbIcon className="h-4 w-4" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold text-stone-900">Thanh niên Trường học — Trung ương Đoàn</p>
+                      <p className="truncate text-xs font-bold text-stone-900">Thanh niên Trường học</p>
                       <p className="truncate text-[10px] text-stone-400">facebook.com/thanhnientruonghoctwd</p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-doan-50 px-2 py-0.5 text-[10px] font-bold text-doan-700">
@@ -455,27 +464,69 @@ export default function HomePage() {
                       TRỰC TIẾP
                     </span>
                   </div>
-                  <div className="flex justify-center overflow-x-auto bg-stone-50 p-2 thin-scrollbar">
-                    <iframe
-                      src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2Fthanhnientruonghoctwd&tabs=timeline&width=500&height=580&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true&locale=vi_VN"
-                      width={500}
-                      height={580}
-                      style={{ border: "none", overflow: "hidden" }}
-                      scrolling="no"
-                      allow="encrypted-media"
-                      loading="lazy"
-                      title="Bảng tin fanpage Thanh niên Trường học — Trung ương Đoàn"
-                    />
-                  </div>
+                  {/* BẢNG TIN THẬT — bài đã công khai nhập từ link Facebook, ảnh + nội dung gốc */}
+                  {fanPosts.length > 0 ? (
+                    <div className="thin-scrollbar max-h-[560px] divide-y divide-stone-100 overflow-y-auto bg-white">
+                      {fanPosts.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/tin-tuc/${p.slug}`}
+                          className="group flex gap-3 px-4 py-3 transition-colors hover:bg-[#F0F7FF]"
+                        >
+                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-stone-100">
+                            {p.coverDataUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={p.coverDataUrl} alt={p.title} className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <PhotoPlaceholder seed={p.coverSeed} className="h-full w-full" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-xs font-bold leading-snug text-stone-900 group-hover:text-[#1877F2]">
+                              {p.title}
+                            </p>
+                            {p.excerpt ? (
+                              <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-stone-500">{p.excerpt}</p>
+                            ) : null}
+                            <p className="mt-1.5 flex items-center gap-2 text-[10px] font-medium text-stone-400">
+                              {formatDate(p.publishedAt ?? p.createdAt)}
+                              {p.sourceUrl ? (
+                                <a
+                                  href={p.sourceUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-0.5 font-semibold text-[#1877F2] hover:underline"
+                                >
+                                  <FbIcon className="h-3 w-3" /> Bài gốc <ArrowUpRight className="h-2.5 w-2.5" />
+                                </a>
+                              ) : null}
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-stone-50 px-6 py-12 text-center">
+                      <FbIcon className="mx-auto h-8 w-8 text-[#1877F2]/50" />
+                      <p className="mt-3 text-xs font-semibold text-stone-600">
+                        Bảng tin fanpage sẽ hiện tại ngay tại đây khi có bài mới
+                      </p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-stone-400">
+                        Ảnh và nội dung lấy trực tiếp từ các bài đăng chính thức của fanpage
+                        Thanh niên Trường học.
+                      </p>
+                    </div>
+                  )}
                   <p className="border-t border-stone-100 bg-white px-4 py-2.5 text-center text-[11px] text-stone-400">
-                    Khung không hiển thị bài? Trình duyệt có thể đang chặn nội dung Facebook —{" "}
+                    Xem đầy đủ bài viết tại{" "}
                     <a
                       href="https://www.facebook.com/thanhnientruonghoctwd"
                       target="_blank"
                       rel="noreferrer"
                       className="font-semibold text-[#1877F2] hover:underline"
                     >
-                      xem trực tiếp trên fanpage
+                      fanpage Thanh niên Trường học
                     </a>
                     .
                   </p>

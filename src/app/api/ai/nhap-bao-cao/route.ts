@@ -1,41 +1,94 @@
 import { NextResponse } from "next/server";
 import { callAI } from "@/lib/ai-client";
 import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
+import { cleanAiText } from "@/lib/ai-text";
+import { buildDocContext } from "@/lib/server/doc-context";
+import { buildBaoCaoSystemPrompt, periodKindOf } from "@/data/bao-cao-agent";
 
 export const runtime = "nodejs";
 
 /* ════════════════════════════════════════════════════════════════════
-   AI THẬT CHO "TẠO NHÁP BÁO CÁO" — ĐÃ GẮN qua lib/ai-client.ts
-   ════════════════════════════════════════════════════════════════════
-   Kích hoạt: .env.local thêm key (Gemini free hoặc Claude trả phí) —
-   xem hướng dẫn đầy đủ trong src/lib/ai-client.ts.
-   Chưa có key → route trả 502 → client /quan-tri/bao-cao tự dựng nháp
-   theo số liệu hệ thống nên demo không gãy.
+   AI AGENT TỔNG HỢP BÁO CÁO — THEO 100% ĐẶC TẢ
+   "Dac_ta_huan_luyen_AI_agent_bao_cao_Doan.docx" (khung nhiệm vụ,
+   giải pháp nhiệm kỳ 2026 - 2031). System prompt dựng từ
+   src/data/bao-cao-agent.ts (khung đề cương, bộ mã NV/CT/DP/DA,
+   quy tắc R1-R10, quy tắc viết, tự kiểm, mẫu đầu ra).
+   Bản ghi hoạt động đầu vào theo định dạng mục IX đặc tả.
+   Chưa có key → route trả 502 → client tự dựng nháp nên demo không gãy.
    ════════════════════════════════════════════════════════════════════ */
+
+export interface ReportActivityRecord {
+  id: string | number;
+  ten: string;
+  ngay?: string; // dd/mm/yyyy — ngày diễn ra
+  dia_diem?: string;
+  chu_tri?: string;
+  phoi_hop?: string;
+  doi_tuong?: string[];
+  mo_ta: string;
+  so_lieu?: { chi_so: string; gia_tri: number; don_vi: string; loai: "ket_qua" | "muc_tieu" | "du_kien" }[];
+  nguon?: string[];
+}
 
 export interface ReportDraftContext {
   orgUnitName: string;
+  /** "truong" | "xa" | "tinh" | "tw" */
+  cap?: string;
   period: string;
+  periodKind?: string;
+  periodStart?: string; // dd/mm/yyyy
+  periodEnd?: string; // dd/mm/yyyy
   activityCount: number;
   participantCount: number;
   taskLines: string[];
   postCount: number;
+  activities?: ReportActivityRecord[];
+  suggestions?: string[];
 }
 
-/** Trần độ dài ngữ cảnh gửi AI (ký tự JSON) */
-const MAX_CTX_CHARS = 20_000;
+/** Trần độ dài ngữ cảnh gửi AI (ký tự JSON) — nới cho danh sách bản ghi hoạt động của cả kỳ */
+const MAX_CTX_CHARS = 100_000;
 
-const REPORT_SYSTEM_PROMPT =
-  "Bạn là trợ lý soạn báo cáo cho Đoàn TNCS Hồ Chí Minh. Viết bản nháp báo cáo tiếng Việt trang trọng theo văn phong hành chính Đoàn, 4–6 đoạn, các đoạn cách nhau bằng 1 dòng trống, dựa trên số liệu được cung cấp. Không bịa số liệu ngoài số liệu đã cho; phần kiến nghị giữ tinh thần đề xuất thiết thực.";
+const SYSTEM_PROMPT = buildBaoCaoSystemPrompt();
+
+/** Đặc tả: phần V "CHỈ có khi đầu vào có đề xuất" — cắt hẳn phần V rỗng (model hay in câu thay thế) */
+function stripEmptySectionV(text: string, hasSuggestions: boolean): string {
+  if (hasSuggestions) return text;
+  const idx = text.search(/^V\. ĐỀ XUẤT[^\n]*$/m);
+  if (idx === -1) return text;
+  const noiNhanIdx = text.indexOf("Nơi nhận:", idx);
+  const cut = noiNhanIdx === -1 ? text.length : noiNhanIdx;
+  return (text.slice(0, idx) + text.slice(cut)).replace(/\n{3,}/g, "\n\n").trim();
+}
 
 async function draftWithAI(ctx: ReportDraftContext): Promise<{ content: string; model: string }> {
+  const topic = [ctx.orgUnitName, ctx.period, ...ctx.taskLines, ...(ctx.activities ?? []).slice(0, 40).map((a) => a.ten)].join(" ");
+  const docContext = await buildDocContext(topic, 5000);
+  const user = [
+    `[KỲ BÁO CÁO] ${ctx.period}${ctx.periodStart ? ` (từ ngày ${ctx.periodStart} đến ngày ${ctx.periodEnd})` : ""}`,
+    `[CẤP BÁO CÁO] ${ctx.cap ?? "truong"} — Đơn vị: ${ctx.orgUnitName}`,
+    `[BẢN GHI HOẠT ĐỘNG ĐẦU VÀO — JSON theo định dạng mục IX đặc tả; mỗi bản ghi một hoạt động]`,
+    JSON.stringify({
+      don_vi_bao_cao: ctx.orgUnitName,
+      cap: ctx.cap ?? "truong",
+      ky_bao_cao: { tu: ctx.periodStart ?? "", den: ctx.periodEnd ?? "" },
+      so_bai_xuat_ban: ctx.postCount,
+      noi_dung_nhiem_vu_gan_chi_tieu: ctx.taskLines,
+      ban_ghi: ctx.activities ?? [],
+    }),
+    ctx.suggestions?.length ? `[ĐỀ XUẤT, KIẾN NGHỊ CỦA ĐƠN VỊ]\n- ${ctx.suggestions.join("\n- ")}` : "",
+    docContext
+      ? `\n\n[TÀI LIỆU THAM KHẢO — đặc tả khung/bộ mã và văn bản TW, dẫn đúng số hiệu/nội dung khi phù hợp]\n${docContext}`
+      : "",
+  ].filter(Boolean).join("\n");
+
   const { text, model } = await callAI({
-    system: REPORT_SYSTEM_PROMPT,
-    user: JSON.stringify(ctx),
-    maxTokens: 1200,
-    temperature: 0.4,
+    system: SYSTEM_PROMPT,
+    user,
+    maxTokens: 7000,
+    temperature: 0.3,
   });
-  return { content: text, model };
+  return { content: stripEmptySectionV(cleanAiText(text), Boolean(ctx.suggestions?.length)), model };
 }
 
 /** POST /api/ai/nhap-bao-cao — { ctx } → { ok, content, model } */
@@ -59,7 +112,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Số liệu gửi lên quá lớn để tạo nháp." }, { status: 413 });
   }
   try {
-    const { content, model } = await draftWithAI(ctx);
+    const { content, model } = await draftWithAI({ ...ctx, periodKind: periodKindOf(ctx.periodKind ?? "") });
     return NextResponse.json({ ok: true, content, model });
   } catch (err) {
     const message = err instanceof Error ? err.message : "AI_FAILED";

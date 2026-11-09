@@ -32,7 +32,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
+import { EVENT_KEYWORDS, SECTION_TAGS, contentCategories, DEFAULT_POST_CATEGORY } from "@/data/categories";
 import type { PublishedPost } from "@/types";
 import { slugify, formatDateTime } from "@/lib/utils";
 import { PostContent } from "@/components/public/post-content";
@@ -43,18 +43,8 @@ import { isExternalUrl, uploadFile, uploadFromUrl } from "@/lib/upload-client";
 import { CoverFocusEditor } from "@/components/dashboard/cover-focus-editor";
 import { parseCover, withCoverFocus } from "@/lib/cover";
 
-const STANDARD_CATEGORIES = [
-  "Thời sự",
-  "Thanh niên trường học",
-  "Hoạt động Đoàn - Hội",
-  "Chuyển đổi số & Đổi mới sáng tạo",
-  "Khen thưởng - Gương sáng",
-  "Học sinh 3 tốt",
-  "Khoa học trẻ",
-  "Đảng viên trẻ",
-  "Kỹ năng & Hướng nghiệp",
-  "Văn bản - Chỉ đạo",
-];
+/** Chuyên mục chuẩn — khớp contentCategories DB (migration 0026) */
+const STANDARD_CATEGORIES = contentCategories.map((c) => c.name);
 
 const PREDEFINED_ATTRIBUTES = [
   { key: "TIEU_DIEM", label: "Tin tiêu điểm (Hero spotlight)" },
@@ -89,7 +79,7 @@ function DangBaiInner() {
   const [status, setStatus] = useState<PublishedPost["status"]>("DRAFT");
   const [isFeatured, setIsFeatured] = useState(false);
   const [publishedAt, setPublishedAt] = useState<string>("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(["Thanh niên trường học"]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([DEFAULT_POST_CATEGORY]);
   const [customCategoryInput, setCustomCategoryInput] = useState("");
   const [postAttributes, setPostAttributes] = useState<string[]>([]);
   const [customAttributeInput, setCustomAttributeInput] = useState("");
@@ -141,7 +131,7 @@ function DangBaiInner() {
         setStatus(existing.status);
         setIsFeatured(existing.isFeatured);
         setPublishedAt(existing.publishedAt ? existing.publishedAt.slice(0, 16) : "");
-        setSelectedCategories(existing.categoryNames || ["Thanh niên trường học"]);
+        setSelectedCategories(existing.categoryNames || [DEFAULT_POST_CATEGORY]);
         setPostAttributes(existing.postAttributes || (existing.isFeatured ? ["TIEU_DIEM"] : []));
         setRelatedPosts(existing.relatedPosts || []);
         setRelatedTopics(existing.relatedTopics || []);
@@ -311,7 +301,7 @@ function DangBaiInner() {
         viewCount: 0,
         authorOrgUnitName: session?.orgUnitName || "Ban Công tác Thanh Thiếu Nhi",
         editorAccountId: session?.accountId || 1,
-        categoryNames: selectedCategories.length > 0 ? selectedCategories : ["Thanh niên trường học"],
+        categoryNames: selectedCategories.length > 0 ? selectedCategories : [DEFAULT_POST_CATEGORY],
         postAttributes,
         relatedPosts,
         relatedTopics,

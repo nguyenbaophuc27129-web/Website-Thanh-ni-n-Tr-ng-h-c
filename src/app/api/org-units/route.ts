@@ -38,6 +38,7 @@ type UnitRow = {
   is_active: boolean;
   admin_unit_name: string | null;
   school_type_name: string | null;
+  path: string;
 };
 
 function toUnit(r: UnitRow) {
@@ -53,6 +54,7 @@ function toUnit(r: UnitRow) {
     schoolTypeName: r.school_type_name ?? undefined,
     address: r.address ?? undefined,
     isActive: r.is_active,
+    path: r.path,
   };
 }
 
@@ -61,7 +63,7 @@ export async function GET() {
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
   const rows = await query<UnitRow>(
     `SELECT o.id, o.parent_id, o.code, o.name, o.short_name, o.org_level, o.org_block,
-            o.address, o.is_active, au.name AS admin_unit_name, st.name AS school_type_name
+            o.address, o.is_active, o.path, au.name AS admin_unit_name, st.name AS school_type_name
        FROM org_units o
        LEFT JOIN admin_units au ON au.id = o.admin_unit_id
        LEFT JOIN school_types st ON st.id = o.school_type_id

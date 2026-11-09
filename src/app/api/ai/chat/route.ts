@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { callAI } from "@/lib/ai-client";
 import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
+import { cleanAiText } from "@/lib/ai-text";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,7 @@ async function replyWithAI(message: string): Promise<{ reply: string; model: str
     maxTokens: 600,
     temperature: 0.5,
   });
-  return { reply: text, model };
+  return { reply: cleanAiText(text), model };
 }
 
 /** POST /api/ai/chat — { message } → { ok, reply, model } */

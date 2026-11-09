@@ -28,7 +28,7 @@ import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { PostStatusBadge } from "@/components/dashboard/status-badge";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
-import { EVENT_KEYWORDS, SECTION_TAGS } from "@/data/categories";
+import { EVENT_KEYWORDS, SECTION_TAGS, DEFAULT_POST_CATEGORY } from "@/data/categories";
 import { formatNumber, formatDateTime, slugify } from "@/lib/utils";
 import { isExternalUrl, uploadFile, uploadFromUrl } from "@/lib/upload-client";
 import { parseCover, postCoverRaw, withCoverFocus } from "@/lib/cover";
@@ -42,6 +42,7 @@ interface ImportedArticle {
   title: string;
   excerpt: string;
   imageUrl?: string;
+  imageDataUrl?: string;
   sourceUrl: string;
 }
 
@@ -246,7 +247,8 @@ export default function XuatBanPage() {
       form.title.trim();
 
     const derived = act?.categoryIds.map((cid) => store.contentCategories.find((c) => c.id === cid)?.name ?? "").filter(Boolean) ?? [];
-    const categoryNames = Array.from(new Set([...derived, ...keywords]));
+    const rawNames = Array.from(new Set([...derived, ...keywords]));
+    const categoryNames = rawNames.length > 0 ? rawNames : [DEFAULT_POST_CATEGORY];
 
     const cover = await localizeCover(form.coverUrl.trim() || coverDataUrl || undefined);
 
@@ -281,7 +283,7 @@ export default function XuatBanPage() {
         body: JSON.stringify({ url }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { ok?: boolean; title?: string; excerpt?: string; content?: string; imageUrl?: string; error?: string }
+        | { ok?: boolean; title?: string; excerpt?: string; content?: string; imageUrl?: string; imageDataUrl?: string; error?: string }
         | null;
       if (!res.ok || !data?.ok || (!data.title && !data.content)) {
         throw new Error(data?.error ?? `HTTP ${res.status}`);
@@ -290,6 +292,7 @@ export default function XuatBanPage() {
         title: data.title?.trim() || "Bài viết nhập từ đường link",
         excerpt: data.excerpt?.trim() ?? "",
         imageUrl: data.imageUrl,
+        imageDataUrl: data.imageDataUrl,
         sourceUrl: url,
       });
       // Nội dung trích xuất dạng Markdown → tài liệu; ảnh trong bài được trình soạn thảo lấy về máy chủ
@@ -305,7 +308,8 @@ export default function XuatBanPage() {
     if (!session || !imported) return;
     if (stillUploading(importDraft)) return;
     // Ảnh đại diện + ảnh trong bài gốc được tải về máy chủ, không trỏ sang trang nguồn
-    const cover = await localizeCover(imported.imageUrl);
+    // (ảnh máy chủ đã lấy sẵn dạng dataUrl — Facebook chặn hotlink — được /api/store tự lưu thành tệp)
+    const cover = await localizeCover(imported.imageDataUrl || imported.imageUrl);
     const id = Date.now();
     store.savePost({
       id,
@@ -322,8 +326,9 @@ export default function XuatBanPage() {
       viewCount: 0,
       authorOrgUnitName: store.orgName(session.orgUnitId),
       editorAccountId: session.accountId,
-      categoryNames: [],
+      categoryNames: [DEFAULT_POST_CATEGORY],
       metaDescription: imported.excerpt.trim().slice(0, 160),
+      sourceUrl: imported.sourceUrl,
       createdAt: new Date().toISOString(),
     });
     toast("Đã tạo bản nháp từ đường link. Bạn biên tập và đăng công khai khi sẵn sàng.");
@@ -696,19 +701,19 @@ export default function XuatBanPage() {
                   />
                 </div>
               </div>
-              {imported.imageUrl ? (
+              {imported.imageDataUrl || imported.imageUrl ? (
                 <Field label="Ảnh bìa từ nguồn">
                   <div className="flex items-start gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={imported.imageUrl}
+                      src={imported.imageDataUrl || imported.imageUrl}
                       alt="Ảnh bìa từ nguồn"
                       className="h-24 w-40 rounded-lg border border-stone-200 object-cover"
                     />
                     <Button
                       size="sm"
                       variant="danger"
-                      onClick={() => setImported((prev) => (prev ? { ...prev, imageUrl: undefined } : prev))}
+                      onClick={() => setImported((prev) => (prev ? { ...prev, imageUrl: undefined, imageDataUrl: undefined } : prev))}
                     >
                       <X className="h-3.5 w-3.5" /> Bỏ ảnh
                     </Button>

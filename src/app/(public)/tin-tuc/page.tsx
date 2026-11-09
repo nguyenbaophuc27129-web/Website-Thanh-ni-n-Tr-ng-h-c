@@ -28,7 +28,7 @@ import {
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { SPECIAL_CATEGORIES, SECTION_TAGS } from "@/data/categories";
+import { SPECIAL_CATEGORIES, SECTION_TAGS, contentCategories, DEFAULT_POST_CATEGORY } from "@/data/categories";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
 import { postCoverRaw } from "@/lib/cover";
 import { Modal } from "@/components/ui/modal";
@@ -39,25 +39,10 @@ import type { PublishedPost } from "@/types";
 
 type Cat = "all" | string;
 
-const TUOI_TRE_CATEGORIES = [
-  "Tất cả",
-  "Thanh niên trường học",
-  "Hoạt động Đoàn - Hội",
-  "Học sinh 3 tốt",
-  "Chuyển đổi số & Sáng tạo",
-  "Khen thưởng - Gương sáng",
-  "Khoa học trẻ",
-  "Đảng viên trẻ",
-  "Kỹ năng & Hướng nghiệp",
-];
+/** Thanh chuyên mục dẫn xuất từ contentCategories — khớp DB (migration 0026) */
+const TUOI_TRE_CATEGORIES = ["Tất cả", ...contentCategories.map((c) => c.name)];
 
-const CONTRIBUTION_TAGS: string[] = [
-  "Thanh niên trường học",
-  "Hoạt động Đoàn - Hội",
-  "Học sinh 3 tốt",
-  "Khoa học trẻ",
-  "Tin tức hoạt động Đoàn cơ sở",
-];
+const CONTRIBUTION_TAGS: string[] = contentCategories.map((c) => c.name);
 
 const MAX_COVER_BYTES = 10 * 1024 * 1024; // 10MB
 
@@ -136,10 +121,13 @@ export default function TinTucPage() {
     );
   };
 
-  // URL query parameter ?q=...
+  // URL query parameters ?q= và ?cat= (link từ SPECIAL_CATEGORIES + trang chủ)
   useEffect(() => {
-    const k = new URLSearchParams(window.location.search).get("q");
+    const sp = new URLSearchParams(window.location.search);
+    const k = sp.get("q");
     if (k) setQ(k);
+    const cat = sp.get("cat");
+    if (cat && contentCategories.some((c) => c.name === cat)) setSelectedCat(cat);
   }, []);
 
   // Keyboard shortcut Ctrl+K
@@ -440,7 +428,7 @@ export default function TinTucPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedCat("Thanh niên trường học")}
+                onClick={() => setSelectedCat("Học sinh 3 tốt")}
                 className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline"
               >
                 Xem tất cả <ChevronRight className="h-3.5 w-3.5" />
@@ -494,7 +482,7 @@ export default function TinTucPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedCat("Hoạt động Đoàn - Hội")}
+                onClick={() => setSelectedCat(DEFAULT_POST_CATEGORY)}
                 className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline"
               >
                 Xem tất cả <ChevronRight className="h-3.5 w-3.5" />

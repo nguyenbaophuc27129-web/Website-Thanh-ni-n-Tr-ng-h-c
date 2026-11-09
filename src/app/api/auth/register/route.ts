@@ -4,7 +4,7 @@ import { hashPassword } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
-/** POST /api/auth/register — đăng ký đoàn viên (công khai) → tạo tài khoản ACTIVE, role DOAN_VIEN. */
+/** POST /api/auth/register — đăng ký đoàn viên (công khai) → tạo tài khoản PENDING chờ Đoàn trường duyệt, role DOAN_VIEN. */
 export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => null)) as
     | {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const rows = await query<{ id: number }>(
       `INSERT INTO accounts (org_unit_id, username, email, password_hash, contact_person,
          contact_position, status, role_code, class_name, must_change_password, password_changed_at)
-       OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', 'DOAN_VIEN', $7, false, now())
+       OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', 'DOAN_VIEN', $7, false, now())
        RETURNING id`,
       [
         orgUnitId,

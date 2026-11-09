@@ -46,6 +46,10 @@ export const hasPerm = (perms: string[], code: string) =>
  */
 export const ACCOUNT_ADMIN_ROLES: readonly string[] = ["QUAN_TRI_TW", "QUAN_TRI_TINH", "QUAN_TRI_CAP3"];
 
+/** Vai trò được XEM danh sách tài khoản (GET /api/accounts): thêm Đoàn trường (DON_VI) để duyệt hồ sơ
+ *  Đoàn viên đăng ký — route chỉ trả DOAN_VIEN trong cây đơn vị của trường. */
+export const ACCOUNT_VIEW_ROLES: readonly string[] = [...ACCOUNT_ADMIN_ROLES, "DON_VI"];
+
 /* =====================================================================
  * DANH MỤC CHỨC NĂNG PHÂN QUYỀN — gom permissionsList thành các nhóm
  * hiển thị trên trang "Phân quyền nhiệm vụ" của từng tài khoản.
