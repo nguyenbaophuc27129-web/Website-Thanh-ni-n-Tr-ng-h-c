@@ -1,0 +1,679 @@
+TÀI LIỆU ĐẶC TẢ
+huấn luyện AI agent tổng hợp báo cáo công tác Đoàn và phong trào thanh thiếu nhi
+theo khung nhiệm vụ, giải pháp nhiệm kỳ 2026 - 2031
+-----------
+Căn cứ Dự thảo lần 5 Báo cáo chính trị của Ban Chấp hành Trung ương Đoàn khóa XII trình Đại hội đại biểu toàn quốc Đoàn TNCS Hồ Chí Minh lần thứ XIII (Phần thứ hai: Nhiệm vụ và giải pháp công tác Đoàn và phong trào thanh thiếu nhi nhiệm kỳ 2026 - 2031), tài liệu này mô tả yêu cầu, khung đề cương, quy tắc và dữ liệu mẫu để huấn luyện AI agent tổng hợp báo cáo trên hệ thống báo cáo trực tuyến 04 cấp.
+I. MỤC ĐÍCH, PHẠM VI
+1. Mục đích
+- Agent đọc dữ liệu hoạt động đầu vào (bản ghi do cán bộ Đoàn nhập trên hệ thống, báo cáo của cấp dưới, tin trên báo mạng, trang thông tin của đơn vị), tách thành từng hoạt động, phân loại vào đúng đầu mục nhiệm vụ, giải pháp nhiệm kỳ 2026 - 2031 và viết báo cáo hoàn thiện theo khung đề cương thống nhất.
+- Bảo đảm báo cáo các cấp dùng chung một bộ mã đầu mục, để cấp trên tổng hợp tự động, đối chiếu được với 13 chỉ tiêu trọng tâm và 05 nhiệm vụ đột phá của nhiệm kỳ.
+2. Phạm vi
+- Cấp báo cáo: đoàn cấp trường → đoàn cấp xã → đoàn cấp tỉnh → Trung ương Đoàn.
+- Kỳ báo cáo: tuần, tháng, quý, 06 tháng, năm; khung đề cương giữ nguyên, chỉ thay tên kỳ và tên phần phương hướng.
+- Khu vực áp dụng thí điểm: khối trường học (học sinh, sinh viên, giáo viên, giảng viên trẻ); bộ mã dùng được cho mọi khu vực, địa bàn.
+3. Nguyên tắc
+- Đúng khung: thân báo cáo bám 06 nhóm nhiệm vụ, giải pháp và số hiệu tiểu mục của Báo cáo chính trị.
+- Đúng sự thật: mọi câu, mọi số liệu trong báo cáo truy xuất được về ít nhất 01 nguồn; không suy diễn, không tự thêm số liệu.
+- Đúng kỳ, đúng chủ thể: chỉ đưa hoạt động diễn ra trong kỳ và do tổ chức Đoàn, Hội, Đội chủ trì hoặc phối hợp.
+- Người duyệt cuối cùng là cán bộ phụ trách; agent đánh dấu rõ nội dung cần xác minh.
+II. LUỒNG BÁO CÁO 04 CẤP
+Cấp
+Đầu vào
+Nhiệm vụ của agent
+Đầu ra gửi cấp trên
+Đoàn cấp trường
+Bản ghi hoạt động do cán bộ Đoàn trường nhập; tin trên trang thông tin của trường
+Chuẩn hóa bản ghi; phân loại; viết báo cáo của đoàn trường
+Báo cáo văn bản và tệp bản ghi chuẩn hóa
+Đoàn cấp xã
+Báo cáo, tệp bản ghi của các đoàn trường, chi đoàn trực thuộc; hoạt động do đoàn xã chủ trì
+Gộp theo mã; khử trùng; cộng số liệu; chọn hoạt động tiêu biểu
+Báo cáo văn bản và tệp bản ghi đã gộp
+Đoàn cấp tỉnh
+Tệp bản ghi của các đoàn xã, đoàn trường trực thuộc; hoạt động cấp tỉnh; báo chí
+Gộp, khử trùng; đối chiếu chỉ tiêu, nhiệm vụ đột phá; viết báo cáo cấp tỉnh
+Báo cáo văn bản và tệp bản ghi đã gộp
+Trung ương Đoàn
+Tệp bản ghi của các tỉnh, thành đoàn, đoàn trực thuộc; hoạt động cấp Trung ương
+Tổng hợp toàn quốc; so sánh giữa các đơn vị; tiến độ chỉ tiêu
+Báo cáo trình Ban Bí thư
+Mỗi cấp gửi lên đồng thời báo cáo văn bản và tệp bản ghi chuẩn hóa (mục IX). Cấp trên tổng hợp từ tệp bản ghi, không đọc lại văn bản để trích số liệu.
+III. KHUNG ĐỀ CƯƠNG BÁO CÁO ĐẦU RA
+Khung đề cương áp dụng chung cho mọi cấp, mọi kỳ báo cáo:
+Phần
+Nội dung
+Quy tắc
+Thể thức
+Khối tiêu đề, tên báo cáo, kỳ báo cáo
+Theo thể thức văn bản của Đoàn; tên đơn vị, số hiệu theo cấp
+Mở đầu
+01 câu: căn cứ Nghị quyết Đại hội Đoàn toàn quốc lần thứ XIII, đơn vị báo cáo, kỳ báo cáo
+Không thêm đánh giá
+I. Kết quả thực hiện nhiệm vụ, giải pháp
+06 mục lớn theo Báo cáo chính trị (mục IV)
+06 mục lớn luôn có; tiểu mục chỉ có khi có hoạt động; giữ nguyên số hiệu tiểu mục
+II. Kết quả gắn với chỉ tiêu, nhiệm vụ đột phá
+Bảng: chỉ tiêu hoặc nhiệm vụ đột phá - kết quả trong kỳ
+Chỉ liệt kê chỉ tiêu, nhiệm vụ đột phá có hoạt động đóng góp trực tiếp
+III. Đánh giá chung
+Ưu điểm; hạn chế
+Chỉ rút ra từ dữ liệu trong kỳ
+IV. Phương hướng kỳ tới
+Hoạt động sắp diễn ra; việc cần xác minh, bổ sung
+Lấy từ bản ghi có trạng thái PHUONG_HUONG, CAN_XAC_MINH
+V. Đề xuất, kiến nghị
+Đề xuất của cấp báo cáo
+Chỉ có khi đầu vào có đề xuất
+Nơi nhận, ký
+Theo thể thức
+Agent để trống họ tên người ký
+Phụ lục
+Danh mục hoạt động, nguồn, kết quả phân loại; danh mục tin bị loại
+Bắt buộc; khổ ngang
+Tên phần IV theo kỳ: tuần tới, tháng tới, quý tới, 06 tháng cuối năm, năm tới.
+Trình bày mục I: mục 1, 5, 6 viết thành đoạn, mở đầu bằng nhãn nội dung in nghiêng theo tên nội dung trong Báo cáo chính trị; mục 2, 3, 4 dùng tiểu mục có số hiệu in đậm nghiêng, mỗi hoạt động một gạch đầu dòng. Mục lớn không có hoạt động ghi: “Chưa ghi nhận hoạt động trong kỳ báo cáo.”
+IV. BỘ MÃ ĐẦU MỤC
+Bộ mã gồm 06 nhóm nhiệm vụ, giải pháp (NV1 - NV6) với 28 tiểu mục, 13 chỉ tiêu trọng tâm (CT1 - CT13), 05 nhiệm vụ đột phá (DP1 - DP5) và 07 chương trình, đề án trọng điểm (DA1 - DA7). Danh mục đầy đủ kèm dấu hiệu nhận diện tại Phụ lục 1.
+Mã
+Nhóm nhiệm vụ, giải pháp
+Tiểu mục
+NV1
+Công tác tuyên truyền, giáo dục
+NV1.1, NV1.2, NV1.3, NV1.4, NV1.5, NV1.6, NV1.7
+NV2
+Phong trào “Tuổi trẻ Việt Nam tiên phong trong kỷ nguyên mới”
+NV2.1, NV2.2, NV2.3, NV2.4, NV2.5
+NV3
+Chương trình “Phát triển toàn diện thanh niên Việt Nam”
+NV3.1, NV3.2, NV3.3
+NV4
+Công tác xây dựng Đoàn, mở rộng mặt trận đoàn kết tập hợp thanh niên
+NV4.1, NV4.2, NV4.3, NV4.4, NV4.5, NV4.6
+NV5
+Công tác phụ trách Đội TNTP Hồ Chí Minh, bảo vệ, chăm sóc, giáo dục thiếu niên, nhi đồng
+NV5.1, NV5.2, NV5.3
+NV6
+Công tác tham gia xây dựng, bảo vệ Đảng và hệ thống chính trị
+NV6.1, NV6.2, NV6.3, NV6.4
+Tiểu mục của nhóm NV1, NV5, NV6 là mã phân loại nội bộ (Báo cáo chính trị trình bày thành đoạn có nhãn, không đánh số). Khi viết báo cáo, các tiểu mục này hiển thị bằng nhãn nội dung, không hiển thị số.
+V. QUY TRÌNH XỬ LÝ CỦA AGENT
+Bước 1 - Thu nhận: nhận đầu vào kèm kỳ báo cáo (từ ngày, đến ngày), cấp và tên đơn vị báo cáo.
+Bước 2 - Trích xuất: tách mỗi nguồn thành các hoạt động riêng; một bài báo có nhiều nội dung độc lập thì tách thành nhiều bản ghi; ghi ngày diễn ra, địa điểm, chủ trì, phối hợp, đối tượng, số liệu kèm loại số liệu.
+Bước 3 - Lọc: xác định trạng thái từng bản ghi theo quy tắc R1 - R4.
+Bước 4 - Phân loại: gán 01 mục chính, các mục phụ theo quy tắc R5 - R8; ghi lý do phân loại.
+Bước 5 - Đối chiếu: gắn chỉ tiêu, nhiệm vụ đột phá, đề án theo quy tắc R9 - R10.
+Bước 6 - Viết: viết đoạn văn cho từng hoạt động theo quy tắc viết (mục VII).
+Bước 7 - Lắp khung: xếp đoạn văn vào khung đề cương; dựng bảng phần II; viết phần III, IV từ dữ liệu.
+Bước 8 - Tự kiểm tra: chạy danh mục kiểm tra (mục X); xuất báo cáo văn bản và tệp bản ghi.
+VI. QUY TẮC PHÂN LOẠI
+1. Quy tắc lọc
+R1 - Kỳ báo cáo: ngày diễn ra nằm ngoài kỳ thì không đưa vào phần I. Hoạt động đã diễn ra trước kỳ: trạng thái NGOAI_KY. Hoạt động diễn ra sau kỳ: trạng thái PHUONG_HUONG. Căn cứ là ngày diễn ra, không phải ngày đăng bài.
+R2 - Chủ thể: chỉ nhận hoạt động do tổ chức Đoàn, Hội Liên hiệp Thanh niên, Hội Sinh viên, Hội đồng Đội hoặc thiết chế, đơn vị trực thuộc các tổ chức này chủ trì hoặc phối hợp. Bài báo không nêu vai trò của tổ chức Đoàn, Hội, Đội: trạng thái KHONG_PHAI_DOAN.
+R3 - Thiếu thông tin: thiếu ngày diễn ra hoặc thiếu chủ thể: trạng thái CAN_XAC_MINH, không đưa vào thân báo cáo, nêu tại phần IV và phụ lục.
+R4 - Trùng lặp: cùng hoạt động (cùng tên chuẩn hóa, ngày, chủ trì) từ nhiều nguồn gộp thành 01 bản ghi, giữ tất cả nguồn; số liệu lệch nhau thì lấy số của nguồn chính thức của đơn vị, không lấy trung bình.
+2. Quy tắc gán mục
+R5 - Một mục chính: mỗi hoạt động có đúng 01 mục chính (cấp tiểu mục) và được viết một lần tại mục chính; mục phụ chỉ dùng để thống kê, không viết lặp.
+R6 - Theo nội dung cốt lõi: phân loại theo mục đích và kết quả chính của hoạt động, không theo hình thức (hội thi, ngày hội, ra quân) hay theo dịp kỷ niệm.
+R7 - Tách hoạt động: một sự kiện có nhiều nội dung thuộc các mục khác nhau (khai trương công trình, ký kết, phát động, trao quà) thì tách thành nhiều bản ghi theo từng nội dung.
+R8 - Các cặp dễ nhầm: xếp theo cách Báo cáo chính trị đã xếp:
+Nội dung
+Mục đúng
+Không xếp vào
+Tình nguyện viên số, Tổ công nghệ số cộng đồng, hỗ trợ dịch vụ công trực tuyến, VNeID, “Bình dân học vụ số”
+NV2.1
+NV2.4
+Kết nối sinh viên với doanh nghiệp, thực tập, học bổng, “Tiếp sức đến trường”
+NV3.1
+NV2.2
+Tư vấn hướng nghiệp, đào tạo nghề, hội thi tay nghề, việc làm cho thanh niên lao động
+NV2.2
+NV3.1
+Cuộc thi, giải thưởng khoa học công nghệ, sáng tạo của sinh viên
+NV2.1
+NV3.1
+Tuyên dương “Sinh viên 5 tốt”, “Học sinh 3 tốt”, “Nhà giáo trẻ tiêu biểu”; câu lạc bộ học thuật
+NV3.1
+NV2.1
+Bồi dưỡng ngoại ngữ cho thanh thiếu nhi
+NV2.3
+NV3.1
+Lễ kỷ niệm ngày truyền thống, đại hội, tuyên dương cán bộ của Hội LHTN, Hội Sinh viên
+NV4.5
+NV1.3
+Nhạc hội, liên hoan văn nghệ của thanh niên
+NV3.3
+NV4.5
+Kỷ niệm ngày lễ lớn của đất nước, của Đảng; hành trình về nguồn
+NV1.3
+NV3.3
+Kết nạp đoàn viên mới
+NV4.3
+NV6.2
+Lớp cảm tình Đảng, giới thiệu đoàn viên ưu tú cho Đảng
+NV6.2
+NV4.3
+Phòng chống ma túy, tội phạm; an ninh trật tự; an toàn giao thông
+NV2.5
+NV1.5
+Tuyên truyền pháp luật chung, tư vấn pháp lý
+NV1.5
+NV2.5
+Hoạt động cho thiếu nhi do Đội, Hội đồng Đội tổ chức
+NV5.x
+NV2.4
+Đoàn viên tình nguyện vì thiếu nhi (Chiến dịch “Hoa phượng đỏ”, tặng quà thiếu nhi khó khăn)
+NV2.4
+NV5.2
+Áp lực học tập, sức khỏe tinh thần của học sinh, sinh viên
+NV3.1
+NV3.3
+Tư vấn tâm lý, sức khỏe tinh thần chung cho thanh niên
+NV3.3
+NV3.1
+Tập huấn nghiệp vụ công tác Đoàn cho cán bộ
+NV4.1
+-
+Tập huấn chuyên đề lĩnh vực cho cán bộ (trí tuệ nhân tạo, kỹ năng số…)
+Mục của lĩnh vực; phụ NV4.1
+-
+Ký kết chương trình phối hợp, hội nghị giao ban, sơ kết, tổng kết
+NV4.6
+-
+3. Quy tắc gắn chỉ tiêu, nhiệm vụ đột phá
+R9 - Đóng góp trực tiếp: chỉ gắn chỉ tiêu, nhiệm vụ đột phá khi hoạt động tạo ra đúng đại lượng của chỉ tiêu (lượt tình nguyện, công trình khoa học công nghệ, điểm đen môi trường, dự án khởi nghiệp, thiếu nhi khó khăn được hỗ trợ…) hoặc đúng nội dung của nhiệm vụ đột phá. Không gắn theo suy đoán.
+R10 - Loại số liệu: mỗi số liệu có loại ket_qua, muc_tieu hoặc du_kien. Chỉ số liệu ket_qua được cộng vào tiến độ chỉ tiêu; mục tiêu, dự kiến được viết kèm từ “mục tiêu”, “dự kiến”.
+VII. QUY TẮC VIẾT
+- Mỗi hoạt động một gạch đầu dòng; thứ tự: thời gian (Ngày dd/mm/yyyy) - chủ thể - hoạt động - mục đích - quy mô, kết quả.
+- Tên chương trình, cuộc thi, phong trào đặt trong ngoặc kép “ ”; tên đơn vị viết đầy đủ ở lần đầu.
+- Số liệu: chỉ dùng số có trong nguồn; số dưới 10 viết 02 chữ số; dùng dấu chấm phân cách hàng nghìn; giữ nguyên các từ “trên”, “khoảng” của nguồn.
+- Không dùng tính từ cảm xúc (sôi nổi, ấn tượng, hoành tráng); không trích nguyên văn lời phát biểu; nêu chức danh lãnh đạo khi cần, không nêu tên người dự thi, người nhận giải.
+- Không lặp một hoạt động ở hai mục; không viết lại mục phụ.
+- Phần đánh giá: ưu điểm nêu xu hướng chung của các hoạt động trong kỳ; hạn chế nêu mục trống, thiếu số liệu, thông tin cần xác minh. Không đưa nhận định không có căn cứ.
+- Văn phong hành chính, câu chủ động, ngắn gọn; thống nhất cách viết “TP. Hồ Chí Minh” trong thể thức và “Thành phố” trong thân báo cáo của Thành Đoàn.
+VIII. QUY TẮC TỔNG HỢP LÊN CẤP TRÊN
+- Gộp bản ghi theo mã mục chính; trong mỗi mục xếp hoạt động của cấp chủ trì cao trước, sau đó theo ngày.
+- Cộng dồn số liệu cùng chỉ số chuẩn hóa, cùng đơn vị đo, cùng loại ket_qua; không cộng mục tiêu với kết quả.
+- Hoạt động do cấp trên chủ trì, cấp dưới tham gia: ghi 01 lần tại cấp chủ trì; số lượt tham gia của cấp dưới cộng vào bản ghi đó.
+- Ở cấp xã, tỉnh, Trung ương: mỗi tiểu mục viết 01 đoạn tổng hợp (số hoạt động, số đơn vị triển khai, số liệu cộng dồn) và nêu các hoạt động tiêu biểu; số hoạt động tiêu biểu mỗi tiểu mục là tham số cấu hình do đơn vị quyết định.
+- Giữ mã bản ghi gốc ở mọi cấp để truy xuất ngược đến đơn vị và nguồn.
+- Phần II ở cấp tỉnh, Trung ương bổ sung cột lũy kế từ đầu nhiệm kỳ khi có số liệu.
+IX. ĐỊNH DẠNG DỮ LIỆU
+Bản ghi hoạt động (tệp JSON, mỗi hoạt động một bản ghi):
+Trường
+Kiểu
+Mô tả
+id
+chuỗi
+Mã bản ghi, duy nhất trong hệ thống
+don_vi_bao_cao, cap
+chuỗi
+Đơn vị và cấp báo cáo (truong, xa, tinh, tw)
+ky_bao_cao
+đối tượng
+tu, den theo dd/mm/yyyy
+ten
+chuỗi
+Tên hoạt động chuẩn hóa
+ngay
+chuỗi
+Ngày diễn ra; để trống nếu nguồn không nêu
+dia_diem, chu_tri, phoi_hop
+chuỗi
+Theo nguồn
+doi_tuong
+danh sách
+học sinh, sinh viên, giáo viên trẻ, thanh niên công nhân, thiếu nhi…
+mo_ta
+chuỗi
+Nội dung chính, không chép nguyên văn
+so_lieu
+danh sách
+chi_so, gia_tri, don_vi, loai (ket_qua, muc_tieu, du_kien)
+nguon
+danh sách
+Mã nguồn: tên báo hoặc đơn vị, ngày đăng, tiêu đề, đường dẫn
+muc_chinh, muc_phu
+chuỗi, danh sách
+Mã NV theo Phụ lục 1
+chi_tieu, dot_pha, de_an
+danh sách
+Mã CT, DP, DA
+trang_thai
+chuỗi
+DUA_VAO, NGOAI_KY, KHONG_PHAI_DOAN, CAN_XAC_MINH, PHUONG_HUONG
+ly_do
+chuỗi
+Lý do phân loại, lý do loại
+Tệp training_dataset.json kèm theo chứa bộ mã, quy tắc, bản ghi mẫu và báo cáo đầu ra mẫu theo đúng định dạng trên.
+X. TIÊU CHÍ ĐÁNH GIÁ AGENT
+1. Chỉ số
+Chỉ số
+Cách đo
+Yêu cầu
+Đúng trạng thái lọc
+So với nhãn của cán bộ duyệt
+100% với R1, R2
+Đúng mục chính
+So với nhãn của cán bộ duyệt
+Do Ban quyết định khi nghiệm thu
+Số liệu không có nguồn
+Đếm số liệu trong báo cáo không truy xuất được
+0
+Câu không có nguồn
+Đếm câu ở phần I không gắn mã bản ghi
+0
+Mục tiêu bị tính là kết quả
+Đếm số liệu muc_tieu, du_kien bị cộng vào phần II
+0
+Đúng khung
+06 mục lớn, số hiệu tiểu mục, thứ tự phần
+100%
+2. Danh mục tự kiểm tra trước khi xuất
+- Kỳ báo cáo ghi đúng ở tên báo cáo, câu mở đầu và phần IV.
+- Không có hoạt động ngoài kỳ, không phải của tổ chức Đoàn, Hội, Đội trong phần I.
+- Mỗi hoạt động chỉ xuất hiện một lần trong phần I.
+- Số liệu phần II khớp số liệu phần I.
+- Phụ lục liệt kê đủ bản ghi được đưa vào và bị loại, có nguồn.
+- Thể thức: Times New Roman 14, lề trên 2 cm, dưới 2 cm, trái 3 cm, phải 2 cm; phụ lục khổ ngang.
+XI. BỘ DỮ LIỆU HUẤN LUYỆN MẪU
+Đơn vị: Thành Đoàn TP. Hồ Chí Minh (đoàn cấp tỉnh). Kỳ báo cáo: tuần từ ngày 06/10/2026 đến ngày 12/10/2026. Đầu vào: 11 bài viết trên báo mạng, trang thông tin (đăng từ ngày 26/9/2026 đến ngày 12/10/2026), tách thành 17 bản ghi hoạt động.
+Kết quả lọc: 09 bản ghi đưa vào báo cáo; 02 bản ghi ngoài kỳ; 03 bản ghi không do tổ chức Đoàn, Hội, Đội tổ chức; 01 bản ghi cần xác minh; 02 bản ghi chuyển sang phương hướng kỳ tới. Bảng phân loại chi tiết tại Phụ lục 2; báo cáo đầu ra mẫu tại Phụ lục 3 (mã bản ghi in xanh trong ngoặc vuông để đối chiếu, không xuất hiện trong báo cáo thật).
+Bộ mẫu được chọn để huấn luyện đủ các tình huống: một bài báo tách thành nhiều hoạt động (bài ngày 11/10/2026 về phường Vũng Tàu tách thành 06 bản ghi); số liệu mục tiêu không được tính là kết quả; hoạt động tình nguyện số xếp vào NV2.1; bài đăng trong kỳ nhưng hoạt động diễn ra trước kỳ; hoạt động sắp diễn ra; bài báo về sinh viên nhưng không do tổ chức Đoàn, Hội tổ chức; thiếu ngày diễn ra.
+Lưu ý: dữ liệu đầu vào được thu thập qua công cụ tìm kiếm nên chưa bao quát hết tin bài về Thành Đoàn TP. Hồ Chí Minh trong tuần; bộ mẫu dùng để huấn luyện cách phân loại và viết, không dùng làm báo cáo chính thức.
+PHỤ LỤC 1
+Bộ mã đầu mục và dấu hiệu nhận diện
+(Theo Phần thứ hai, Dự thảo lần 5 Báo cáo chính trị trình Đại hội Đoàn toàn quốc lần thứ XIII)
+-----------
+Mã
+Đầu mục
+Dấu hiệu nhận diện
+NV1
+CÔNG TÁC TUYÊN TRUYỀN, GIÁO DỤC
+NV1.1
+Học tập và làm theo tư tưởng, đạo đức, phong cách Hồ Chí Minh
+học tập chuyên đề về Bác; đăng ký phần việc làm theo Bác; tủ sách học và làm theo Bác; Nhật ký làm theo lời Bác; cuộc thi tìm hiểu tư tưởng Hồ Chí Minh; sinh hoạt dịp 19/5; không gian văn hóa Hồ Chí Minh
+NV1.2
+Giáo dục lý tưởng cách mạng
+học tập, quán triệt nghị quyết của Đảng, Mặt trận, Đoàn; lý luận chính trị; bài học lý luận cho đoàn viên mới; câu lạc bộ lý luận trẻ; kiểm tra nhận thức trên ứng dụng Thanh niên Việt Nam
+NV1.3
+Giáo dục truyền thống lịch sử, lòng yêu nước, tinh thần tự hào dân tộc
+kỷ niệm ngày lễ lớn; hành trình về nguồn, địa chỉ đỏ; Thắp nến tri ân; đền ơn đáp nghĩa; chào cờ tại di tích; Bảo tàng số; “Câu chuyện thời hoa lửa”; “Tự hào một dải non sông”; “Tôi yêu Tổ quốc tôi”
+NV1.4
+Giáo dục đạo đức, lối sống văn hóa
+“Xây dựng giá trị hình mẫu thanh niên Việt Nam thời kỳ mới”; “Mỗi ngày một tin tốt, mỗi tuần một câu chuyện đẹp”; ứng xử văn minh trên không gian mạng; trào lưu tích cực
+NV1.5
+Tuyên truyền, phổ biến, giáo dục pháp luật
+tuyên truyền luật mới; tư vấn pháp lý trẻ; góp ý dự thảo luật; “Sống và làm theo Hiến pháp và pháp luật”
+NV1.6
+Nắm bắt và định hướng dư luận xã hội trong thanh niên
+báo cáo dư luận xã hội; cộng tác viên dư luận xã hội; cung cấp thông tin chính thống
+NV1.7
+Đổi mới và đa dạng hóa phương thức tuyên truyền, giáo dục
+sản phẩm truyền thông số; trang cộng đồng; ứng dụng Thanh niên Việt Nam; người có ảnh hưởng; chiến dịch truyền thông; thiết chế của Đoàn phục vụ giáo dục
+NV2
+PHONG TRÀO “TUỔI TRẺ VIỆT NAM TIÊN PHONG TRONG KỶ NGUYÊN MỚI”
+NV2.1
+Tiên phong phát triển khoa học công nghệ, đổi mới sáng tạo và chuyển đổi số
+Nghị quyết 57-NQ/TW; “Bình dân học vụ số”; kỹ năng số, AI, dữ liệu; “Tình nguyện viên số”, “Tổ công nghệ số cộng đồng”; hỗ trợ dịch vụ công trực tuyến, VNeID; cuộc thi, giải thưởng khoa học công nghệ, sáng tạo; công trình ứng dụng khoa học công nghệ; STEM; Mạng lưới Trí thức trẻ
+NV2.2
+Tiên phong khởi nghiệp lập nghiệp, phát triển kinh tế đất nước
+khởi nghiệp, ý tưởng kinh doanh; kinh tế tư nhân; OCOP; hợp tác xã; vốn vay ưu đãi; tư vấn hướng nghiệp, đào tạo nghề, nâng cao tay nghề cho thanh niên; hội thi tay nghề; việc làm cho thanh niên lao động; tôn vinh doanh nhân trẻ
+NV2.3
+Tiên phong hội nhập quốc tế
+giao lưu quốc tế; đoàn ra, đoàn vào; ngoại ngữ, sân chơi ngoại ngữ; du học sinh; Hội Thanh niên - Sinh viên Việt Nam ở nước ngoài; Nghị quyết 59-NQ/TW
+NV2.4
+Tiên phong trong các hoạt động tình nguyện vì cộng đồng
+chiến dịch tình nguyện (Mùa hè xanh, Hoa phượng đỏ, Xuân tình nguyện, Tình nguyện mùa đông, Tháng Thanh niên); an sinh xã hội; nông thôn mới; đô thị văn minh; môi trường, Ngày Chủ nhật xanh, xóa điểm đen ô nhiễm; hiến máu; hỗ trợ thiên tai; xã biên giới, biển đảo; “mỗi trường học một dự án phục vụ cộng đồng”
+NV2.5
+Tiên phong tham gia bảo vệ Tổ quốc và an ninh trật tự trên địa bàn
+giáo dục quốc phòng an ninh; tòng quân, nghĩa vụ quân sự; “Nghĩa tình biên giới, biển đảo”; đội thanh niên xung kích, tự quản an ninh trật tự; phòng chống tội phạm, ma túy, tệ nạn; cảm hóa thanh thiếu niên chậm tiến; Thanh niên Quân đội, Thanh niên Công an
+NV3
+CHƯƠNG TRÌNH “PHÁT TRIỂN TOÀN DIỆN THANH NIÊN VIỆT NAM”
+NV3.1
+Trong học tập
+“Tuổi trẻ thi đua xây dựng xã hội học tập, đẩy mạnh học tập suốt đời”; Tuần lễ học tập suốt đời; kỹ năng cho học sinh, sinh viên; sức khỏe tinh thần trong học tập; “Sinh viên 5 tốt”, “Học sinh 3 tốt”, “Học sinh 3 rèn luyện”, “Nhà giáo trẻ tiêu biểu”; mạng lưới học tập, câu lạc bộ học thuật; nghiên cứu khoa học của sinh viên; trường học thông minh, thư viện số; “Tiếp sức đến trường”; học bổng; kết nối sinh viên với doanh nghiệp, thực tập
+NV3.2
+Trong rèn luyện, phát triển thể chất
+giải thể thao; câu lạc bộ thể thao; tập luyện trên môi trường số; khám sàng lọc sức khỏe; bể bơi, phổ cập bơi; phòng chống tác hại thuốc lá, rượu bia, chất kích thích; thiết chế thể thao
+NV3.3
+Trong nâng cao đời sống văn hóa tinh thần
+Nghị quyết 80-NQ/TW; văn hóa, nghệ thuật, liên hoan, nhạc hội; bảo tồn bản sắc văn hóa; không gian văn hóa, vui chơi cho thanh niên; tư vấn tâm lý, sức khỏe tâm thần, sức khỏe sinh sản; kỹ năng tiền hôn nhân, giá trị gia đình
+NV4
+CÔNG TÁC XÂY DỰNG ĐOÀN, MỞ RỘNG MẶT TRẬN ĐOÀN KẾT TẬP HỢP THANH NIÊN
+NV4.1
+Công tác cán bộ Đoàn
+kiện toàn, bố trí cán bộ; tập huấn, bồi dưỡng cán bộ Đoàn; Hội thi Bí thư Đoàn cơ sở; Giải thưởng Lý Tự Trọng; quy chế cán bộ; cơ sở dữ liệu cán bộ
+NV4.2
+Công tác tổ chức cơ sở Đoàn
+củng cố tổ chức cơ sở; “Chi đoàn mạnh”; Đoàn cơ sở “3 chủ động”; sinh hoạt chi đoàn; sắp xếp tổ chức; cây tổ chức trên Phần mềm Quản lý đoàn viên; tổ chức Đoàn ở khu công nghiệp, chung cư, doanh nghiệp ngoài nhà nước
+NV4.3
+Công tác đoàn viên
+kết nạp đoàn viên mới; chủ trương “1+1”; “Rèn luyện đoàn viên”; “Ngày đoàn viên”; Phần mềm Quản lý đoàn viên, thẻ đoàn viên điện tử, VNeID; đánh giá, xếp loại đoàn viên
+NV4.4
+Công tác kiểm tra, giám sát
+kiểm tra, giám sát chuyên đề; Ủy ban kiểm tra; kỷ luật Đoàn; giải quyết kiến nghị, phản ánh của thanh niên
+NV4.5
+Công tác mở rộng mặt trận đoàn kết, tập hợp thanh niên
+Hội Liên hiệp Thanh niên Việt Nam, Hội Sinh viên Việt Nam (đại hội, kỷ niệm, tuyên dương cán bộ Hội); “Đoàn mạnh, Hội rộng”; câu lạc bộ, đội, nhóm theo sở thích; thanh niên công nhân, dân tộc thiểu số, tôn giáo, trí thức trẻ, kiều bào; Hội đồng huấn luyện kỹ năng
+NV4.6
+Công tác chỉ đạo, phối hợp của Đoàn
+ký kết chương trình phối hợp, liên tịch; hội nghị sơ kết, tổng kết, giao ban; đổi mới chế độ thông tin báo cáo; Bộ tiêu chí công tác Đoàn; thi đua khen thưởng; Kết luận 166-KL/TW
+NV5
+CÔNG TÁC PHỤ TRÁCH ĐỘI TNTP HỒ CHÍ MINH, BẢO VỆ, CHĂM SÓC, GIÁO DỤC THIẾU NIÊN, NHI ĐỒNG
+NV5.1
+Công tác phụ trách Đội Thiếu niên Tiền phong Hồ Chí Minh
+Tổng phụ trách Đội; Hội đồng Đội; chỉ huy Đội; sinh hoạt Đội; phát triển Đội trong trường ngoài công lập
+NV5.2
+Công tác chăm sóc, giáo dục thiếu niên, nhi đồng
+“Thiếu nhi Việt Nam thi đua làm theo 5 điều Bác Hồ dạy”; Trung thu; sân chơi, kỹ năng, STEM cho thiếu nhi; Internet an toàn cho thiếu nhi; hỗ trợ thiếu nhi khó khăn, mồ côi
+NV5.3
+Công tác bảo vệ trẻ em, đại diện tiếng nói, nguyện vọng trẻ em
+Luật Trẻ em; Hội đồng trẻ em; diễn đàn trẻ em; phòng chống xâm hại, đuối nước, tai nạn thương tích; bảo vệ trẻ em trên không gian mạng
+NV6
+CÔNG TÁC THAM GIA XÂY DỰNG, BẢO VỆ ĐẢNG VÀ HỆ THỐNG CHÍNH TRỊ
+NV6.1
+Bảo vệ nền tảng tư tưởng của Đảng
+đấu tranh, phản bác quan điểm sai trái, thù địch; lực lượng cốt cán trên không gian mạng; diễn tập bảo vệ nền tảng tư tưởng
+NV6.2
+Bồi dưỡng, giới thiệu đoàn viên ưu tú cho Đảng; tạo nguồn cán bộ trẻ
+lớp cảm tình Đảng; giới thiệu đoàn viên ưu tú; đoàn viên được kết nạp Đảng; tạo nguồn cán bộ trẻ cho cấp ủy, chính quyền
+NV6.3
+Tham mưu chính sách; đối thoại giữa cấp ủy, chính quyền với thanh niên
+đối thoại lãnh đạo với thanh niên; “Tháng nghe thanh niên nói”; đề xuất chính sách cho thanh thiếu nhi
+NV6.4
+Giám sát, phản biện xã hội, góp ý xây dựng Đảng, chính quyền
+giám sát, phản biện; góp ý văn kiện, dự thảo chính sách; theo dõi thực hiện kiến nghị sau giám sát
+Chỉ tiêu trọng tâm nhiệm kỳ 2026 - 2031
+Mã
+Nội dung
+CT1
+100% cán bộ đoàn, đoàn viên được học tập, quán triệt và đạt yêu cầu kiểm tra, đánh giá; 80% thanh niên được tuyên truyền, phổ biến các nghị quyết của Đảng, của Đoàn, chính sách, pháp luật của Nhà nước
+CT2
+100 triệu lượt đoàn viên, thanh niên tham gia hoạt động tình nguyện do Đoàn, Hội tổ chức trong giai đoạn 2026 - 2031
+CT3
+100.000 công trình thanh niên các cấp tham gia phát triển, ứng dụng khoa học công nghệ, đổi mới sáng tạo và chuyển đổi số
+CT4
+Hằng năm, 100% đoàn xã, phường, đặc khu xóa ít nhất 01 điểm đen về ô nhiễm môi trường và duy trì bền vững kết quả
+CT5
+Hằng năm, 100% Đoàn cấp tỉnh triển khai tối thiểu 01 công trình thanh niên hỗ trợ xây dựng hoặc nâng cấp hạ tầng dân sinh tại xã, phường, đặc khu khu vực biên giới, biển đảo
+CT6
+Hằng năm, 100% Đoàn cấp xã triển khai mô hình thanh niên tham gia giữ gìn an ninh trật tự, phòng chống tội phạm tại địa phương
+CT7
+Ít nhất 80% thanh thiếu nhi tham gia các hoạt động nâng cao năng lực số và sử dụng khoa học công nghệ do Đoàn, Hội, Đội tổ chức
+CT8
+Ít nhất 750 dự án khởi nghiệp đổi mới sáng tạo của thanh niên được hỗ trợ đầu ra sản phẩm, dịch vụ
+CT9
+10 triệu thanh thiếu nhi tham gia các chương trình bồi dưỡng, nâng cao năng lực sử dụng ngoại ngữ và hội nhập quốc tế do Đoàn, Hội, Đội tổ chức
+CT10
+4 triệu thiếu nhi có hoàn cảnh khó khăn được tổ chức Đoàn, Hội, Đội các cấp hỗ trợ
+CT11
+Hằng năm, 100% thông tin đoàn viên, cán bộ đoàn các cấp được số hóa trên Phần mềm Quản lý đoàn viên
+CT12
+Tỷ lệ đoàn kết tập hợp thanh niên đạt 80%
+CT13
+50% đoàn viên xếp loại hoàn thành xuất sắc nhiệm vụ; 01 triệu đoàn viên ưu tú được giới thiệu cho Đảng xem xét kết nạp
+Nhiệm vụ đột phá
+Mã
+Nội dung
+DP1
+Đổi mới mạnh mẽ phương thức hoạt động của Đoàn phù hợp với mô hình tổ chức mới
+DP2
+Hỗ trợ nâng cao năng lực số, trí tuệ nhân tạo, khoa học công nghệ, góp phần nâng cao chất lượng nguồn nhân lực trẻ
+DP3
+Khuyến khích, hỗ trợ thanh niên khởi nghiệp, nhất là khởi nghiệp đổi mới sáng tạo gắn với phát triển kinh tế tư nhân
+DP4
+Xây dựng đội ngũ cán bộ đoàn có bản lĩnh chính trị, đạo đức, trách nhiệm, năng lực, uy tín, gần thanh niên, sát cơ sở; nâng cao chất lượng cán bộ đoàn xã, phường, đặc khu
+DP5
+Tăng cường năng lực quản lý, điều phối hoạt động tình nguyện cho đội ngũ cán bộ Đoàn, Hội Liên hiệp Thanh niên Việt Nam, Hội Sinh viên Việt Nam các cấp
+Chương trình, đề án trọng điểm
+Mã
+Nội dung
+DA1
+Chương trình “Giáo dục lý tưởng cách mạng, đạo đức, lối sống văn hóa cho thanh thiếu nhi trên không gian mạng giai đoạn 2022 - 2030”
+DA2
+Đề án “Phát hiện, bồi dưỡng và phát huy Tài năng trẻ Việt Nam giai đoạn 2022 - 2030”
+DA3
+Chương trình “Hỗ trợ thanh niên khởi nghiệp giai đoạn 2022 - 2030”
+DA4
+Chương trình “Hỗ trợ nâng cao năng lực ngoại ngữ và hội nhập quốc tế cho thanh thiếu nhi Việt Nam giai đoạn 2022 - 2030”
+DA5
+Chương trình “Tăng cường năng lực quản lý, điều phối hoạt động tình nguyện cho đội ngũ cán bộ Đoàn, Hội các cấp giai đoạn 2022 - 2030”
+DA6
+Đề án “Bồi dưỡng cán bộ Đoàn TNCS Hồ Chí Minh giai đoạn 2023 - 2027”
+DA7
+Đề án “Tuổi trẻ Việt Nam đồng hành với thanh thiếu nhi vùng biên giới giai đoạn 2025 - 2030”
+PHỤ LỤC 2
+Bộ dữ liệu mẫu: bản ghi hoạt động và nhãn phân loại
+(Thành Đoàn TP. Hồ Chí Minh, tuần từ ngày 06/10/2026 đến ngày 12/10/2026)
+-----------
+Mã
+Bản ghi trích xuất
+Nguồn
+Nhãn
+Lý do
+HD01
+Khởi động Tuần lễ “Sinh viên thành phố Vươn mình thời đại số” năm 2026
+Ngày: 10/10/2026; chủ trì: Thành Đoàn - Hội Sinh viên Việt Nam TP.HCM
+Số liệu: 100.000 sinh viên tham gia hoạt động kỹ năng số (muc_tieu); 10.000 sinh viên được hướng dẫn nghiên cứu khoa học, truyền cảm hứng đổi mới sáng tạo (muc_tieu)
+S1
+Đưa vào báo cáo
+Mục chính: NV2.1
+Mục phụ: NV3.1
+Gắn: CT7, DP2, DA2
+Hoạt động kỹ năng số, công nghệ mới, Nghị quyết 57 → dấu hiệu NV2.1. Nội dung nghiên cứu khoa học của sinh viên là ý phụ NV3.1. Số 100.000 và 10.000 là mục tiêu, không phải kết quả.
+HD02
+Bàn giao công trình thiết bị cảnh báo tai nạn giao thông cho Hội Sinh viên Trường Đại học Khoa học tự nhiên
+Ngày: 10/10/2026; chủ trì: Thành Đoàn - Hội Sinh viên Việt Nam TP.HCM
+Số liệu: 01 công trình ứng dụng khoa học công nghệ được bàn giao (ket_qua)
+S1
+Đưa vào báo cáo
+Mục chính: NV2.1
+Mục phụ: NV2.5
+Gắn: CT3, DP2
+Công trình thanh niên ứng dụng khoa học công nghệ phục vụ cộng đồng → NV2.1, tính vào CT3. Mục đích an toàn giao thông là ý phụ NV2.5.
+HD03
+Chung kết Hội thi tay nghề làm bánh lần I với chủ đề “Tinh hoa nghệ thuật làm bánh”
+Ngày: 10/10/2026; chủ trì: Hội Liên hiệp Thanh niên Việt Nam TP.HCM phối hợp Trung tâm Dịch vụ việc làm Thanh niên TP.HCM
+Số liệu: trên 500 thí sinh đăng ký dự thi (ket_qua); 30 thí sinh vào chung kết (ket_qua)
+S2
+Đưa vào báo cáo
+Mục chính: NV2.2
+Mục phụ: NV4.5
+Nâng cao tay nghề, phát triển nghề nghiệp cho thanh niên → NV2.2. Hội LHTN chủ trì, gắn kỷ niệm 70 năm Hội → ý phụ NV4.5. Vòng 1 ngày 02/10 nằm ngoài kỳ nên chỉ nêu làm bối cảnh, không tính là kết quả trong kỳ.
+HD04
+Xây dựng không gian văn hóa Hồ Chí Minh, trao tặng tủ sách cho thanh niên
+Ngày: 11/10/2026; chủ trì: Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu phối hợp Đoàn phường Vũng Tàu
+S3
+Đưa vào báo cáo
+Mục chính: NV1.1
+Mục phụ: NV3.1
+Không gian văn hóa Hồ Chí Minh, tủ sách, tự học theo gương Bác → NV1.1. Bài báo không nêu số tủ sách nên không ghi số.
+HD05
+Phát động “Tuần lễ học tập suốt đời” theo tấm gương Chủ tịch Hồ Chí Minh
+Ngày: 11/10/2026; chủ trì: Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu phối hợp Đoàn phường Vũng Tàu
+S3
+Đưa vào báo cáo
+Mục chính: NV3.1
+Mục phụ: NV1.1
+Phong trào xây dựng xã hội học tập, học tập suốt đời → NV3.1.
+HD06
+Ra mắt Đội hình thanh niên hỗ trợ người dân sử dụng dịch vụ, ứng dụng số; phát động đợt cao điểm hỗ trợ phát triển kinh tế số
+Ngày: 11/10/2026; chủ trì: Đoàn phường Vũng Tàu
+Số liệu: 01 đội hình được ra mắt (ket_qua)
+S3
+Đưa vào báo cáo
+Mục chính: NV2.1
+Mục phụ: NV2.4
+Gắn: CT7, DP2
+Theo Báo cáo chính trị, mô hình “Tình nguyện viên số”, “Tổ công nghệ số cộng đồng” thuộc mục 2.1, không xếp vào 2.4 dù có tính chất tình nguyện.
+HD07
+Khai trương hồ bơi di động
+Ngày: 11/10/2026; chủ trì: Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu phối hợp Đoàn phường Vũng Tàu
+S3
+Đưa vào báo cáo
+Mục chính: NV3.2
+Mục phụ: NV5.3
+Thiết chế rèn luyện thể chất → NV3.2; bơi lội gắn phòng chống đuối nước trẻ em là ý phụ NV5.3.
+HD08
+Khai trương “Phố quà tặng Thanh niên” và “Bến đỗ Thanh niên”
+Ngày: 11/10/2026; chủ trì: Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu phối hợp Đoàn phường Vũng Tàu
+S3
+Đưa vào báo cáo
+Mục chính: NV3.3
+Mục phụ: NV4.5
+Không gian vui chơi, giải trí, kết nối → NV3.3; mô hình tập hợp thanh niên là ý phụ NV4.5.
+HD09
+Ký kết chương trình phối hợp tổ chức hoạt động thanh niên giữa Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu và Đoàn phường Vũng Tàu
+Ngày: 11/10/2026; chủ trì: Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu và Đoàn phường Vũng Tàu
+Số liệu: 01 chương trình phối hợp được ký kết (ket_qua)
+S3
+Đưa vào báo cáo
+Mục chính: NV4.6
+Ký kết chương trình phối hợp → NV4.6. Bài báo không nêu nội dung đổi mới phương thức nên không gắn nhiệm vụ đột phá.
+HD10
+Ngày hội kết nối thực tập “Internship Fair 2026”
+Ngày: (không nêu); chủ trì: Trung tâm Dịch vụ việc làm Thanh niên TP.HCM
+S4
+Cần xác minh - thiếu thông tin bắt buộc
+Mục chính: NV3.1
+Mục phụ: NV2.2
+Bài báo không nêu ngày tổ chức, không xác định được thuộc kỳ báo cáo → đưa vào danh sách cần xác minh, không đưa vào thân báo cáo. Nếu xác minh trong kỳ: xếp NV3.1 (kết nối sinh viên với doanh nghiệp, thực tập).
+HD11
+Hoạt động hướng đến kỷ niệm 70 năm Ngày truyền thống Hội LHTN Việt Nam (15 ngày hành động đẹp vì Tổ quốc, hành trình “Tôi yêu Tổ quốc tôi”, kết nạp đoàn viên…)
+Ngày: trước 05/10/2026; chủ trì: Hội LHTN, Đoàn các xã, phường
+Số liệu: trên 430 đoàn viên mới được kết nạp tại xã Long Điền (ket_qua)
+S5
+Loại - ngoài kỳ báo cáo
+Mục chính: NV1.3
+Mục phụ: NV2.4, NV4.3
+Diễn ra trước 06/10/2026 → thuộc kỳ trước; không đưa vào báo cáo kỳ này.
+HD12
+Sinh hoạt chuyên đề “Tuổi trẻ cùng Thành phố phát triển”
+Ngày: 03/10/2026; chủ trì: Cụm số 6, Đoàn khối thuộc UBND TP.HCM
+S11
+Loại - ngoài kỳ báo cáo
+Mục chính: NV1.2
+Diễn ra ngày 03/10/2026 → ngoài kỳ.
+HD13
+Trao học bổng Nguyễn Thái Bình “Chắp cánh ước mơ vào giảng đường đại học 2026”
+Ngày: 08/10/2026; chủ trì: Báo Thanh Niên và CLB Golf Quảng Ngãi tại TP.HCM
+S8
+Loại - không do tổ chức Đoàn, Hội, Đội chủ trì hoặc phối hợp
+Đơn vị tổ chức không phải tổ chức Đoàn, Hội, Đội và không có phối hợp của tổ chức Đoàn → loại.
+HD14
+Ngày hội “Đông Hòa số - 10 ngày hành động”
+Ngày: 10/10/2026; chủ trì: UBND phường Đông Hòa
+S9
+Loại - không do tổ chức Đoàn, Hội, Đội chủ trì hoặc phối hợp
+Bài báo không nêu vai trò của tổ chức Đoàn → loại. Nếu đoàn cơ sở báo cáo có tham gia thì ghi nhận theo báo cáo cơ sở, không suy diễn từ báo chí.
+HD15
+Ngày hội Sinh viên và Doanh nghiệp năm 2026
+Ngày: 11/10/2026; chủ trì: Trường Đại học Khoa học tự nhiên
+S10
+Loại - không do tổ chức Đoàn, Hội, Đội chủ trì hoặc phối hợp
+Nhà trường tổ chức, bài viết không nêu Đoàn trường, Hội Sinh viên → loại ở cấp tỉnh. Ở cấp trường, nếu Đoàn trường phối hợp thì Đoàn trường tự báo cáo.
+HD16
+Nhạc hội Thanh niên TP.HCM lần 1 năm 2026 “Thanh âm Lên đàng”; Lễ kỷ niệm 70 năm Ngày truyền thống Hội LHTN Việt Nam
+Ngày: 17/10/2026 - 18/10/2026; chủ trì: Hội Liên hiệp Thanh niên Việt Nam TP.HCM, Hội Sinh viên Việt Nam TP.HCM
+S7
+Chuyển sang Phương hướng kỳ tới
+Mục chính: NV3.3
+Mục phụ: NV4.5
+Hoạt động diễn ra sau kỳ báo cáo → đưa vào Phương hướng kỳ tới.
+HD17
+Tuyên dương “Thủ lĩnh thanh niên tiêu biểu” TP.HCM giai đoạn 2021 - 2026
+Ngày: 18/10/2026; chủ trì: Ban Thư ký Hội LHTN Việt Nam TP.HCM
+Số liệu: khoảng 70 gương thủ lĩnh thanh niên dự kiến tuyên dương (du_kien)
+S6
+Chuyển sang Phương hướng kỳ tới
+Mục chính: NV4.5
+Hoạt động dự kiến sau kỳ → Phương hướng kỳ tới.
+Nguồn tin
+Mã
+Bài viết
+Đường dẫn
+S1
+Khởi động Tuần lễ Sinh viên Thành phố Vươn mình thời đại số năm 2026 (VOH, 11/10/2026)
+https://voh.com.vn/giao-duc/khoi-dong-tuan-le-sinh-vien-thanh-pho-vuon-minh-thoi-dai-so-nam-2026-672840.html
+S2
+30 bạn trẻ trổ tài cùng nghệ thuật làm bánh (Tuổi Trẻ, 10/10/2026)
+https://tuoitre.vn/30-ban-tre-tro-tai-cung-nghe-thuat-lam-banh-100261010144246403.htm
+S3
+Tuổi trẻ TPHCM chung tay xây dựng xã hội học tập, thúc đẩy kinh tế số (Sài Gòn Giải Phóng, 11/10/2026)
+https://www.sggp.org.vn/tuoi-tre-tphcm-chung-tay-xay-dung-xa-hoi-hoc-tap-thuc-day-kinh-te-so-post876076.html
+S4
+Hành trình tự lập, trưởng thành (Sài Gòn Giải Phóng, 11/10/2026)
+https://www.sggp.org.vn/hanh-trinh-tu-lap-truong-thanh-post875978.html
+S5
+Tuổi trẻ TP.HCM lan tỏa hành động đẹp vì cộng đồng (hướng đến kỷ niệm 70 năm Ngày truyền thống Hội LHTN Việt Nam) (Tuổi Trẻ, 05/10/2026)
+https://tuoitre.vn/nhieu-hoat-dong-huong-den-ky-niem-70-nam-ngay-truyen-thong-hoi-lien-hiep-thanh-nien-viet-nam-100261005170957552.htm
+S6
+Xét chọn “Thủ lĩnh thanh niên tiêu biểu” giai đoạn 2021-2026 (Sài Gòn Giải Phóng, 04/10/2026)
+https://www.sggp.org.vn/xet-chon-thu-linh-thanh-nien-tieu-bieu-giai-doan-2021-2026-post874842.html
+S7
+Nhiều hoạt động hấp dẫn tại Nhạc hội Thanh niên TP.HCM lần 1 năm 2026 (Trung tâm Báo chí TP.HCM (nguồn VOH), 26/09/2026)
+https://ttbc-hcm.gov.vn/nhieu-hoat-dong-hap-dan-tai-nhac-hoi-thanh-nien-tp-hcm-lan-1-nam-2026-1022215.html
+S8
+Chắp cánh ước mơ cho tân sinh viên (Thanh Niên, 09/10/2026)
+https://thanhnien.vn/chap-canh-uoc-mo-cho-tan-sinh-vien-185261008222928414.htm
+S9
+Phường Đông Hòa: “10 ngày hành động” đưa chuyển đổi số đến gần dân (Sài Gòn Giải Phóng, 10/10/2026)
+https://www.sggp.org.vn/phuong-dong-hoa-10-ngay-hanh-dong-dua-chuyen-doi-so-den-gan-dan-post875859.html
+S10
+Ngày hội Sinh viên và Doanh nghiệp năm 2026 (Trường ĐH Khoa học tự nhiên, ĐHQG-HCM, 12/10/2026)
+https://hcmus.edu.vn/ngay-hoi-sinh-vien-va-doanh-nghiep-nam-2026-tang-cuong-ket-noi-giua-nha-truong-sinh-vien-va-doanh-nghiep/
+S11
+Tuổi trẻ cùng Thành phố phát triển (Sài Gòn Giải Phóng, 04/10/2026)
+https://www.sggp.org.vn/tuoi-tre-cung-thanh-pho-phat-trien-post874787.html
+PHỤ LỤC 3
+Báo cáo đầu ra mẫu
+(Bản đầy đủ thể thức tại tệp Bao_cao_tuan_ThanhDoan_TPHCM_06-12.10.2026_mau_dau_ra.docx)
+BÁO CÁO
+kết quả công tác Đoàn và phong trào thanh thiếu nhi
+tuần từ ngày 06/10/2026 đến ngày 12/10/2026
+-----------
+Thực hiện Nghị quyết Đại hội đại biểu toàn quốc Đoàn TNCS Hồ Chí Minh lần thứ XIII, nhiệm kỳ 2026 - 2031, Ban Thường vụ Thành Đoàn TP. Hồ Chí Minh báo cáo kết quả công tác Đoàn và phong trào thanh thiếu nhi tuần từ ngày 06/10/2026 đến ngày 12/10/2026 như sau:
+I. KẾT QUẢ THỰC HIỆN NHIỆM VỤ, GIẢI PHÁP
+1. Công tác tuyên truyền, giáo dục
+Học tập và làm theo tư tưởng, đạo đức, phong cách Hồ Chí Minh: Ngày 11/10/2026, Đoàn phường Vũng Tàu phối hợp với Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu xây dựng không gian văn hóa Hồ Chí Minh, trao tặng tủ sách cho thanh niên, lan tỏa văn hóa đọc, khuyến khích tinh thần tự học theo tấm gương Chủ tịch Hồ Chí Minh.  [HD04]
+2. Phong trào “Tuổi trẻ Việt Nam tiên phong trong kỷ nguyên mới”
+2.1. Tiên phong phát triển khoa học công nghệ, đổi mới sáng tạo và chuyển đổi số
+- Ngày 10/10/2026, tại Trường Đại học Khoa học tự nhiên, ĐHQG TP.HCM, Thành Đoàn - Hội Sinh viên Việt Nam Thành phố khởi động Tuần lễ “Sinh viên thành phố Vươn mình thời đại số” năm 2026, triển khai Nghị quyết số 57-NQ/TW của Bộ Chính trị, hưởng ứng Ngày Chuyển đổi số quốc gia và Tuần lễ học tập suốt đời năm 2026. Tuần lễ đặt mục tiêu 100.000 sinh viên tham gia các hoạt động nâng cao kỹ năng số, 10.000 sinh viên được hướng dẫn nghiên cứu khoa học, truyền cảm hứng đổi mới sáng tạo; tổ chức khu trưng bày, khu trải nghiệm thực tế ảo, thực tế tăng cường về thiên văn học.  [HD01]
+- Bàn giao 01 công trình thiết bị cảnh báo tai nạn giao thông cho Hội Sinh viên Trường Đại học Khoa học tự nhiên để vận hành thí điểm, dự kiến triển khai tại các phường, xã, đặc khu trong Chiến dịch Xuân tình nguyện năm 2027.  [HD02]
+- Ngày 11/10/2026, Đoàn phường Vũng Tàu ra mắt 01 Đội hình thanh niên hỗ trợ người dân sử dụng dịch vụ, ứng dụng số; phát động đợt cao điểm hỗ trợ phát triển kinh tế số trên địa bàn.  [HD06]
+2.2. Tiên phong khởi nghiệp lập nghiệp, phát triển kinh tế đất nước
+- Ngày 10/10/2026, Hội Liên hiệp Thanh niên Việt Nam Thành phố phối hợp với Trung tâm Dịch vụ việc làm Thanh niên Thành phố tổ chức chung kết Hội thi tay nghề làm bánh lần I với chủ đề “Tinh hoa nghệ thuật làm bánh”, chào mừng 70 năm Ngày truyền thống Hội Liên hiệp Thanh niên Việt Nam. Hội thi thu hút trên 500 thí sinh đăng ký, chọn 30 thí sinh vào chung kết; trao giải bảng không chuyên, bảng chuyên nghiệp và giải “Tỏa sáng cùng đam mê”, góp phần nâng cao tay nghề, định hướng nghề nghiệp cho thanh niên.  [HD03]
+3. Chương trình “Phát triển toàn diện thanh niên Việt Nam”
+3.1. Trong học tập
+- Ngày 11/10/2026, Đoàn phường Vũng Tàu phối hợp với Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu phát động “Tuần lễ học tập suốt đời” theo tấm gương Chủ tịch Hồ Chí Minh; Thường trực Thành Đoàn định hướng đoàn viên, thanh niên đẩy mạnh tự học, làm chủ công nghệ số và trí tuệ nhân tạo; trao quà cho học sinh.  [HD05]
+3.2. Trong rèn luyện, phát triển thể chất
+- Ngày 11/10/2026, khai trương hồ bơi di động tại phường Vũng Tàu, tạo thêm điều kiện cho thanh thiếu nhi rèn luyện thể chất.  [HD07]
+3.3. Trong nâng cao đời sống văn hóa tinh thần
+- Ngày 11/10/2026, khai trương “Phố quà tặng Thanh niên” và “Bến đỗ Thanh niên” tại phường Vũng Tàu, mở rộng không gian sinh hoạt, vui chơi, giải trí và kết nối cộng đồng cho thanh niên.  [HD08]
+4. Công tác xây dựng Đoàn, mở rộng mặt trận đoàn kết tập hợp thanh niên
+4.6. Công tác chỉ đạo, phối hợp của Đoàn
+- Ngày 11/10/2026, Nhà Văn hóa Thanh niên Bà Rịa - Vũng Tàu và Đoàn phường Vũng Tàu ký kết chương trình phối hợp tổ chức các hoạt động thanh niên.  [HD09]
+5. Công tác phụ trách Đội TNTP Hồ Chí Minh, bảo vệ, chăm sóc, giáo dục thiếu niên, nhi đồng
+Chưa ghi nhận hoạt động trong kỳ báo cáo.
+6. Công tác tham gia xây dựng, bảo vệ Đảng và hệ thống chính trị
+Chưa ghi nhận hoạt động trong kỳ báo cáo.
+II. KẾT QUẢ GẮN VỚI CHỈ TIÊU, NHIỆM VỤ ĐỘT PHÁ NHIỆM KỲ 2026 - 2031
+STT
+Chỉ tiêu, nhiệm vụ đột phá
+Kết quả trong kỳ
+01
+Chỉ tiêu 3 - Công trình thanh niên tham gia phát triển, ứng dụng khoa học công nghệ, đổi mới sáng tạo và chuyển đổi số
+01 công trình thiết bị cảnh báo tai nạn giao thông được bàn giao, vận hành thí điểm.  [HD02]
+02
+Chỉ tiêu 7 - Thanh thiếu nhi tham gia hoạt động nâng cao năng lực số
+Khởi động Tuần lễ “Sinh viên thành phố Vươn mình thời đại số” (mục tiêu 100.000 sinh viên); ra mắt 01 đội hình thanh niên hỗ trợ người dân sử dụng dịch vụ số. Chưa có số liệu kết quả.  [HD01, HD06]
+03
+Nhiệm vụ đột phá 2 - Hỗ trợ nâng cao năng lực số, trí tuệ nhân tạo, khoa học công nghệ
+Tuần lễ “Sinh viên thành phố Vươn mình thời đại số”; 01 công trình ứng dụng khoa học công nghệ; 01 đội hình hỗ trợ dịch vụ số.  [HD01, HD02, HD06]
+III. ĐÁNH GIÁ CHUNG
+Ưu điểm: Các hoạt động trong kỳ tập trung vào nhiệm vụ đột phá nâng cao năng lực số cho thanh niên, gắn với Ngày Chuyển đổi số quốc gia và Tuần lễ học tập suốt đời năm 2026; nhiều hoạt động được tổ chức tại cơ sở, chào mừng 70 năm Ngày truyền thống Hội Liên hiệp Thanh niên Việt Nam.  [HD01, HD03, HD04, HD05, HD06]
+Hạn chế: Thông tin trong kỳ chưa phản ánh các nội dung tình nguyện vì cộng đồng, hội nhập quốc tế, bảo vệ Tổ quốc, công tác Đội và tham gia xây dựng Đảng; phần lớn hoạt động chưa có số liệu về lượt đoàn viên, thanh niên tham gia, chưa đủ căn cứ cập nhật tiến độ thực hiện chỉ tiêu.
+IV. PHƯƠNG HƯỚNG TUẦN TỚI (TỪ NGÀY 13/10/2026 ĐẾN NGÀY 19/10/2026)
+- Tổ chức các hoạt động kỷ niệm 70 năm Ngày truyền thống Hội Liên hiệp Thanh niên Việt Nam (15/10/1956 - 15/10/2026): Nhạc hội Thanh niên Thành phố lần 1 năm 2026 “Thanh âm Lên đàng” ngày 17 - 18/10/2026 tại phố đi bộ Nguyễn Huệ, phường Sài Gòn; tuyên dương “Thủ lĩnh thanh niên tiêu biểu” giai đoạn 2021 - 2026 ngày 18/10/2026.  [HD16, HD17]
+- Tiếp tục triển khai Tuần lễ “Sinh viên thành phố Vươn mình thời đại số” năm 2026; tổng hợp số liệu kết quả.  [HD01]
+- Xác minh thời gian tổ chức Ngày hội kết nối thực tập “Internship Fair 2026” để cập nhật vào báo cáo.  [HD10]
