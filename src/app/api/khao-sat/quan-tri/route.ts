@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbEnabled, query } from "@/lib/db";
+import { dbEnabled, query, withTransaction } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
+import { writeAuditLogs } from "@/lib/server/audit";
+import { clientIpOf } from "@/lib/server/client-ip";
 import {
   tallyResults,
   toSurveyDto,
@@ -336,7 +338,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 /**
- * DELETE /api/khao-sat/quan-tri — Xóa khảo sát (chỉ khi là DRAFT)
+ * DELETE /api/khao-sat/quan-tri — Xóa khảo sát Bản nháp hoặc Đã kết thúc (kèm toàn bộ câu trả lời —
+ * survey_responses ON DELETE CASCADE). Khảo sát đang mở (LIVE) phải đóng trước. Ghi audit_logs.
  */
 export async function DELETE(request: NextRequest) {
   const session = await twSessionOf(request);
@@ -347,6 +350,13 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
+  if (!dbEnabled()) {
+    return NextResponse.json(
+      { ok: false, error: "Cơ sở dữ liệu chưa sẵn sàng." },
+      { status: 503 }
+    );
+  }
+
   const sp = new URL(request.url).searchParams;
   const id = Number(sp.get("id")) || 0;
   if (!id || id <= 0) {
@@ -354,22 +364,52 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const existing = await query<SurveyRow>(`SELECT status FROM surveys WHERE id = $1 LIMIT 1`, [id]);
-    if (!existing[0]) {
-      return NextResponse.json({ ok: false, error: "Không tìm thấy khảo sát." }, { status: 404 });
-    }
+    const result = await withTransaction(async (client) => {
+      // Khoá dòng để không ai mở lại khảo sát giữa lúc kiểm tra và xóa
+      const existing = (
+        await client.query(
+          `SELECT id, code, title, status,
+                  (SELECT count(*)::int FROM survey_responses WHERE survey_id = s.id) AS response_count
+             FROM surveys s WHERE id = $1 FOR UPDATE`,
+          [id]
+        )
+      ).rows[0] as { id: string; code: string; title: string; status: string; response_count: number } | undefined;
+      if (!existing) return { error: "Không tìm thấy khảo sát.", status: 404 };
+      if (existing.status === "LIVE") {
+        return {
+          error: "Khảo sát đang mở nhận ý kiến — vui lòng Đóng khảo sát trước khi xóa.",
+          status: 400,
+        };
+      }
 
-    if (existing[0].status !== "DRAFT") {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Chỉ có thể xóa khảo sát ở trạng thái Bản nháp (DRAFT). Đối với khảo sát đang chạy hoặc đã kết thúc, vui lòng chuyển trạng thái kết thúc (ENDED).",
-        },
-        { status: 400 }
+      await client.query(`DELETE FROM surveys WHERE id = $1`, [id]);
+      await writeAuditLogs(
+        client,
+        [
+          {
+            accountId: session.accountId,
+            action: "SURVEY_DELETE",
+            entityType: "surveys",
+            entityId: id,
+            oldValues: {
+              code: existing.code,
+              title: existing.title,
+              status: existing.status,
+              responseCount: existing.response_count,
+            },
+            newValues: null,
+            ip: clientIpOf(request),
+            userAgent: request.headers.get("user-agent"),
+          },
+        ],
+        "KHAO-SAT"
       );
-    }
+      return null;
+    });
 
-    await query(`DELETE FROM surveys WHERE id = $1`, [id]);
+    if (result) {
+      return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

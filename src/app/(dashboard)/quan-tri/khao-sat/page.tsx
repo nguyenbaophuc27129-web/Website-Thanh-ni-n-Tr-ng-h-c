@@ -134,11 +134,16 @@ export default function QuanTriKhaoSatPage() {
   };
 
   const handleDelete = async (s: Survey) => {
-    if (s.status !== "DRAFT") {
-      toast("Chỉ có thể xóa khảo sát ở trạng thái Bản nháp (DRAFT).", "warning");
+    if (s.status === "LIVE") {
+      toast("Khảo sát đang mở nhận ý kiến — hãy Đóng khảo sát trước khi xóa.", "warning");
       return;
     }
-    if (!confirm(`Bạn có chắc chắn muốn xóa khảo sát "${s.title}"?`)) return;
+    const respCount = s.responseCount ?? 0;
+    const warning =
+      respCount > 0
+        ? `Khảo sát "${s.title}" có ${respCount} câu trả lời — xóa sẽ mất vĩnh viễn toàn bộ kết quả.\n\nBạn có chắc chắn muốn xóa?`
+        : `Bạn có chắc chắn muốn xóa khảo sát "${s.title}"?`;
+    if (!confirm(warning)) return;
 
     const res = await adminDeleteSurvey(s.id);
     if (res.ok) {
@@ -395,7 +400,8 @@ export default function QuanTriKhaoSatPage() {
                       <Edit3 className="h-3.5 w-3.5" />
                     </Button>
 
-                    {isDraft && (
+                    {/* Đang mở thì phải đóng trước mới xóa được */}
+                    {!isLive && (
                       <Button
                         size="sm"
                         variant="danger"
