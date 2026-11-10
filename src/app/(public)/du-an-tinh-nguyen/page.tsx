@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  LibraryBig, HeartHandshake, Users, Send, Loader2, Clock, Plus, HandHeart, Landmark, FileDown, Paperclip, X, Search,
+  LibraryBig, HeartHandshake, Users, Send, Loader2, Clock, Plus, HandHeart, Landmark, Paperclip,
+  Search, CalendarDays, Flag, Trash2, ListOrdered,
 } from "lucide-react";
 import { Reveal, CountUp } from "@/components/public/reveal";
 import { Modal } from "@/components/ui/modal";
@@ -11,21 +12,21 @@ import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { buildTemplateWordData, downloadWordDoc } from "@/lib/word-export";
 import { relTime } from "@/lib/utils";
-import { uploadFile } from "@/lib/upload-client";
 import { FIELD_META, PHASE_META } from "@/lib/volunteer-meta";
-import type { VolunteerProject, VolunteerProjectField, VolunteerProjectPhase } from "@/types";
+import type { VolunteerProject, VolunteerProjectField, VolunteerProjectPhase, VolunteerProjectPhaseEntry } from "@/types";
 
-/** Danh sách tỉnh thành đơn vị có thể chọn khi đăng dự án */
+/** 34 đơn vị hành chính cấp tỉnh (mô hình chính quyền 2 cấp, hiệu lực 01/7/2025) */
 const PROVINCE_OPTIONS = [
-  "Lào Cai", "Hà Nội", "Bắc Giang", "Nghệ An", "Đà Nẵng",
-  "Bình Dương", "TP Hồ Chí Minh", "Cần Thơ", "Bến Tre",
+  "An Giang", "Bắc Ninh", "Cà Mau", "Cần Thơ", "Cao Bằng", "Đà Nẵng",
+  "Đắk Lắk", "Điện Biên", "Đồng Nai", "Đồng Tháp", "Gia Lai", "Hà Nội",
+  "Hà Tĩnh", "Hải Phòng", "Huế", "Hưng Yên", "Khánh Hòa", "Lai Châu",
+  "Lâm Đồng", "Lạng Sơn", "Lào Cai", "Nghệ An", "Ninh Bình", "Phú Thọ",
+  "Quảng Ngãi", "Quảng Ninh", "Quảng Trị", "Sơn La", "Tây Ninh",
+  "Thái Nguyên", "Thanh Hóa", "TP. Hồ Chí Minh", "Tuyên Quang", "Vĩnh Long",
 ];
 
-const REPORT_FILE_MAX_BYTES = 25 * 1024 * 1024; // 25MB — khớp giới hạn máy chủ (/api/uploads, phân hệ du-an)
-
-/** Chip đính kèm file báo cáo (card + khối chờ duyệt dùng chung) */
+/** Chip đính kèm file báo cáo (legacy — form tự khai mới không còn upload file) */
 function ReportFileChip({ p }: { p: Pick<VolunteerProject, "reportFile"> }) {
   const file = p.reportFile;
   if (!file?.name) return null;
@@ -58,15 +59,18 @@ export default function DuAnTinhNguyenPage() {
   const [openSubmit, setOpenSubmit] = useState(false);
   const [pName, setPName] = useState("");
   const [pProvince, setPProvince] = useState(PROVINCE_OPTIONS[0]);
+  const [pWard, setPWard] = useState("");
   const [pField, setPField] = useState<VolunteerProjectField>("KHAC");
   const [pPhase, setPPhase] = useState<VolunteerProjectPhase>("DANG_TRIEN_KHAI");
   const [pSummary, setPSummary] = useState("");
+  const [pObjectives, setPObjectives] = useState("");
+  const [pTimeframe, setPTimeframe] = useState("");
   const [pBeneficiaries, setPBeneficiaries] = useState("");
   const [pParticipants, setPParticipants] = useState("50");
-  const [pReportFile, setPReportFile] = useState<{ name: string; dataUrl?: string } | null>(null);
-  const [reportUploading, setReportUploading] = useState(false);
+  const [pInitialResults, setPInitialResults] = useState("");
+  const [pDirection, setPDirection] = useState("");
+  const [pPhases, setPPhases] = useState<VolunteerProjectPhaseEntry[]>([]);
   const [busy, setBusy] = useState(false);
-  const reportInputRef = useRef<HTMLInputElement>(null);
 
   const approved = useMemo(
     () => volunteerProjects.filter((p) => p.status === "APPROVED"),
@@ -103,69 +107,38 @@ export default function DuAnTinhNguyenPage() {
     setOpenSubmit(true);
   };
 
-  /** Tải mẫu văn bản báo cáo phương pháp thực hiện (Word thể thức hành chính) */
-  const downloadTemplate = () => {
-    const data = buildTemplateWordData({
-      orgUnitName: session?.orgUnitName ?? "ĐOÀN TRƯỜNG / CƠ SỞ",
-      docCode: "MẪU",
-      title: "BÁO CÁO PHƯƠNG PHÁP THỰC HIỆN DỰ ÁN TÌNH NGUYỆN VÌ CỘNG ĐỒNG",
-      bases: [
-        "Điều lệ Đoàn TNCS Hồ Chí Minh",
-        "Nghị quyết Đại hội Đoàn TNCS Hồ Chí Minh khoá XII, nhiệm kỳ 2022 - 2027",
-        "Kế hoạch phong trào tình nguyện của đơn vị năm học hiện hành",
-      ],
-      outline: [
-        "II. THÔNG TIN CHUNG DỰ ÁN",
-        "III. MỤC TIÊU VÀ ĐỐI TƯỢNG THỤ HƯỞNG",
-        "IV. PHƯƠNG PHÁP VÀ TIẾN TRÌNH THỰC HIỆN",
-        "V. NGUỒN LỰC VÀ KINH PHÍ",
-        "VI. KẾT QUẢ, ĐÁNH GIÁ VÀ BÀI HỌC KINH NGHIỆM",
-      ],
-      signerName: session?.contactPerson ?? "…",
-      signerPosition: session?.contactPosition ?? "BÍ THƯ ĐOÀN TRƯỜNG",
-      recipients: ["Ban Thanh niên Trường học cấp trên trực tiếp", "Lưu: VT.Đoàn trường"],
-    });
-    downloadWordDoc("mau-bao-cao-du-an-tinh-nguyen.doc", data);
-    toast("Đã tải mẫu báo cáo — điền nội dung rồi đính kèm lại khi gửi dự án.", "info");
-  };
-
-  const pickReportFile = (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-    if (file.size > REPORT_FILE_MAX_BYTES) {
-      toast(`File "${file.name}" vượt 25MB — hãy nén hoặc chọn file nhỏ hơn.`, "warning");
-    } else {
-      // File báo cáo lưu trên máy chủ — chỉ giữ đường dẫn /uploads/...
-      setReportUploading(true);
-      uploadFile(file, "du-an")
-        .then((uploaded) => setPReportFile({ name: file.name, dataUrl: uploaded.url }))
-        .catch((e: unknown) => toast(e instanceof Error ? e.message : `Không tải được file "${file.name}".`, "warning"))
-        .finally(() => setReportUploading(false));
-    }
-    if (reportInputRef.current) reportInputRef.current.value = "";
-  };
+  /** Thêm một giai đoạn trống vào form tự khai */
+  const addPhaseRow = () => setPPhases((prev) => [...prev, { at: "", content: "" }]);
+  const updatePhaseRow = (idx: number, patch: Partial<VolunteerProjectPhaseEntry>) =>
+    setPPhases((prev) => prev.map((ph, i) => (i === idx ? { ...ph, ...patch } : ph)));
+  const removePhaseRow = (idx: number) => setPPhases((prev) => prev.filter((_, i) => i !== idx));
 
   const submitProject = async () => {
     if (!session) return;
-    if (reportUploading) {
-      toast("File báo cáo đang được tải lên máy chủ — vui lòng đợi trong giây lát.", "warning");
+    if (pName.trim().length < 8 || pSummary.trim().length < 20) {
+      toast("Cần tên dự án tối thiểu 8 ký tự và phần ý nghĩa dự án tối thiểu 20 ký tự.", "warning");
       return;
     }
-    if (pName.trim().length < 8 || pSummary.trim().length < 20) {
-      toast("Cần tên dự án tối thiểu 8 ký tự và tóm tắt tối thiểu 20 ký tự.", "warning");
+    if (!pWard.trim()) {
+      toast("Nhập xã / phường nơi thực hiện dự án.", "warning");
       return;
     }
     // Máy chủ tự kiểm duyệt AI; đơn vị / tên trường lấy theo tài khoản đăng nhập
     setBusy(true);
     const res = await submitVolunteerProject({
       province: pProvince,
+      ward: pWard,
       projectName: pName,
       summary: pSummary,
+      objectives: pObjectives,
+      timeframe: pTimeframe,
       beneficiaries: pBeneficiaries || "Cộng đồng địa phương",
       participants: Number(pParticipants) || 1,
       field: pField,
       phase: pPhase,
-      reportFile: pReportFile ?? undefined,
+      initialResults: pInitialResults,
+      direction: pDirection,
+      phases: pPhases,
     });
     setBusy(false);
     if (!res.ok) {
@@ -173,7 +146,8 @@ export default function DuAnTinhNguyenPage() {
       return;
     }
     setOpenSubmit(false);
-    setPName(""); setPSummary(""); setPBeneficiaries(""); setPParticipants("50"); setPReportFile(null);
+    setPName(""); setPWard(""); setPSummary(""); setPObjectives(""); setPTimeframe("");
+    setPBeneficiaries(""); setPParticipants("50"); setPInitialResults(""); setPDirection(""); setPPhases([]);
     const clean = res.mod?.verdict !== "FLAGGED";
     toast(
       clean
@@ -344,9 +318,23 @@ export default function DuAnTinhNguyenPage() {
                       </div>
                       <h3 className="mt-2.5 text-sm font-bold leading-snug text-stone-900">{p.projectName}</h3>
                       <p className="mt-0.5 text-[11px] font-medium text-slate-500">
-                        {p.schoolName} · {p.province}
+                        {p.schoolName} · {p.province}{p.ward ? ` · ${p.ward}` : ""}
                       </p>
                       <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-stone-500">{p.summary}</p>
+                      {p.timeframe || (p.phases?.length ?? 0) > 0 ? (
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                          {p.timeframe ? (
+                            <span className="inline-flex items-center gap-1">
+                              <CalendarDays className="h-3 w-3 text-blue-500" /> {p.timeframe}
+                            </span>
+                          ) : null}
+                          {(p.phases?.length ?? 0) > 0 ? (
+                            <span className="inline-flex items-center gap-1">
+                              <ListOrdered className="h-3 w-3 text-violet-500" /> {p.phases!.length} giai đoạn
+                            </span>
+                          ) : null}
+                        </p>
+                      ) : null}
                       <ReportFileChip p={p} />
                       <div className="mt-auto flex items-center gap-4 pt-3.5 text-[11px] text-slate-500">
                         <span className="inline-flex items-center gap-1">
@@ -457,12 +445,20 @@ export default function DuAnTinhNguyenPage() {
                 ))}
               </Select>
             </Field>
+            <Field label="Xã / phường" required hint="Nơi trường bạn đặt và dự án triển khai">
+              <Input value={pWard} onChange={(e) => setPWard(e.target.value)} placeholder="VD: Phường Bến Nghé" />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Lĩnh vực hoạt động">
               <Select value={pField} onChange={(e) => setPField(e.target.value as VolunteerProjectField)}>
                 {(Object.keys(FIELD_META) as VolunteerProjectField[]).map((k) => (
                   <option key={k} value={k}>{FIELD_META[k].label}</option>
                 ))}
               </Select>
+            </Field>
+            <Field label="Thời gian thực hiện">
+              <Input value={pTimeframe} onChange={(e) => setPTimeframe(e.target.value)} placeholder="VD: 06/2026 — 08/2026" />
             </Field>
           </div>
           <Field label="Giai đoạn hiện tại">
@@ -483,8 +479,11 @@ export default function DuAnTinhNguyenPage() {
               ))}
             </div>
           </Field>
-          <Field label="Tóm tắt dự án" required hint="Tối thiểu 20 ký tự — nêu rõ việc làm và kết quả đo được">
+          <Field label="Ý nghĩa dự án" required hint="Tối thiểu 20 ký tự — nêu rõ việc làm và ý nghĩa với cộng đồng">
             <Textarea value={pSummary} onChange={(e) => setPSummary(e.target.value)} className="min-h-24" />
+          </Field>
+          <Field label="Mục tiêu">
+            <Textarea value={pObjectives} onChange={(e) => setPObjectives(e.target.value)} className="min-h-20" placeholder="Mục tiêu dự án hướng đến, ưu tiên chỉ tiêu đo lường được…" />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Người thụ hưởng">
@@ -494,40 +493,46 @@ export default function DuAnTinhNguyenPage() {
               <Input type="number" min={1} value={pParticipants} onChange={(e) => setPParticipants(e.target.value)} />
             </Field>
           </div>
-          <Field label="File báo cáo phương pháp thực hiện (không bắt buộc)" hint=".pdf/.doc/.docx · tối đa 25MB — có thể tải mẫu về điền">
-            <div className="space-y-2">
-              <input ref={reportInputRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => pickReportFile(e.target.files)} />
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => reportInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-stone-100 px-3.5 py-2 text-xs font-medium text-stone-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <Paperclip className="h-3.5 w-3.5" /> Chọn file báo cáo
-                </button>
-                <button
-                  type="button"
-                  onClick={downloadTemplate}
-                  className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3.5 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50"
-                >
-                  <FileDown className="h-3.5 w-3.5" /> Tải mẫu báo cáo (.doc)
-                </button>
-              </div>
-              {pReportFile ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 py-1 pl-2.5 pr-1 text-[11px] font-medium text-blue-700">
-                  <Paperclip className="h-3 w-3" />
-                  <span className="max-w-56 truncate">{pReportFile.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setPReportFile(null)}
-                    className="rounded-full p-0.5 text-blue-400 hover:bg-blue-100 hover:text-blue-700"
-                    aria-label="Xóa file đã chọn"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ) : null}
+          <Field label="Kết quả bước đầu" hint="Đơn vị tự khai — có thể cập nhật sau khi kết thúc giai đoạn">
+            <Textarea value={pInitialResults} onChange={(e) => setPInitialResults(e.target.value)} className="min-h-20" />
+          </Field>
+
+          {/* Các giai đoạn của dự án — tự bấm thêm từng giai đoạn */}
+          <Field label="Các giai đoạn của dự án" hint="Bấm thêm từng giai đoạn: mốc thời gian + nội dung chính thực hiện">
+            <div className="space-y-2.5">
+              {pPhases.map((ph, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                      <Flag className="h-3.5 w-3.5 text-blue-500" /> Giai đoạn {i + 1}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => removePhaseRow(i)}
+                      className="rounded-full p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      aria-label={`Xóa giai đoạn ${i + 1}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-[180px_1fr]">
+                    <Input value={ph.at} onChange={(e) => updatePhaseRow(i, { at: e.target.value })} placeholder="Mốc thời gian" className="text-xs" />
+                    <Input value={ph.content} onChange={(e) => updatePhaseRow(i, { content: e.target.value })} placeholder="Nội dung chính thực hiện trong giai đoạn này" className="text-xs" />
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addPhaseRow}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 px-3.5 py-2.5 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+              >
+                <Plus className="h-3.5 w-3.5" /> Thêm giai đoạn
+              </button>
             </div>
+          </Field>
+
+          <Field label="Định hướng phát triển dự án" hint="Không bắt buộc — hướng đi, nhân rộng, phối hợp sau giai đoạn hiện tại">
+            <Textarea value={pDirection} onChange={(e) => setPDirection(e.target.value)} className="min-h-16" />
           </Field>
           <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
             Dự án qua AI kiểm duyệt tự động, sau đó cấp trên duyệt sẽ đăng vào ngân hàng dự án tình nguyện

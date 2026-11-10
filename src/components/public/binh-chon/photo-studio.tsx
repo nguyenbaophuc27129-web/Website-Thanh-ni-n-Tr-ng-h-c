@@ -6,9 +6,11 @@
  *   Free 50 lượt/tháng nhận preview 0.25MP; server tự thử "full" trước (ảnh gốc khi
  *   tài khoản có credit). Lỗi (hết lượt, sai key, mạng) → cảnh báo + vẫn dùng được
  *   các chức năng còn lại (degrade mềm).
- * - Khung theo MẪU CDTTB (rèm đỏ sân khấu + 2 chi tiết sóng đỏ), mọi toạ độ vẽ
- *   trong không gian logic 720x960; preview render 2x (1440x1920), xuất ảnh render
- *   3x (2160x2880) rồi hạ xuống full 1440x1920 + thumb 320x427 → sắc net 4K.
+ * - Khung "Tuyên dương tuổi học sinh" (theo mẫu LĐT tiêu biểu TP.HCM 2022): NỀN kem sáng
+ *   (phong-nen.jpg) + người đứng CHÍNH GIỮA, dải SÓNG nhiều màu đè trước chân (song-duoi.png,
+ *   PNG có alpha theo mép sóng thật — đã tách 2 chi tiết). Bên trái: logo HS3T nhỏ phía trên
+ *   khối thông tin thí sinh (tên + ĐOÀN TRƯỜNG / PHƯỜNG·XÃ / TỈNH·THÀNH PHỐ theo 3 cấp).
+ *   Mọi toạ độ vẽ trong không gian logic 720x960; preview 2x, xuất full 1440x1920 + thumb.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,17 +27,17 @@ type BgMode = "transparent" | "color" | "gradient" | "sunburst" | "mau";
 
 const BG_COLORS = ["#C81E1E", "#FFC93C", "#1e5a8a", "#ffffff"];
 
-/* ═══ Frame theo mẫu "Giải thưởng Quảng cáo Sáng tạo VN": sân khấu rèm đỏ + người
-   đứng bên phải GIỮA 2 chi tiết sóng đỏ (nền thẳng phía sau + gợn sóng phía trước),
-   logo TNTH lớn chính giữa đỉnh, logo HS3T khối trái, tên HỌC SINH + đơn vị. ═══ */
+/* ═══ Frame "Tuyên dương tuổi học sinh": nền kem sáng + người đứng CHÍNH GIỮA giữa
+   2 chi tiết (nền sau + dải sóng nhiều màu trước chân), logo HS3T nhỏ phía trên
+   khối thông tin thí sinh bên trái (tên + đơn vị 3 cấp), logo TNTH nhỏ đỉnh phải. ═══ */
 const FRAME_BAR_FALLBACK = "HÀNH TRÌNH 3 TỐT — BÌNH CHỌN 2026";
 const LOGO_TNTH_SRC = "/logo-tnth-03.png";
 const LOGO_HS3T_SRC = "/logo-hs3t.png";
-const BG_CURTAIN_SRC = "/frame/phong-nen.jpg"; // chi tiết 1 — rèm đỏ + vệt sáng (phông)
-const BG_WAVES_SRC = "/frame/song-duoi.jpg"; // chi tiết 2 — gợn sóng đỏ đè trước người
+const BG_CURTAIN_SRC = "/frame/phong-nen.jpg"; // chi tiết 1 — nền kem sáng (đặt SAU người)
+const BG_WAVES_SRC = "/frame/song-duoi.png"; // chi tiết 2 — dải sóng nhiều màu (PNG alpha, đè TRƯỚC chân người)
 
-/** Vùng chủ thể: mode "mau" → người đứng bên phải giữa 2 chi tiết sóng; còn lại → giữa khung */
-const STAGE_RIGHT = { x0: 330, x1: 662, y0: 236, y1: 830 };
+/** Vùng chủ thể: mode "mau" → người đứng chính giữa, né khối thông tin bên trái; còn lại → toàn khung */
+const STAGE_MAU = { x0: 266, x1: 612, y0: 214, y1: 858 };
 const STAGE_CENTER = { x0: 44, x1: 676, y0: 232, y1: 882 };
 
 /** Ghép chủ thể vào vùng sân khấu (giống cách ráp mẫu frame) */
@@ -106,37 +108,14 @@ function drawCurtainBackdrop(ctx: CanvasRenderingContext2D, curtain?: HTMLImageE
 }
 
 /**
- * Gợn sóng đỏ đè TRƯỚC chân người — vẽ TRỰC TIẾP từ ảnh theo 10 lát cắt ngang với
- * alpha tăng dần (mờ dần ở đỉnh băng → hòa vào sàn sân khấu như lớp lụa thật).
- * Không dùng canvas trung gian: drawImage nguồn là canvas bị mất lớp khi raster lớn.
+ * Dải sóng nhiều màu đè TRƯỚC chân người — PNG đã tách sẵn alpha theo mép sóng thật
+ * (chi tiết 2 sau khi tách khỏi chi tiết nền), đặt sát đáy khung như lớp lụa.
  */
 function drawFrontWaves(ctx: CanvasRenderingContext2D, waves?: HTMLImageElement) {
   if (!waves) return;
-  const BAND = 310;
-  const sy = waves.naturalHeight * 0.42; // bỏ trời đen phía trên
-  const sw = waves.naturalWidth * 0.92; // bỏ 8% phải — dấu nước
-  const sh = waves.naturalHeight * 0.53;
-  const SLICES = 10;
-  const RAMP = 0.5; // 50% đầu của băng là vùng mờ dần
-  for (let i = 0; i < SLICES; i++) {
-    const t0 = i / SLICES;
-    const t1 = (i + 1) / SLICES;
-    const alpha = Math.min(1, ((t0 + t1) / 2) / RAMP);
-    if (alpha <= 0.01) continue;
-    ctx.globalAlpha = alpha * 0.97;
-    ctx.drawImage(
-      waves,
-      0,
-      sy + sh * t0,
-      sw,
-      sh * (t1 - t0),
-      0,
-      FRAME_H - BAND + BAND * t0,
-      FRAME_W,
-      BAND * (t1 - t0) + 0.6
-    );
-  }
-  ctx.globalAlpha = 1;
+  const s = FRAME_W / waves.naturalWidth;
+  const h = waves.naturalHeight * s;
+  ctx.drawImage(waves, 0, FRAME_H - h, FRAME_W, h);
 }
 
 /** Viền khung vàng — vẽ CUỐI để "đóng khung" toàn bộ poster */
@@ -171,70 +150,156 @@ function fitText(
   return size;
 }
 
-/** Lớp frame đè lên: logo TNTH đỉnh + logo HS3T trái + HỌC SINH + tên + dải đơn vị */
+/** Ngắt tên học sinh thành tối đa 2 dòng vừa khối thông tin bên trái */
+function wrapName(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxSize: number,
+  minSize: number,
+  maxWidth: number
+): { lines: string[]; size: number } {
+  for (let size = maxSize; size >= minSize; size -= 1) {
+    ctx.font = `900 ${size}px 'Segoe UI', Arial, sans-serif`;
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let cur = "";
+    let ok = true;
+    for (const w of words) {
+      const t = cur ? `${cur} ${w}` : w;
+      if (ctx.measureText(t).width <= maxWidth) cur = t;
+      else if (cur && lines.length < 1) {
+        lines.push(cur);
+        cur = w;
+        if (ctx.measureText(w).width > maxWidth) {
+          ok = false;
+          break;
+        }
+      } else {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) continue;
+    if (cur) lines.push(cur);
+    if (lines.length <= 2) return { lines, size };
+  }
+  ctx.font = `900 ${minSize}px 'Segoe UI', Arial, sans-serif`;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1);
+  return { lines: [`${t}…`], size: minSize };
+}
+
+/** Lớp frame đè lên: logo HS3T nhỏ trên khối thông tin trái (tên + đơn vị 3 cấp),
+ *  logo TNTH nhỏ đỉnh phải, dải tên chiến dịch đáy, viền vàng đóng khung */
 function drawFrameOverlay(
   ctx: CanvasRenderingContext2D,
   logos: { tnth?: HTMLImageElement; hs3t?: HTMLImageElement },
   studentName: string,
-  orgName: string
+  orgName: string,
+  wardName: string,
+  provinceName: string
 ) {
-  // Logo Thanh niên trường học — chính giữa đỉnh khung, to và nổi
+  // Logo Thanh niên trường học — góc phải đỉnh, nhỏ gọn
   if (logos.tnth) {
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = 14;
-    drawContain(ctx, logos.tnth, FRAME_W / 2 - 150, 16, 300, 156);
+    ctx.shadowColor = "rgba(0,0,0,0.30)";
+    ctx.shadowBlur = 8;
+    drawContain(ctx, logos.tnth, FRAME_W - 122, 20, 100, 100);
     ctx.restore();
   }
 
-  // Logo Học sinh 3 Tốt góc trái — nhỏ vừa (bằng cỡ logo trang), không đè ảnh chân dung
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
+
+  // Logo Học sinh 3 Tốt — nằm gọn nhỏ PHÍA TRÊN khối thông tin thí sinh
   if (logos.hs3t) {
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = 10;
-    drawContain(ctx, logos.hs3t, 30, 208, 96, 96);
+    ctx.shadowColor = "rgba(122,18,8,0.35)";
+    ctx.shadowBlur = 8;
+    drawContain(ctx, logos.hs3t, 30, 30, 78, 78);
     ctx.restore();
   }
 
-  // Tên học sinh dưới sân khấu (thay "NGHỆ SĨ …" của mẫu)
-  ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(0,0,0,0.6)";
-  ctx.shadowBlur = 10;
-  ctx.shadowOffsetY = 3;
-
-  setLetterSpacing(ctx, 10);
-  ctx.font = "900 26px 'Segoe UI', Arial, sans-serif";
-  const hg = ctx.createLinearGradient(0, 840, 0, 872);
-  hg.addColorStop(0, "#FFF7C2");
-  hg.addColorStop(0.5, "#FFD34D");
-  hg.addColorStop(1, "#EE9C13");
-  ctx.fillStyle = hg;
-  ctx.fillText("HỌC SINH", FRAME_W / 2 + 5, 866); // +5 bù letterSpacing lệch tâm
-  setLetterSpacing(ctx, 0);
-
-  const name = studentName.trim().toUpperCase();
-  if (name) {
-    const size = fitText(ctx, name, 900, 42, 26, 640);
-    ctx.font = `900 ${size}px 'Segoe UI', Arial, sans-serif`;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(name, FRAME_W / 2, 906);
+  // Khối thông tin thí sinh bên trái — nền trắng kem mờ cho dễ đọc trên nền sáng
+  const px = 26;
+  const py = 118;
+  const pw = 236;
+  const ph = 222;
+  ctx.save();
+  ctx.fillStyle = "rgba(255,253,249,0.72)";
+  ctx.strokeStyle = "rgba(196,22,28,0.22)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect?.(px, py, pw, ph, 16);
+  if (!ctx.roundRect) {
+    // fallback trình duyệt cũ: hình chữ nhật bo góc thủ công
+    const r = 16;
+    ctx.beginPath();
+    ctx.moveTo(px + r, py);
+    ctx.arcTo(px + pw, py, px + pw, py + ph, r);
+    ctx.arcTo(px + pw, py + ph, px, py + ph, r);
+    ctx.arcTo(px, py + ph, px, py, r);
+    ctx.arcTo(px, py, px + pw, py, r);
+    ctx.closePath();
   }
-  ctx.shadowColor = "transparent";
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 
-  // Dải đơn vị đáy khung (thay "HẠNG MỤC ĐỀ CỪ" của mẫu)
+  // Tên học sinh — tối đa 2 dòng, đỏ son đậm
+  const name = studentName.trim().toUpperCase();
+  const nameX = px + 16;
+  const nameW = pw - 32;
+  if (name) {
+    const { lines, size } = wrapName(ctx, name, 26, 15, nameW);
+    ctx.fillStyle = "#A31410";
+    ctx.textAlign = "left";
+    let ny = py + 24 + size;
+    if (lines.length === 1) ny = py + 24 + size + 6;
+    for (const line of lines) {
+      ctx.font = `900 ${size}px 'Segoe UI', Arial, sans-serif`;
+      ctx.fillText(line, nameX, ny);
+      ny += size * 1.18;
+    }
+  }
+
+  // Đường phân cách nhỏ
+  ctx.fillStyle = "rgba(196,22,28,0.30)";
+  ctx.fillRect(nameX, py + 86, 44, 2.5);
+
+  // Đơn vị theo 3 cấp: ĐOÀN TRƯỜNG / PHƯỜNG · XÃ / TỈNH · THÀNH PHỐ
+  const units: [string, string][] = [
+    ["ĐOÀN TRƯỜNG", orgName],
+    ["PHƯỜNG · XÃ", wardName],
+    ["TỈNH · THÀNH PHỐ", provinceName],
+  ];
+  let uy = py + 112;
+  for (const [label, value] of units) {
+    setLetterSpacing(ctx, 1);
+    ctx.font = "800 10px 'Segoe UI', Arial, sans-serif";
+    ctx.fillStyle = "#C4161C";
+    ctx.fillText(label, nameX, uy);
+    setLetterSpacing(ctx, 0);
+    const val = value.trim();
+    if (val) {
+      const size = fitText(ctx, val, 700, 14, 10, nameW);
+      ctx.font = `700 ${size}px 'Segoe UI', Arial, sans-serif`;
+      ctx.fillStyle = "#5B3A2A";
+      ctx.fillText(val, nameX, uy + 15);
+    }
+    uy += 38;
+  }
+
+  // Dải tên chiến dịch đáy khung
   const barY = FRAME_H - 46;
   const bg2 = ctx.createLinearGradient(0, barY, 0, FRAME_H);
-  bg2.addColorStop(0, "#7A0E12");
-  bg2.addColorStop(1, "#3E0608");
+  bg2.addColorStop(0, "rgba(154,16,20,0.96)");
+  bg2.addColorStop(1, "rgba(62,6,8,0.96)");
   ctx.fillStyle = bg2;
   ctx.fillRect(0, barY, FRAME_W, 46);
   ctx.fillStyle = "#FFC93C";
   ctx.fillRect(0, barY, FRAME_W, 3);
-  const barText = orgName.trim() ? `ĐƠN VỊ: ${orgName.trim().toUpperCase()}` : FRAME_BAR_FALLBACK;
+  const barText = FRAME_BAR_FALLBACK;
   const barSize = fitText(ctx, barText, 800, 17, 12, 640);
   ctx.font = `800 ${barSize}px 'Segoe UI', Arial, sans-serif`;
   ctx.textAlign = "center";
@@ -244,6 +309,7 @@ function drawFrameOverlay(
   drawStar(ctx, FRAME_W / 2 - btw / 2 - 22, barY + 24, 8, "#FFC93C");
   drawStar(ctx, FRAME_W / 2 + btw / 2 + 22, barY + 24, 8, "#FFC93C");
 
+  ctx.textAlign = "left";
   drawFrameBorder(ctx);
 }
 
@@ -269,6 +335,8 @@ interface RenderOpts {
   waves?: HTMLImageElement;
   studentName: string;
   orgName: string;
+  wardName: string;
+  provinceName: string;
 }
 
 /** Vẽ CHỈ chủ thể (cùng transform với renderFrame) — dùng cho xuất ảnh cắt nền trong suốt */
@@ -328,20 +396,22 @@ function renderFrame(ctx: CanvasRenderingContext2D, o: RenderOpts) {
   if (o.bgMode === "mau") drawFrontWaves(ctx, o.waves);
 
   // ═══ Logo + chữ + viền ═══
-  drawFrameOverlay(ctx, o.logos, o.studentName, o.orgName);
+  drawFrameOverlay(ctx, o.logos, o.studentName, o.orgName, o.wardName, o.provinceName);
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onDone: (fullDataUrl: string, thumbDataUrl: string) => void;
-  /** Tên học sinh in dưới khung (đoàn viên nhập) */
+  /** Tên học sinh in khối thông tin trái (đoàn viên nhập) */
   studentName?: string;
-  /** Tên đơn vị in dải đáy khung */
+  /** Đơn vị 3 cấp in khối thông tin trái */
   orgName?: string;
+  wardName?: string;
+  provinceName?: string;
 }
 
-export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName = "" }: Props) {
+export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName = "", wardName = "", provinceName = "" }: Props) {
   const previewRef = useRef<HTMLCanvasElement>(null);
   const subjectRef = useRef<HTMLCanvasElement | null>(null); // canvas gốc (có thể có alpha)
   const rafRef = useRef<number>(0);
@@ -417,8 +487,10 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
       waves: wavesRef.current ?? undefined,
       studentName,
       orgName,
+      wardName,
+      provinceName,
     });
-  }, [bgMode, bgColor, preset, brightness, contrast, saturate, scale, rotation, flipH, offset, assetsReady, studentName, orgName]);
+  }, [bgMode, bgColor, preset, brightness, contrast, saturate, scale, rotation, flipH, offset, assetsReady, studentName, orgName, wardName, provinceName]);
 
   // rAF-debounce compose khi đổi tham số
   useEffect(() => {
@@ -444,8 +516,8 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
         canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
         subjectRef.current = canvas;
         setHasImage(true);
-        // Ghép sẵn vào vùng sân khấu — người đứng phải giữa 2 chi tiết sóng, đầu không đè logo
-        const fit = stageFitFor(canvas, bgMode === "mau" ? STAGE_RIGHT : STAGE_CENTER);
+        // Ghép sẵn vào vùng sân khấu — người đứng chính giữa, đầu không đè logo
+        const fit = stageFitFor(canvas, bgMode === "mau" ? STAGE_MAU : STAGE_CENTER);
         setScale(fit.scale);
         setOffset({ x: fit.offsetX, y: fit.offsetY });
         setRotation(0);
@@ -523,6 +595,8 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
       waves: wavesRef.current ?? undefined,
       studentName,
       orgName,
+      wardName,
+      provinceName,
     };
     const renderFramed = (k: number, quality: number): string => {
       const stage = document.createElement("canvas");
@@ -597,8 +671,8 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
               style={{ aspectRatio: "3/4" }}
             />
             <p className="text-center text-[11px] text-stone-400">
-              Khung 3:4 để căn ảnh — bấm “Cắt nền bằng AI” rồi kéo người đứng giữa 2 dải sóng.
-              Bài dự thi gửi lên kèm nguyên khung sân khấu vinh danh như xem trước (đơn vị & tên in dưới khung).
+              Khung 3:4 để căn ảnh — bấm “Cắt nền bằng AI” rồi kéo người đứng chính giữa khung.
+              Bài dự thi gửi lên kèm nguyên khung vinh danh như xem trước (tên &amp; đơn vị 3 cấp in bên trái).
             </p>
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-doan-400 bg-doan-50 px-3 py-2.5 text-sm font-medium text-doan-700 hover:bg-doan-100">
               <ImagePlus className="h-4 w-4" /> {hasImage ? "Chọn ảnh khác" : "Chọn ảnh từ máy"}
@@ -630,10 +704,10 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-black text-amber-950 uppercase tracking-tight">
-                    Khung Sân khấu Rực rỡ tuổi học sinh
+                    Khung Tuyên dương Tuổi học sinh
                   </p>
                   <p className="text-[10px] font-medium text-amber-800/80 leading-snug">
-                    Khung chuẩn chính thức — Rèm nhung đỏ, sóng ánh kim &amp; biểu trưng quốc gia
+                    Khung chuẩn chính thức — Nền kem sáng, dải sóng nhiều màu, logo HS3T &amp; thông tin 3 cấp
                   </p>
                 </div>
                 <span className="rounded-full bg-amber-200/90 px-2 py-0.5 text-[9px] font-black uppercase text-amber-950 border border-amber-300">
@@ -708,7 +782,7 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const fit = stageFitFor(subjectRef.current ?? { width: FRAME_W, height: FRAME_H }, bgMode === "mau" ? STAGE_RIGHT : STAGE_CENTER);
+                  const fit = stageFitFor(subjectRef.current ?? { width: FRAME_W, height: FRAME_H }, bgMode === "mau" ? STAGE_MAU : STAGE_CENTER);
                   setScale(fit.scale);
                   setOffset({ x: fit.offsetX, y: fit.offsetY });
                   setRotation(0);

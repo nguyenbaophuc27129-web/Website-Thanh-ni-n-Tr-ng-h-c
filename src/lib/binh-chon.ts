@@ -24,6 +24,8 @@ export interface StoryListResult {
   totalPages?: number;
   total?: number;
   myVoteStoryId?: number | null;
+  /** Danh sách gương định danh này đã bình chọn (phiếu hợp lệ) — chặn bấm lần 2 */
+  myVotedStoryIds?: number[];
   /** Bài của tài khoản hiện tại (mọi trạng thái — chủ bài được xem để sửa lại lần sau) */
   myStory?: BinhChonStory | null;
   /** Top 5 mỗi nhóm danh hiệu (?withBoard=1) — HonorBoard */
@@ -79,6 +81,8 @@ export async function fetchStories(params: {
   sort?: "hot" | "new";
   storyId?: number | null;
   withBoard?: boolean;
+  /** Lọc theo hạng mục danh hiệu (3 bảng tách biệt) */
+  honorLevel?: "TRUONG" | "TINH" | "TW_DE_CU";
 }): Promise<StoryListResult> {
   const sp = new URLSearchParams();
   if (params.page && params.page > 1) sp.set("page", String(params.page));
@@ -87,6 +91,7 @@ export async function fetchStories(params: {
   if (params.sort) sp.set("sort", params.sort);
   if (params.storyId) sp.set("storyId", String(params.storyId));
   if (params.withBoard) sp.set("withBoard", "1");
+  if (params.honorLevel) sp.set("honorLevel", params.honorLevel);
   const qs = sp.toString();
   const res = await fetch(`/api/binh-chon${qs ? `?${qs}` : ""}`);
   return jsonOf<StoryListResult>(res);
@@ -108,14 +113,17 @@ export async function withdrawStory(): Promise<{ ok: boolean; error?: string }> 
   return jsonOf<{ ok: boolean; error?: string }>(res);
 }
 
-/** POST /api/binh-chon/bau — bỏ/đổi phiếu */
-export async function voteStory(storyId: number): Promise<{ ok: boolean; error?: string; myVoteStoryId?: number; newCount?: number }> {
+/** POST /api/binh-chon/bau — bỏ phiếu (khách gửi kèm credential Google đã xác thực) */
+export async function voteStory(
+  storyId: number,
+  credential?: string
+): Promise<{ ok: boolean; error?: string; invalid?: boolean; message?: string; needAuth?: boolean; newCount?: number }> {
   const res = await fetch("/api/binh-chon/bau", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ storyId }),
+    body: JSON.stringify({ storyId, credential: credential || undefined }),
   });
-  return jsonOf<{ ok: boolean; error?: string; myVoteStoryId?: number; newCount?: number }>(res);
+  return jsonOf<{ ok: boolean; error?: string; invalid?: boolean; message?: string; needAuth?: boolean; newCount?: number }>(res);
 }
 
 /** GET /api/binh-chon/quan-tri — dữ liệu duyệt + thống kê (theo scope, ?kind=HS3T|DOAN_TRUONG) */

@@ -148,7 +148,7 @@ export default function AiPhanTichPage() {
           </span>
           <p className="text-sm font-semibold text-stone-900">Chức năng dành cho cấp quản lý</p>
           <p className="max-w-sm text-xs text-stone-500">
-            AI phân tích công văn chỉ dành cho Ban Thường vụ / Ban Công tác Thanh Thiếu Nhi các cấp (TW, Tỉnh/Thành Đoàn, cấp 3).
+            AI phân tích công văn chỉ dành cho Ban Thường vụ / Ban Công tác Thanh Thiếu Nhi các cấp (TW, Tỉnh/Thành Đoàn, cấp cơ sở).
             Tài khoản của bạn không có quyền truy cập trang này.
           </p>
           <Link href="/quan-tri">

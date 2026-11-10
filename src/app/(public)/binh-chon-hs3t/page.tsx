@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * Cổng bình chọn "Hành trình 3 tốt" — tông cam "Rực rỡ tuổi học sinh" (góp ý chị Ngọc Anh):
- * 1. HERO gradient cam #F26522→#C4161C, chữ hiệu "HÀNH TRÌNH 3 TỐT" (bỏ nhắc Trung ương Đoàn).
- * 2. HonorBoard thay ô trống đồng — 3 khối gương theo danh hiệu (cấp trường / cấp tỉnh / đề cử TW).
- * 3. BentoGrid: tiêu chí theo đúng Quy chế 317/QĐ (không "ấn tín" tự chế), countdown + thống kê.
- * 4. Bảng vàng: chia 3 nhóm theo danh hiệu HS tự khai (admin chỉnh khi duyệt).
- * 5. Section "Giới thiệu về danh hiệu" — hình ảnh + thuyết minh quy chế + link web xét chọn của TW
- *    (ghi chú đã hết thời hạn nộp hồ sơ).
+ * Cổng bình chọn "Hành trình 3 tốt" — tông cam "Rực rỡ tuổi học sinh":
+ * 1. HERO gradient cam #F26522→#C4161C, chữ hiệu "HÀNH TRÌNH 3 TỐT" (không nhắc đơn vị chủ quản).
+ * 2. HonorBoard — 3 khối gương theo danh hiệu (cấp trường / cấp tỉnh / đề cử cấp TW).
+ * 3. BentoGrid: 3 trụ cột tiêu chí + countdown + thống kê + ý nghĩa minigame.
+ * 4. Bảng vàng: 3 HẠNG MỤC BÌNH CHỌN TÁCH BIỆT (mỗi hạng mục 1 bảng + phân trang riêng).
+ * 5. Bình chọn theo chỉ đạo lãnh đạo 09/11/2026: không cần đăng ký đoàn viên —
+ *    xác thực Gmail qua Google; 1 Gmail bình chọn 1 lần cho mỗi gương,
+ *    phiếu trùng lặp bị hệ thống tự lọc thành KHÔNG HỢP LỆ.
+ * 6. Section "Ý nghĩa danh hiệu" + quy trình xét chọn cấp TW (link web xét chọn của TW).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -35,6 +37,7 @@ import {
   ExternalLink,
   ShieldCheck,
   Clock3,
+  MailCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -57,6 +60,37 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
 const HONOR_GROUPS = ["TRUONG", "TINH", "TW_DE_CU"] as const;
+type HonorKey = (typeof HONOR_GROUPS)[number];
+
+/** 3 hạng mục bình chọn tách biệt — wording theo chỉ đạo lãnh đạo (không trộn để "đánh nhau") */
+const HONOR_CATEGORIES: { key: HonorKey; chip: string; title: string; hint: string }[] = [
+  { key: "TRUONG", chip: "Hạng mục 1", title: "Gương đạt danh hiệu cấp trường", hint: "Học sinh đã đạt danh hiệu 3 tốt do trường công nhận" },
+  { key: "TINH", chip: "Hạng mục 2", title: "Gương đạt danh hiệu cấp tỉnh", hint: "Học sinh đã đạt danh hiệu 3 tốt do tỉnh, thành đoàn công nhận" },
+  { key: "TW_DE_CU", chip: "Hạng mục 3", title: "Gương đề cử đạt danh hiệu cấp TW", hint: "Hồ sơ được đơn vị đề cử xét danh hiệu cấp Trung ương (chưa xét xong)" },
+];
+
+/** Client ID Google Identity Services (env NEXT_PUBLIC_GOOGLE_CLIENT_ID) */
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+
+interface GoogleIdNs {
+  accounts: {
+    id: {
+      initialize: (c: { client_id: string; callback: (r: { credential: string }) => void }) => void;
+      renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
+    };
+  };
+}
+
+/** Đọc email từ payload của ID token Google (không cần thư viện) */
+function decodeGoogleEmail(credential: string): string {
+  try {
+    const payload = credential.split(".")[1];
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof json.email === "string" ? json.email : "";
+  } catch {
+    return "";
+  }
+}
 
 /** Thông tin xét chọn danh hiệu cấp TW — từ công văn CV/TWĐTN-CTTTN 10/2026 */
 const TW_SELECTION = {
@@ -72,6 +106,13 @@ const TW_SELECTION = {
   ],
 };
 
+interface HonorBucket {
+  stories: BinhChonStory[];
+  page: number;
+  total: number;
+  totalPages: number;
+}
+
 export default function BinhChonHs3tPage() {
   const { session } = useAuth();
   const { toast } = useToast();
@@ -79,11 +120,15 @@ export default function BinhChonHs3tPage() {
 
   const [campaign, setCampaign] = useState<VoteCampaign | null>(null);
   const [stats, setStats] = useState<BinhChonStats>({ approvedStories: 0, totalVotes: 0 });
-  const [stories, setStories] = useState<BinhChonStory[]>([]);
-  const [topByHonor, setTopByHonor] = useState<Partial<Record<(typeof HONOR_GROUPS)[number], BinhChonStory[]>>>({});
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [myVoteStoryId, setMyVoteStoryId] = useState<number | null>(null);
+  const [stories, setStories] = useState<BinhChonStory[]>([]); // page 1 global sort hot — carousel
+  const [topByHonor, setTopByHonor] = useState<Partial<Record<HonorKey, BinhChonStory[]>>>({});
+  const [perHonor, setPerHonor] = useState<Record<HonorKey, HonorBucket>>({
+    TRUONG: { stories: [], page: 1, total: 0, totalPages: 1 },
+    TINH: { stories: [], page: 1, total: 0, totalPages: 1 },
+    TW_DE_CU: { stories: [], page: 1, total: 0, totalPages: 1 },
+  });
+  const [honorPages, setHonorPages] = useState<Record<HonorKey, number>>({ TRUONG: 1, TINH: 1, TW_DE_CU: 1 });
+  const [myVotedStoryIds, setMyVotedStoryIds] = useState<number[]>([]);
   const [myStory, setMyStory] = useState<BinhChonStory | null>(null);
   const [sort, setSort] = useState<"hot" | "new">("hot");
   const [q, setQ] = useState("");
@@ -104,9 +149,18 @@ export default function BinhChonHs3tPage() {
   const [topPage, setTopPage] = useState(1);
   const [withdrawing, setWithdrawing] = useState(false);
 
+  // ═══ Xác thực Gmail (Google Identity Services) ═══
+  const credRef = useRef("");
+  const [googleEmail, setGoogleEmail] = useState("");
+  const [gAuthOpen, setGAuthOpen] = useState(false);
+  const gBtnRef = useRef<HTMLDivElement | null>(null);
+  const pendingVoteRef = useRef<BinhChonStory | null>(null);
+
   const swiperRef = useRef<SwiperClass | null>(null);
   const [perView, setPerView] = useState(4);
   const ended = cd.ended || campaign?.status === "ENDED" || campaign?.status === "DRAFT";
+
+  const isVoted = useCallback((id: number) => myVotedStoryIds.includes(id), [myVotedStoryIds]);
 
   // Debounce search 350ms
   useEffect(() => {
@@ -116,18 +170,37 @@ export default function BinhChonHs3tPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetchStories({ page, q: qDeb, provinceId, sort, withBoard: true });
-    if (res.ok) {
-      setCampaign(res.campaign ?? null);
-      setStats(res.stats ?? { approvedStories: 0, totalVotes: 0 });
-      setStories(res.stories ?? []);
-      setTopByHonor(res.topByHonor ?? {});
-      setTotalPages(res.totalPages ?? 1);
-      setMyVoteStoryId(res.myVoteStoryId ?? null);
-      setMyStory(res.myStory ?? null);
+    // Nền: chiến dịch + thống kê + bảng gương + carousel (luôn sort hot page 1)
+    const base = await fetchStories({ page: 1, sort: "hot", withBoard: true });
+    if (base.ok) {
+      setCampaign(base.campaign ?? null);
+      setStats(base.stats ?? { approvedStories: 0, totalVotes: 0 });
+      setStories(base.stories ?? []);
+      setTopByHonor(base.topByHonor ?? {});
+      setMyVotedStoryIds(base.myVotedStoryIds ?? []);
+      setMyStory(base.myStory ?? null);
     }
+    // 3 hạng mục tách biệt — mỗi bảng có phân trang riêng
+    const results = await Promise.all(
+      HONOR_GROUPS.map((h) =>
+        fetchStories({ honorLevel: h, page: honorPages[h], q: qDeb, provinceId, sort })
+      )
+    );
+    setPerHonor((prev) => {
+      const next = { ...prev };
+      HONOR_GROUPS.forEach((h, i) => {
+        const r = results[i];
+        next[h] = {
+          stories: r.stories ?? [],
+          page: r.page ?? honorPages[h],
+          total: r.total ?? 0,
+          totalPages: r.totalPages ?? 1,
+        };
+      });
+      return next;
+    });
     setLoading(false);
-  }, [page, qDeb, provinceId, sort]);
+  }, [honorPages, qDeb, provinceId, sort]);
 
   useEffect(() => {
     void load();
@@ -187,41 +260,103 @@ export default function BinhChonHs3tPage() {
   const topStories = stories.slice(0, 12);
   const topTotalPages = Math.max(1, Math.ceil(topStories.length / perView));
 
-  const handleVote = async (s: BinhChonStory) => {
-    if (ended) return;
-    if (!session) {
-      toast("Cần đăng nhập để bình chọn", "info");
-      router.push("/dang-nhap");
-      return;
-    }
-    if (myVoteStoryId === s.id) return;
-    if (myVoteStoryId) {
-      const prev = stories.find((x) => x.id === myVoteStoryId)?.studentName ?? "bài khác";
-      if (!window.confirm(`Bạn đang bình chọn cho "${prev}". Đổi phiếu sang "${s.studentName}"?`)) return;
-    }
-    // Optimistic update
-    const prevId = myVoteStoryId;
-    const prevList = stories;
-    setMyVoteStoryId(s.id);
-    setStories((list) =>
-      list.map((x) =>
-        x.id === s.id ? { ...x, voteCount: x.voteCount + 1 } : prevId && x.id === prevId ? { ...x, voteCount: Math.max(0, x.voteCount - 1) } : x
-      )
-    );
-    const res = await voteStory(s.id);
-    if (!res.ok) {
-      setStories(prevList);
-      setMyVoteStoryId(prevId);
-      toast(res.error ?? "Không bình chọn được — thử lại.", "warning");
-      return;
-    }
-    if (typeof res.newCount === "number") {
-      setStories((list) => list.map((x) => (x.id === s.id ? { ...x, voteCount: res.newCount! } : x)));
-    }
-    if (prevId && prevId !== s.id) {
-      toast("Đã tiếp lửa vinh quang thành công!", "success");
-    }
+  /** Cập nhật số phiếu của 1 bài trong mọi danh sách đang render */
+  const patchCounts = (storyId: number, newCount: number) => {
+    setStories((list) => list.map((x) => (x.id === storyId ? { ...x, voteCount: newCount } : x)));
+    setPerHonor((prev) => {
+      const next = { ...prev };
+      for (const h of HONOR_GROUPS) {
+        next[h] = { ...next[h], stories: next[h].stories.map((x) => (x.id === storyId ? { ...x, voteCount: newCount } : x)) };
+      }
+      return next;
+    });
   };
+
+  const doVote = useCallback(
+    async (s: BinhChonStory) => {
+      const res = await voteStory(s.id, session ? undefined : credRef.current || undefined);
+      if (!res.ok) {
+        if (res.needAuth && !session && GOOGLE_CLIENT_ID) {
+          pendingVoteRef.current = s;
+          setGAuthOpen(true);
+          return;
+        }
+        toast(res.error ?? "Không bình chọn được — thử lại.", "warning");
+        return;
+      }
+      setMyVotedStoryIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]));
+      if (typeof res.newCount === "number") patchCounts(s.id, res.newCount);
+      if (res.invalid) {
+        toast(res.message ?? "Phiếu trùng lặp đã bị lọc thành không hợp lệ.", "warning");
+      } else {
+        toast("Đã tiếp lửa vinh quang thành công!", "success");
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session]
+  );
+
+  const handleVote = (s: BinhChonStory) => {
+    if (ended) return;
+    if (isVoted(s.id)) return;
+    if (!session && !credRef.current) {
+      if (!GOOGLE_CLIENT_ID) {
+        toast("Cần đăng nhập để bình chọn", "info");
+        router.push("/dang-nhap");
+        return;
+      }
+      pendingVoteRef.current = s;
+      setGAuthOpen(true);
+      return;
+    }
+    void doVote(s);
+  };
+
+  // Render nút Google khi mở modal xác thực
+  useEffect(() => {
+    if (!gAuthOpen || !GOOGLE_CLIENT_ID) return;
+    let cancelled = false;
+    const boot = () => {
+      if (cancelled) return;
+      const g = (window as unknown as { google?: GoogleIdNs }).google;
+      if (!g || !gBtnRef.current) return;
+      g.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (r) => {
+          credRef.current = r.credential;
+          setGoogleEmail(decodeGoogleEmail(r.credential));
+          setGAuthOpen(false);
+          const pending = pendingVoteRef.current;
+          pendingVoteRef.current = null;
+          if (pending) void doVote(pending);
+        },
+      });
+      g.accounts.id.renderButton(gBtnRef.current, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+        shape: "pill",
+        logo_alignment: "left",
+        locale: "vi",
+      });
+    };
+    const existing = document.getElementById("gsi-script");
+    if (!existing) {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.id = "gsi-script";
+      script.onload = boot;
+      document.head.appendChild(script);
+    } else {
+      boot();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [gAuthOpen, doVote]);
 
   const handleWithdraw = async () => {
     if (!myStory || (myStory.status !== "PENDING" && myStory.status !== "REJECTED")) return;
@@ -252,10 +387,15 @@ export default function BinhChonHs3tPage() {
 
   const canSubmit = session?.role === "DOAN_VIEN";
   const rankOf = (id: number) => {
-    const sorted = [...stories].sort((a, b) => b.voteCount - a.voteCount || a.id - b.id);
+    const sorted = [...topStories].sort((a, b) => b.voteCount - a.voteCount || a.id - b.id);
     const idx = sorted.findIndex((x) => x.id === id);
     return idx >= 0 && idx < 3 ? idx + 1 : undefined;
   };
+
+  const bumpHonorPage = (honor: HonorKey, delta: number) => {
+    setHonorPages((prev) => ({ ...prev, [honor]: Math.min(Math.max(1, prev[honor] + delta), perHonor[honor].totalPages) }));
+  };
+  const resetFilters = () => setHonorPages({ TRUONG: 1, TINH: 1, TW_DE_CU: 1 });
 
   return (
     <div className="relative min-h-screen bg-[#FFF7EE] text-[#3D1A0E] selection:bg-[#F26522]/25 selection:text-[#C4161C] overflow-hidden">
@@ -311,7 +451,7 @@ export default function BinhChonHs3tPage() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="mt-6 text-xs sm:text-sm font-black uppercase tracking-[0.35em] text-[#FFDF7E]"
           >
-            Ban Thanh niên Trường học
+            Vinh danh · Bình chọn · Lan toả
           </motion.p>
 
           <motion.h1
@@ -342,13 +482,15 @@ export default function BinhChonHs3tPage() {
             className="mt-8 flex flex-wrap items-center justify-center gap-4"
           >
             {!session ? (
-              <Button
-                size="lg"
-                className="h-12 border border-white/60 bg-white text-[#C4161C] font-black px-8 rounded-2xl shadow-[0_10px_30px_rgba(122,18,8,0.35)] hover:bg-[#FFF7EE] transition-all"
-                onClick={() => router.push("/dang-nhap")}
-              >
-                <PenLine className="h-4.5 w-4.5" /> Đăng nhập để tiếp lửa
-              </Button>
+              canSubmit ? null : (
+                <Button
+                  size="lg"
+                  className="h-12 border border-white/60 bg-white text-[#C4161C] font-black px-8 rounded-2xl shadow-[0_10px_30px_rgba(122,18,8,0.35)] hover:bg-[#FFF7EE] transition-all"
+                  onClick={() => router.push("/dang-nhap")}
+                >
+                  <PenLine className="h-4.5 w-4.5" /> Đăng nhập để gửi bài dự thi
+                </Button>
+              )
             ) : canSubmit ? (
               <Button
                 size="lg"
@@ -359,12 +501,12 @@ export default function BinhChonHs3tPage() {
               </Button>
             ) : (
               <span className="rounded-2xl border border-white/35 bg-white/12 px-5 py-3 text-xs text-white backdrop-blur-md">
-                Tài khoản Cán bộ có thể bình chọn — Bài dự thi dành cho Đoàn viên - Hội viên.
+                Đăng nhập bằng tài khoản Đoàn viên để gửi bài dự thi.
               </span>
             )}
 
             <div className="flex items-center gap-2 text-xs text-white/90 font-medium">
-              <Check className="h-3.5 w-3.5 text-[#FFDF7E]" /> 1 tài khoản = 1 bài dự thi · 1 phiếu bình chọn
+              <Check className="h-3.5 w-3.5 text-[#FFDF7E]" /> Xác thực Gmail · 1 phiếu cho mỗi gương · Phiếu trùng tự lọc
             </div>
           </motion.div>
 
@@ -382,7 +524,7 @@ export default function BinhChonHs3tPage() {
 
       <GoldenThread className="mx-auto max-w-5xl px-4" />
 
-      {/* ═══════════ HONORBOARD — BẢNG GƯƠNG THEO DANH HIỆU (THAY TRỐNG ĐỒNG) ═══════════ */}
+      {/* ═══════════ HONORBOARD — BẢNG GƯƠNG THEO DANH HIỆU ═══════════ */}
       <HonorBoard topByHonor={topByHonor} onOpen={openDetail} />
 
       {/* ═══════════ BÀI DỰ THI CỦA TÔI (NẾU CÓ) ═══════════ */}
@@ -442,7 +584,7 @@ export default function BinhChonHs3tPage() {
         </section>
       ) : null}
 
-      {/* ═══════════ 2. BENTO GRID — TIÊU CHÍ QUY CHẾ + THỐNG KÊ ═══════════ */}
+      {/* ═══════════ 2. BENTO GRID — 3 TRỤ CỘT + THỐNG KÊ ═══════════ */}
       <BentoGrid cd={cd} stats={stats} giftNote={campaign?.giftNote} year={campaign?.year ?? 2026} />
 
       <GoldenThread className="mx-auto max-w-5xl px-4 py-8" />
@@ -521,7 +663,7 @@ export default function BinhChonHs3tPage() {
                     story={s}
                     year={campaign?.year ?? 2026}
                     rank={rankOf(s.id)}
-                    voted={myVoteStoryId === s.id}
+                    voted={isVoted(s.id)}
                     canVote={!ended}
                     onVote={handleVote}
                     onOpen={openDetail}
@@ -533,7 +675,7 @@ export default function BinhChonHs3tPage() {
         )}
       </section>
 
-      {/* ═══════════ 4. BẢNG VÀNG — CHIA 3 NHÓM DANH HIỆU ═══════════ */}
+      {/* ═══════════ 4. BẢNG VÀNG — 3 HẠNG MỤC BÌNH CHỌN TÁCH BIỆT ═══════════ */}
       <section className="relative z-10 mx-auto max-w-6xl px-4 py-16">
         <div className="border-t border-[#F26522]/20 pt-10">
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -542,15 +684,19 @@ export default function BinhChonHs3tPage() {
                 <Award className="h-4 w-4" /> Bảng vàng bình chọn toàn quốc
               </p>
               <h2 className="mt-2 font-serif-display text-2xl sm:text-4xl font-black text-[#C4161C]">
-                Tất cả hành trình phấn đấu
+                3 hạng mục bình chọn tách biệt
               </h2>
+              <p className="mt-1 text-xs text-[#7A4A33] max-w-2xl">
+                Gương đạt danh hiệu cấp trường · Gương đạt danh hiệu cấp tỉnh · Gương đề cử đạt danh hiệu cấp TW —
+                mỗi hạng mục một bảng riêng để bình chọn công bằng, không lẫn lộn.
+              </p>
             </div>
             <p className="text-xs text-[#F26522]/90 font-medium">
               Hiển thị {stats.approvedStories} câu chuyện · {stats.totalVotes} lượt tiếp lửa
             </p>
           </div>
 
-          {/* BỘ LỌC VÀ TÌM KIẾM */}
+          {/* BỘ LỌC VÀ TÌM KIẾM — áp dụng cho cả 3 hạng mục */}
           <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-[#F26522]/25 bg-white p-3 shadow-sm">
             <div className="flex rounded-xl border border-[#F26522]/25 bg-[#FFF6EE] p-1">
               {(
@@ -564,7 +710,7 @@ export default function BinhChonHs3tPage() {
                   type="button"
                   onClick={() => {
                     setSort(t.key);
-                    setPage(1);
+                    resetFilters();
                   }}
                   className={cn(
                     "rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all",
@@ -585,7 +731,7 @@ export default function BinhChonHs3tPage() {
                 value={q}
                 onChange={(e) => {
                   setQ(e.target.value);
-                  setPage(1);
+                  resetFilters();
                 }}
                 placeholder="Tìm theo tên học sinh hoặc trường…"
                 className="w-full rounded-xl border border-[#F26522]/25 bg-[#FFFDF9] pl-9 pr-3 py-2 text-xs text-[#3D1A0E] placeholder-stone-400 focus:border-[#F26522] focus:outline-none focus:ring-1 focus:ring-[#F26522]/40 transition-colors"
@@ -597,7 +743,7 @@ export default function BinhChonHs3tPage() {
                 value={provinceId ?? ""}
                 onChange={(e) => {
                   setProvinceId(e.target.value ? Number(e.target.value) : null);
-                  setPage(1);
+                  resetFilters();
                 }}
                 className="w-full rounded-xl border border-[#F26522]/25 bg-[#FFFDF9] px-3 py-2 text-xs text-[#C4161C] focus:border-[#F26522] focus:outline-none transition-colors"
               >
@@ -611,78 +757,91 @@ export default function BinhChonHs3tPage() {
             </div>
           </div>
 
-          {/* DANH SÁCH CHIA THEO NHÓM DANH HIỆU */}
-          {loading ? (
+          {/* 3 HẠNG MỤC — MỖI HẠNG MỤC 1 BẢNG RIÊNG */}
+          {loading && perHonor.TRUONG.stories.length === 0 && perHonor.TINH.stories.length === 0 && perHonor.TW_DE_CU.stories.length === 0 ? (
             <div className="flex h-64 items-center justify-center text-sm text-[#F26522]/70">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-[#F26522]" /> Đang tải dữ liệu bình chọn…
             </div>
-          ) : stories.length === 0 ? (
-            <div className="mt-8 rounded-3xl border border-dashed border-[#F26522]/30 bg-white/70 px-6 py-20 text-center">
-              <p className="text-base font-semibold text-[#C4161C]">Không tìm thấy câu chuyện nào khớp bộ lọc</p>
-              <p className="mt-1 text-xs text-[#7A4A33]/80">Hãy thử đổi từ khóa tìm kiếm hoặc lọc theo tỉnh thành khác.</p>
-            </div>
           ) : (
-            <>
-              {HONOR_GROUPS.map((honor) => {
-                const groupStories = stories.filter((s) => (s.honorLevel ?? "TRUONG") === honor);
-                if (groupStories.length === 0) return null;
-                return (
-                  <div key={honor} className="mt-9">
-                    <div className="mb-4 flex items-center gap-2.5">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#F26522] to-[#C4161C] px-3.5 py-1.5 text-[11px] font-black uppercase tracking-wider text-white shadow-sm">
-                        <Medal className="h-3.5 w-3.5" /> {HONOR_LEVEL_LABEL[honor]}
-                      </span>
-                      <span className="text-[11px] font-semibold text-stone-500">{groupStories.length} bài dự thi</span>
+            HONOR_CATEGORIES.map((cat) => {
+              const bucket = perHonor[cat.key];
+              return (
+                <div
+                  key={cat.key}
+                  className="mt-9 overflow-hidden rounded-[24px] border border-[#F26522]/25 bg-white shadow-[0_10px_36px_rgba(193,73,26,0.08)]"
+                >
+                  {/* Đầu hạng mục */}
+                  <div className="flex flex-wrap items-center gap-3 border-b border-[#F26522]/15 px-5 py-4" style={{ background: "linear-gradient(135deg, #FFF1E4 0%, #FFF9F2 100%)" }}>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#F26522] to-[#C4161C] px-3.5 py-1.5 text-[11px] font-black uppercase tracking-wider text-white shadow-sm">
+                      <Medal className="h-3.5 w-3.5" /> {cat.chip}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-serif-display text-lg sm:text-xl font-black text-[#C4161C] leading-tight">{cat.title}</h3>
+                      <p className="text-[11px] text-[#7A4A33]">{cat.hint}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 sm:gap-x-6 sm:gap-y-10">
-                      {groupStories.map((s, i) => (
-                        <CdttbCard
-                          key={s.id}
-                          story={s}
-                          year={campaign?.year ?? 2026}
-                          rank={sort === "hot" ? (page === 1 && i < 3 ? i + 1 : undefined) : undefined}
-                          voted={myVoteStoryId === s.id}
-                          canVote={!ended}
-                          onVote={handleVote}
-                          onOpen={openDetail}
-                        />
-                      ))}
-                    </div>
+                    <span className="text-[11px] font-semibold text-stone-500 whitespace-nowrap">
+                      {bucket.total} bài dự thi · {Math.max(...bucket.stories.map((s) => s.voteCount), 0)} phiếu cao nhất
+                    </span>
                   </div>
-                );
-              })}
 
-              {totalPages > 1 ? (
-                <div className="mt-12 flex items-center justify-center gap-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => p - 1)}
-                    className="border-[#F26522]/30 bg-white text-[#C4161C] hover:bg-[#FFF1E4] disabled:opacity-40"
-                  >
-                    <ChevronLeft className="h-4 w-4" /> Trước
-                  </Button>
-                  <span className="rounded-xl border border-[#F26522]/25 bg-white px-3.5 py-1.5 text-xs font-bold text-[#C4161C]">
-                    Trang {page} / {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1)}
-                    className="border-[#F26522]/30 bg-white text-[#C4161C] hover:bg-[#FFF1E4] disabled:opacity-40"
-                  >
-                    Sau <ChevronRight className="h-4 w-4" />
-                  </Button>
+                  {/* Lưới bài dự thi của hạng mục */}
+                  {bucket.stories.length === 0 ? (
+                    <div className="px-6 py-12 text-center">
+                      <Sparkles className="mx-auto h-6 w-6 text-[#F26522]/60" />
+                      <p className="mt-2 text-sm font-semibold text-[#C4161C]/80">Chưa có bài dự thi trong hạng mục này</p>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-6 sm:px-5">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 sm:gap-x-6 sm:gap-y-10">
+                        {bucket.stories.map((s, i) => (
+                          <CdttbCard
+                            key={s.id}
+                            story={s}
+                            year={campaign?.year ?? 2026}
+                            rank={sort === "hot" && bucket.page === 1 && i < 3 ? i + 1 : undefined}
+                            voted={isVoted(s.id)}
+                            canVote={!ended}
+                            onVote={handleVote}
+                            onOpen={openDetail}
+                          />
+                        ))}
+                      </div>
+
+                      {bucket.totalPages > 1 ? (
+                        <div className="mt-8 flex items-center justify-center gap-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={bucket.page <= 1}
+                            onClick={() => bumpHonorPage(cat.key, -1)}
+                            className="border-[#F26522]/30 bg-white text-[#C4161C] hover:bg-[#FFF1E4] disabled:opacity-40"
+                          >
+                            <ChevronLeft className="h-4 w-4" /> Trước
+                          </Button>
+                          <span className="rounded-xl border border-[#F26522]/25 bg-white px-3.5 py-1.5 text-xs font-bold text-[#C4161C]">
+                            Hạng mục này · Trang {bucket.page} / {bucket.totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={bucket.page >= bucket.totalPages}
+                            onClick={() => bumpHonorPage(cat.key, 1)}
+                            className="border-[#F26522]/30 bg-white text-[#C4161C] hover:bg-[#FFF1E4] disabled:opacity-40"
+                          >
+                            Sau <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
-              ) : null}
-            </>
+              );
+            })
           )}
         </div>
       </section>
 
-      {/* ═══════════ 5. GIỚI THIỆU VỀ DANH HIỆU — QUY CHẾ + LINK XÉT CHỌN CỦA TW ═══════════ */}
+      {/* ═══════════ 5. Ý NGHĨA DANH HIỆU + QUY TRÌNH XÉT CHỌN CẤP TW ═══════════ */}
       <section className="relative z-10 mx-auto max-w-6xl px-4 pb-20">
         <div className="overflow-hidden rounded-[28px] border border-[#F26522]/25 bg-white shadow-[0_14px_45px_rgba(193,73,26,0.10)]">
           {/* Đầu section */}
@@ -692,7 +851,7 @@ export default function BinhChonHs3tPage() {
                 <ScrollText className="h-4 w-4" /> Giới thiệu về danh hiệu
               </p>
               <h2 className="mt-1.5 font-serif-display text-xl sm:text-3xl font-black text-[#3D1A0E]">
-                "Học sinh 3 tốt" &amp; "Học sinh 3 rèn luyện"
+                Ý nghĩa danh hiệu "Học sinh 3 tốt"
               </h2>
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -700,20 +859,27 @@ export default function BinhChonHs3tPage() {
           </div>
 
           <div className="grid gap-6 px-6 py-7 sm:px-8 lg:grid-cols-[1.15fr_0.85fr]">
-            {/* Cột trái: thuyết minh quy chế */}
+            {/* Cột trái: ý nghĩa của danh hiệu */}
             <div>
               <p className="text-sm leading-relaxed text-[#5B3A2A]">
-                Danh hiệu <strong className="text-[#C4161C]">"Học sinh 3 tốt"</strong> (Đạo đức tốt · Học tập tốt · Thể lực tốt)
-                được Ban Bí thư TW Đoàn ban hành theo <strong>Quyết định số 317-QĐ/TWĐTN-TNTH ngày 09/11/2023</strong>, áp dụng
-                giai đoạn 2023 – 2027. Danh hiệu <strong className="text-[#C4161C]">"Học sinh 3 rèn luyện"</strong> ban hành theo{" "}
-                <strong>Quyết định số 633-QĐ/TWĐTN-TNTH ngày 15/3/2024</strong>. Tiêu chí xét chọn theo Điều 4 Quy chế,
-                đã hợp nhất điều chỉnh tại Thông báo số 630-TB/TWĐTN-CTTTN ngày 10/10/2025:
+                Danh hiệu <strong className="text-[#C4161C]">"Học sinh 3 tốt"</strong> là sự ghi nhận toàn diện cho
+                những học sinh đạt chuẩn cả ba phương diện <strong>Đạo đức tốt — Học tập tốt — Thể lực tốt</strong>.
+                Đây không đơn thuần là một tấm giấy khen: danh hiệu nuôi dưỡng lý tưởng sống đẹp, thắp sáng tinh thần
+                tiên phong trong học tập, rèn luyện và tình nguyện; tạo động lực để mỗi em trở thành công dân tốt —
+                người trẻ đủ tri thức, đủ bản lĩnh và đủ lòng nhân ái để cống hiến cho quê hương, đất nước trong
+                Kỷ nguyên vươn mình của dân tộc.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-[#5B3A2A]">
+                Qua cổng bình chọn, những hành trình phấn đấu thầm lặng ấy được kể lại và lan toả — mỗi gương được
+                vinh danh trở thành một tấm gương truyền cảm hứng, để các bạn học sinh trên khắp cả nước nhìn thấy
+                mình trong đó và cùng nhau tiến lên phía trước. Danh hiệu vì thế không phải đích đến, mà là{" "}
+                <strong className="text-[#C4161C]">khởi đầu của một hành trình sống đẹp</strong> dài hơn phía trước.
               </p>
               <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
                 {[
-                  { icon: "🤝", name: "Đạo đức tốt", note: "6 tiêu chí — hạnh kiểm, công tác Đoàn - Đội, tình nguyện…" },
-                  { icon: "📚", name: "Học tập tốt", note: "3 tiêu chí — học lực, giải học sinh giỏi, khoa học kỹ thuật" },
-                  { icon: "🏅", name: "Thể lực tốt", note: "3 tiêu chí — chuẩn thể lực, Thanh niên khỏe, giải TDTT" },
+                  { icon: "🤝", name: "Đạo đức tốt", note: "Hạnh kiểm, lập trường tư tưởng, công tác Đoàn - Đội, tình nguyện…" },
+                  { icon: "📚", name: "Học tập tốt", note: "Kết quả học tập, giải học sinh giỏi, khoa học kỹ thuật" },
+                  { icon: "🏅", name: "Thể lực tốt", note: "Chuẩn thể lực, Thanh niên khỏe, giải TDTT" },
                 ].map((g) => (
                   <div key={g.name} className="rounded-2xl border border-[#F26522]/20 bg-[#FFF9F2] p-3.5">
                     <p className="text-sm font-black text-[#C4161C]">
@@ -799,6 +965,45 @@ export default function BinhChonHs3tPage() {
         }}
       />
 
+      {/* ═══════════ MODAL XÁC THỰC GMAIL (GOOGLE IDENTITY SERVICES) ═══════════ */}
+      <Modal
+        open={gAuthOpen}
+        onClose={() => {
+          setGAuthOpen(false);
+          pendingVoteRef.current = null;
+        }}
+        title="Xác thực Gmail để bình chọn"
+        className="max-w-md"
+      >
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F26522] to-[#C4161C] text-white shadow-md">
+            <MailCheck className="h-7 w-7" />
+          </div>
+          <p className="text-sm leading-relaxed text-stone-700">
+            Bạn đang bình chọn cho{" "}
+            <strong className="text-[#C4161C]">{pendingVoteRef.current?.studentName ?? "gương vinh danh"}</strong>.
+            Không cần đăng ký tài khoản — chỉ cần xác thực nhanh bằng Gmail của bạn.
+          </p>
+          <ul className="mx-auto max-w-xs space-y-1.5 text-left text-xs text-stone-600">
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> Mỗi Gmail bình chọn được nhiều gương khác nhau,
+              nhưng chỉ <strong>1 lần cho mỗi gương</strong>.
+            </li>
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> Phiếu trùng lặp bị hệ thống tự lọc thành không hợp lệ.
+            </li>
+          </ul>
+          <div ref={gBtnRef} className="flex min-h-11 justify-center" />
+          <p className="text-[11px] text-stone-400">
+            Chưa có Google button? Đợi nút tải xong hoặc{" "}
+            <button type="button" className="font-semibold text-[#F26522] hover:underline" onClick={() => router.push("/dang-nhap")}>
+              đăng nhập tài khoản Đoàn
+            </button>{" "}
+            để bình chọn.
+          </p>
+        </div>
+      </Modal>
+
       {/* ═══════════ MODAL CHI TIẾT 3 CỘT ═══════════ */}
       <Modal
         open={!!detail}
@@ -817,16 +1022,16 @@ export default function BinhChonHs3tPage() {
                   const s = detail;
                   void handleVote(s);
                 }}
-                disabled={ended || myVoteStoryId === detail.id}
+                disabled={ended || isVoted(detail.id)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all px-4 py-2",
-                  myVoteStoryId === detail.id
+                  isVoted(detail.id)
                     ? "border border-amber-300 bg-amber-100/90 text-amber-950 cursor-default"
                     : "border border-[#F26522] bg-gradient-to-r from-[#F26522] to-[#C4161C] text-white hover:brightness-110 hover:shadow-lg active:scale-[0.98]"
                 )}
               >
-                <Heart className={cn("h-4 w-4", myVoteStoryId === detail.id ? "fill-amber-600 text-amber-600" : "fill-white text-white")} />
-                {myVoteStoryId === detail.id ? "Đã bình chọn" : `Bình chọn cho ${detail.studentName}`}
+                <Heart className={cn("h-4 w-4", isVoted(detail.id) ? "fill-amber-600 text-amber-600" : "fill-white text-white")} />
+                {isVoted(detail.id) ? "Đã bình chọn" : `Bình chọn cho ${detail.studentName}`}
               </Button>
             </div>
           ) : null
@@ -852,7 +1057,7 @@ export default function BinhChonHs3tPage() {
                   />
                 </div>
 
-                {/* THÔNG TIN CÁ NHÂN NGAY DƯỚI HÌNH — chuẩn theo ảnh thực tế */}
+                {/* THÔNG TIN CÁ NHÂN NGAY DƯỚI HÌNH */}
                 <div className="space-y-1.5 px-0.5">
                   <h3 className="font-serif-display text-xl sm:text-2xl font-black uppercase tracking-wide text-[#C4161C]">
                     {detail.studentName}
@@ -896,7 +1101,7 @@ export default function BinhChonHs3tPage() {
                 </div>
               </div>
 
-              {/* CỘT 3 (PHẢI): CỘT MÀU VÀNG CHỨA CÁC Ô VÀNG VINH DANH THÀNH TÍCH NỔI BẬT KẾ BÊN QUÁ TRÌNH PHẤN ĐẤU */}
+              {/* CỘT 3 (PHẢI): Ô VÀNG VINH DANH THÀNH TÍCH NỔI BẬT */}
               <div className="md:col-span-4 lg:col-span-4 flex flex-col max-h-[68vh] overflow-y-auto thin-scrollbar">
                 <GoldenAchievementColumn achievements={achievements} studentName={detail.studentName} />
               </div>

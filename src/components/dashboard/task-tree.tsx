@@ -36,6 +36,14 @@ export function TaskTree({ criteriaSetId, scope }: { criteriaSetId: number; scop
   const [assignValues, setAssignValues] = useState<Record<number, string>>({});
   const [assignNote, setAssignNote] = useState("");
 
+  // Modal phân công bổ sung (nhiệm vụ đột xuất dưới 1 tiêu chí)
+  const [supCriterion, setSupCriterion] = useState<Task | null>(null);
+  const [supTitle, setSupTitle] = useState("");
+  const [supDue, setSupDue] = useState("");
+  const [supNote, setSupNote] = useState("");
+  const [supUnits, setSupUnits] = useState<number[]>([]);
+  const [supMetrics, setSupMetrics] = useState<{ name: string; unit: string; value: string }[]>([]);
+
   const roots = useMemo(
     () => tasks.filter((t) => Number(t.criteriaSetId) === Number(criteriaSetId) && t.parentTaskId === null).sort((a, b) => a.displayOrder - b.displayOrder),
     [tasks, criteriaSetId]
@@ -101,6 +109,53 @@ export function TaskTree({ criteriaSetId, scope }: { criteriaSetId: number; scop
     setAssignTask(null);
   };
 
+  const openSupplement = (criterion: Task) => {
+    setSupCriterion(criterion);
+    setSupTitle("");
+    setSupDue("");
+    setSupNote("");
+    setSupUnits([]);
+    setSupMetrics([]);
+  };
+
+  const toggleSupUnit = (id: number) =>
+    setSupUnits((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const submitSupplement = () => {
+    if (!supCriterion || !session) return;
+    if (supTitle.trim().length < 5) {
+      toast("Nhập tên nhiệm vụ bổ sung (tối thiểu 5 ký tự).", "warning");
+      return;
+    }
+    if (!supDue) {
+      toast("Chọn hạn hoàn thành.", "warning");
+      return;
+    }
+    if (supUnits.length === 0) {
+      toast("Chọn ít nhất một đơn vị nhận.", "warning");
+      return;
+    }
+    const metrics = supMetrics
+      .filter((m) => m.name.trim())
+      .map((m) => ({ name: m.name, unit: m.unit, targetValue: Number(m.value || "0") }));
+    if (metrics.some((m) => isNaN(m.targetValue) || m.targetValue <= 0)) {
+      toast("Chỉ tiêu là số > 0 cho từng đại lượng.", "warning");
+      return;
+    }
+    store.createSupplementaryTask(session, {
+      parentTaskId: supCriterion.id,
+      title: supTitle,
+      note: supNote.trim() || undefined,
+      dueDate: supDue,
+      targetOrgUnitIds: supUnits,
+      metrics,
+    });
+    toast(
+      `Đã bổ sung nhiệm vụ dưới tiêu chí "${supCriterion.title}" và giao cho ${supUnits.length} đơn vị — đơn vị nhận được thông báo ngay.`
+    );
+    setSupCriterion(null);
+  };
+
   const renderTask = (task: Task, depth: number) => {
     const children = childrenOf(task.id);
     const info = assignmentInfo(task);
@@ -137,6 +192,7 @@ export function TaskTree({ criteriaSetId, scope }: { criteriaSetId: number; scop
               {task.maxPoints} điểm
             </Badge>
           ) : null}
+          {!isGroup && task.criteriaSetId === null ? <Badge tone="blue">Bổ sung</Badge> : null}
 
           {info ? (
             <div className="w-40">
@@ -163,6 +219,15 @@ export function TaskTree({ criteriaSetId, scope }: { criteriaSetId: number; scop
               className="inline-flex items-center gap-1 rounded-md border border-doan-200 px-2 py-1 text-[11px] font-medium text-doan-700 hover:bg-doan-50"
             >
               <Plus className="h-3 w-3" /> Phân công
+            </button>
+          ) : null}
+
+          {isGroup && canAssign ? (
+            <button
+              onClick={() => openSupplement(task)}
+              className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-100"
+            >
+              <Plus className="h-3 w-3" /> Phân công bổ sung
             </button>
           ) : null}
         </div>
@@ -236,6 +301,94 @@ export function TaskTree({ criteriaSetId, scope }: { criteriaSetId: number; scop
           )}
           <Field label="Ghi chú" hint="Không bắt buộc — ví dụ ưu tiên địa bàn, yêu cầu riêng.">
             <Textarea value={assignNote} onChange={(e) => setAssignNote(e.target.value)} rows={2} />
+          </Field>
+        </div>
+      </Modal>
+
+      {/* ═══ Modal PHÂN CÔNG BỔ SUNG — nhiệm vụ đột xuất dưới 1 tiêu chí ═══ */}
+      <Modal
+        open={supCriterion !== null}
+        onClose={() => setSupCriterion(null)}
+        title={`Phân công bổ sung — ${supCriterion?.title.slice(0, 50) ?? ""}`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setSupCriterion(null)}>Hủy</Button>
+            <Button onClick={submitSupplement}><Plus className="h-4 w-4" /> Bổ sung &amp; giao</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-800">
+            Dành cho hoạt động đột xuất, ngoài kế hoạch nhưng vẫn thuộc tiêu chí này.
+            Nhiệm vụ bổ sung không cộng điểm cố định của bộ tiêu chí — đơn vị nhận báo cáo tiến độ và cấp trên xác nhận như nhiệm vụ thường.
+          </p>
+          <Field label="Tên nhiệm vụ bổ sung" required hint="Ví dụ: Rà soát an toàn trường học sau mưa bão">
+            <Input value={supTitle} onChange={(e) => setSupTitle(e.target.value)} placeholder="Nhập tên nhiệm vụ đột xuất…" />
+          </Field>
+          <Field label="Hạn hoàn thành" required>
+            <Input type="date" value={supDue} onChange={(e) => setSupDue(e.target.value)} />
+          </Field>
+          <Field label="Đơn vị nhận" required hint={`Chọn trong ${childUnits.length} đơn vị cấp dưới trực tiếp — chọn nhiều đơn vị được.`}>
+            {childUnits.length === 0 ? (
+              <p className="text-xs text-stone-500">Đơn vị của bạn chưa có đơn vị cấp dưới trực tiếp.</p>
+            ) : (
+              <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-stone-200 p-2">
+                {childUnits.map((u) => (
+                  <label key={u.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-stone-50">
+                    <input
+                      type="checkbox"
+                      checked={supUnits.includes(u.id)}
+                      onChange={() => toggleSupUnit(u.id)}
+                      className="h-3.5 w-3.5 accent-sky-600"
+                    />
+                    <span className="text-stone-700">{u.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </Field>
+          <Field label="Chỉ tiêu cần đạt" hint="Không bắt buộc — nhiệm vụ chỉ cần đánh dấu hoàn thành có thể bỏ trống.">
+            <div className="space-y-2">
+              {supMetrics.map((m, i) => (
+                <div key={i} className="grid grid-cols-[1fr_90px_100px_28px] items-center gap-2">
+                  <Input
+                    value={m.name}
+                    onChange={(e) => setSupMetrics((s) => s.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                    placeholder="Tên đại lượng (VD: Số buổi tuyên truyền)"
+                  />
+                  <Input
+                    value={m.unit}
+                    onChange={(e) => setSupMetrics((s) => s.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)))}
+                    placeholder="Đơn vị"
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={m.value}
+                    onChange={(e) => setSupMetrics((s) => s.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+                    placeholder="Chỉ tiêu"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSupMetrics((s) => s.filter((_, j) => j !== i))}
+                    className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-red-500"
+                    aria-label="Xóa chỉ tiêu"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setSupMetrics((s) => [...s, { name: "", unit: "", value: "" }])}
+                className="inline-flex items-center gap-1 rounded-md border border-dashed border-stone-300 px-2.5 py-1.5 text-[11px] font-medium text-stone-600 hover:border-sky-400 hover:text-sky-700"
+              >
+                <Plus className="h-3 w-3" /> Thêm đại lượng chỉ tiêu
+              </button>
+            </div>
+          </Field>
+          <Field label="Ghi chú" hint="Không bắt buộc — yêu cầu riêng, phạm vi, hình thức báo cáo.">
+            <Textarea value={supNote} onChange={(e) => setSupNote(e.target.value)} rows={2} />
           </Field>
         </div>
       </Modal>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import {
   Newspaper, MessagesSquare, Trophy, LifeBuoy, FolderOpen, ArrowRight, Users, Activity as ActivityIcon, Landmark,
-  ArrowUpRight, GraduationCap, Award, Heart, FlaskConical, Globe2, Flag, HeartHandshake,
+  ArrowUpRight, GraduationCap, Award, Heart, FlaskConical, Flag, HeartHandshake,
 } from "lucide-react";
 
 import { useStore } from "@/lib/store-context";
@@ -23,14 +23,13 @@ import { formatDate, formatNumber } from "@/lib/utils";
 import { PROGRAMS } from "@/data/programs";
 import { SPECIAL_CATEGORIES } from "@/data/categories";
 
-/** Icon của hệ thống nút chuyên mục đặc biệt (thứ tự khớp SPECIAL_CATEGORIES) */
-const SPECIAL_ICONS = [HeartHandshake, Award, Heart, FlaskConical, Globe2, Flag, Newspaper];
+/** Icon của hệ thống nút chuyên mục nổi bật (thứ tự khớp SPECIAL_CATEGORIES — 6 mục) */
+const SPECIAL_ICONS = [HeartHandshake, Award, Heart, FlaskConical, Flag, Newspaper];
 const SPECIAL_TONES = [
   "bg-vang-100 text-vang-600",
   "bg-rose-50 text-rose-600",
   "bg-pink-50 text-pink-600",
   "bg-cyan-50 text-cyan-600",
-  "bg-sky-50 text-sky-600",
   "bg-red-50 text-red-600",
   "bg-doan-50 text-doan-600",
 ];

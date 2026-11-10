@@ -8,10 +8,11 @@ export const runtime = "nodejs";
    AI THẬT CHO "KIỂM DUYỆT DIỄN ĐÀN" — ĐÃ GẮN qua lib/ai-client.ts
    ════════════════════════════════════════════════════════════════════
    Kích hoạt: .env.local thêm key (Gemini free hoặc Claude trả phí) —
-   xem hướng dẫn đầy đủ trong src/lib/ai-client.ts.
-   Chưa có key → route trả 502. Lời nhắc AI + phân tích kết quả dùng chung
-   với các API ghi của đoàn viên (lib/server/moderation.ts) — các API đó
-   tự rơi về luật dự phòng ruleModerate khi AI lỗi.
+   xem hướng dẫn đầy đủ trong src/lib/ai-client.ts. Key AI nằm 100% phía BE.
+   Chưa có key → route trả 502. Lời nhắc AI dùng chung một bản duy nhất ở
+   lib/server/moderation-prompt.ts (diễn đàn, đóng góp, dự án, bình chọn);
+   các API ghi của đoàn viên (lib/server/moderation.ts) tự rơi về luật
+   dự phòng ruleModerate khi AI lỗi.
    ════════════════════════════════════════════════════════════════════ */
 
 /** POST /api/ai/kiem-duyet — { text } → { ok, verdict, reason, model } */

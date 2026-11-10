@@ -85,7 +85,7 @@ export function CriteriaSection() {
           transition={{ duration: 0.7, delay: 0.2 }}
           className="mx-auto mt-3 max-w-2xl text-xs sm:text-sm leading-relaxed text-[#F3E5AB]/80"
         >
-          Bộ 3 tiêu chí cốt lõi theo Quyết định số 317/QĐ-TWĐTN-TNTH của Trung ương Đoàn TNCS Hồ Chí Minh —
+          Bộ 3 tiêu chí cốt lõi của danh hiệu &ldquo;Học sinh 3 tốt&rdquo; —
           tôn vinh học sinh THPT, TTGDNN-GDTX phát triển toàn diện về Đức, Trí, Thể.
         </motion.p>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileBarChart, Plus, Sparkles, CheckCircle2, Loader2, FileText, History, FileDown, LayoutTemplate, Database, RefreshCw, Copy, Check, Download, Calendar, Code, CheckSquare } from "lucide-react";
+import { FileBarChart, Plus, Sparkles, CheckCircle2, Loader2, FileText, History, FileDown, LayoutTemplate, Database, RefreshCw, Copy, Check, Download, Calendar, Code, CheckSquare, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -475,11 +475,26 @@ export default function BaoCaoPage() {
               title={r.title}
               subtitle={`${TYPE_LABEL[r.reportType]} ${r.periodNumber ? `số ${r.periodNumber} · ` : ""}năm ${r.periodYear} · ${formatDate(r.periodStart)} — ${formatDate(r.periodEnd)}`}
               action={
-                r.status === "FINALIZED" ? (
-                  <Badge tone="green"><CheckCircle2 className="h-3 w-3" /> Đã chốt</Badge>
-                ) : (
-                  <Badge tone="yellow">Bản nháp</Badge>
-                )
+                <div className="flex items-center gap-2">
+                  {r.status === "FINALIZED" ? (
+                    <Badge tone="green"><CheckCircle2 className="h-3 w-3" /> Đã chốt</Badge>
+                  ) : (
+                    <Badge tone="yellow">Bản nháp</Badge>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-600 hover:text-red-700"
+                    onClick={() => {
+                      if (confirm(`Xóa báo cáo "${r.title}"? Không thể hoàn tác.`)) {
+                        store.deleteReport(r.id);
+                        toast("Đã xóa báo cáo.");
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               }
             />
             <CardBody className="space-y-4">
