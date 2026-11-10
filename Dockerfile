@@ -9,6 +9,10 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# Biến NEXT_PUBLIC_* được Next.js gắn cứng vào mã trình duyệt lúc build — deploy.sh truyền vào
+# từ GOOGLE_CLIENT_ID trong .env.production (trống → bình chọn HS3T quay về yêu cầu đăng nhập)
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

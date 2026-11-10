@@ -9,8 +9,11 @@ tag="$(git rev-parse --short HEAD)"
 [[ -n "$(git status --porcelain)" ]] && tag="$tag-dirty-$(date +%Y%m%d%H%M%S)"
 history=deploy/.releases
 
+# Client ID Google (công khai) cần có lúc build để gắn vào trang bình chọn HS3T
+google_client_id="$(grep -E '^GOOGLE_CLIENT_ID=' .env.production 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '"'"'"'\r' || true)"
+
 echo "==> Build tnth-web:$tag"
-docker build -t "tnth-web:$tag" .
+docker build --build-arg "NEXT_PUBLIC_GOOGLE_CLIENT_ID=$google_client_id" -t "tnth-web:$tag" .
 
 docker tag "tnth-web:$tag" tnth-web:current
 [[ "$(tail -n1 "$history" 2>/dev/null)" == "$tag" ]] || echo "$tag" >> "$history"
