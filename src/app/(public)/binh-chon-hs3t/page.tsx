@@ -24,7 +24,6 @@ import {
   ChevronRight,
   Heart,
   Sparkles,
-  PenLine,
   Award,
   AlertTriangle,
   Loader2,
@@ -155,6 +154,22 @@ export default function BinhChonHs3tPage() {
   const [gAuthOpen, setGAuthOpen] = useState(false);
   const gBtnRef = useRef<HTMLDivElement | null>(null);
   const pendingVoteRef = useRef<BinhChonStory | null>(null);
+  /** true = sau khi xác thực Gmail xong thì mở modal gửi bài (không phải bỏ phiếu) */
+  const pendingSubmitRef = useRef(false);
+
+  /** Gửi bài: đăng nhập TK Đoàn viên HOẶC xác thực Gmail là đủ — không bắt đăng nhập */
+  const openSubmitFlow = () => {
+    if (!session && !credRef.current) {
+      if (!GOOGLE_CLIENT_ID) {
+        toast("Chưa cấu hình xác thực Gmail — liên hệ Ban Tổ chức.", "warning");
+        return;
+      }
+      pendingSubmitRef.current = true;
+      setGAuthOpen(true);
+      return;
+    }
+    setSubmitOpen(true);
+  };
 
   const swiperRef = useRef<SwiperClass | null>(null);
   const [perView, setPerView] = useState(4);
@@ -326,6 +341,11 @@ export default function BinhChonHs3tPage() {
           credRef.current = r.credential;
           setGoogleEmail(decodeGoogleEmail(r.credential));
           setGAuthOpen(false);
+          if (pendingSubmitRef.current) {
+            pendingSubmitRef.current = false;
+            setSubmitOpen(true);
+            return;
+          }
           const pending = pendingVoteRef.current;
           pendingVoteRef.current = null;
           if (pending) void doVote(pending);
@@ -385,7 +405,6 @@ export default function BinhChonHs3tPage() {
     setDetailLoading(false);
   };
 
-  const canSubmit = session?.role === "DOAN_VIEN";
   const rankOf = (id: number) => {
     const sorted = [...topStories].sort((a, b) => b.voteCount - a.voteCount || a.id - b.id);
     const idx = sorted.findIndex((x) => x.id === id);
@@ -481,29 +500,13 @@ export default function BinhChonHs3tPage() {
             transition={{ duration: 0.7, delay: 0.5 }}
             className="mt-8 flex flex-wrap items-center justify-center gap-4"
           >
-            {!session ? (
-              canSubmit ? null : (
-                <Button
-                  size="lg"
-                  className="h-12 border border-white/60 bg-white text-[#C4161C] font-black px-8 rounded-2xl shadow-[0_10px_30px_rgba(122,18,8,0.35)] hover:bg-[#FFF7EE] transition-all"
-                  onClick={() => router.push("/dang-nhap")}
-                >
-                  <PenLine className="h-4.5 w-4.5" /> Đăng nhập để gửi bài dự thi
-                </Button>
-              )
-            ) : canSubmit ? (
-              <Button
-                size="lg"
-                className="h-12 border border-white/60 bg-white text-[#C4161C] font-black px-8 rounded-2xl shadow-[0_10px_30px_rgba(122,18,8,0.35)] hover:bg-[#FFF7EE] transition-all"
-                onClick={() => setSubmitOpen(true)}
-              >
-                <Sparkles className="h-4.5 w-4.5" /> Gửi câu chuyện vinh danh của bạn
-              </Button>
-            ) : (
-              <span className="rounded-2xl border border-white/35 bg-white/12 px-5 py-3 text-xs text-white backdrop-blur-md">
-                Đăng nhập bằng tài khoản Đoàn viên để gửi bài dự thi.
-              </span>
-            )}
+            <Button
+              size="lg"
+              className="h-12 border border-white/60 bg-white text-[#C4161C] font-black px-8 rounded-2xl shadow-[0_10px_30px_rgba(122,18,8,0.35)] hover:bg-[#FFF7EE] transition-all"
+              onClick={openSubmitFlow}
+            >
+              <Sparkles className="h-4.5 w-4.5" /> Gửi câu chuyện vinh danh của bạn
+            </Button>
 
             <div className="flex items-center gap-2 text-xs text-white/90 font-medium">
               <Check className="h-3.5 w-3.5 text-[#FFDF7E]" /> Xác thực Gmail · 1 phiếu cho mỗi gương · Phiếu trùng tự lọc
@@ -959,6 +962,7 @@ export default function BinhChonHs3tPage() {
       <SubmitModal
         open={submitOpen}
         onClose={() => setSubmitOpen(false)}
+        credentialRef={credRef}
         onSubmitted={() => {
           toast("Đã gửi bài — chờ duyệt trong 24 giờ nhé!", "success");
           void load();
@@ -971,8 +975,9 @@ export default function BinhChonHs3tPage() {
         onClose={() => {
           setGAuthOpen(false);
           pendingVoteRef.current = null;
+          pendingSubmitRef.current = false;
         }}
-        title="Xác thực Gmail để bình chọn"
+        title={pendingSubmitRef.current ? "Xác thực Gmail để gửi bài dự thi" : "Xác thực Gmail để bình chọn"}
         className="max-w-md"
       >
         <div className="space-y-4 text-center">
@@ -980,11 +985,24 @@ export default function BinhChonHs3tPage() {
             <MailCheck className="h-7 w-7" />
           </div>
           <p className="text-sm leading-relaxed text-stone-700">
+            {pendingSubmitRef.current
+              ? "Gửi bài dự thi không cần đăng ký tài khoản — chỉ cần xác thực nhanh bằng Gmail của bạn (mỗi Gmail gửi 1 bài)."
+              : (
+            <>
             Bạn đang bình chọn cho{" "}
             <strong className="text-[#C4161C]">{pendingVoteRef.current?.studentName ?? "gương vinh danh"}</strong>.
             Không cần đăng ký tài khoản — chỉ cần xác thực nhanh bằng Gmail của bạn.
+            </>
+              )}
           </p>
           <ul className="mx-auto max-w-xs space-y-1.5 text-left text-xs text-stone-600">
+            {pendingSubmitRef.current ? (
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> Bài dự thi qua AI kiểm duyệt và Ban biên tập
+                duyệt trước khi đăng.
+              </li>
+            ) : (
+              <>
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> Mỗi Gmail bình chọn được nhiều gương khác nhau,
               nhưng chỉ <strong>1 lần cho mỗi gương</strong>.
@@ -992,14 +1010,12 @@ export default function BinhChonHs3tPage() {
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> Phiếu trùng lặp bị hệ thống tự lọc thành không hợp lệ.
             </li>
+              </>
+            )}
           </ul>
           <div ref={gBtnRef} className="flex min-h-11 justify-center" />
           <p className="text-[11px] text-stone-400">
-            Chưa có Google button? Đợi nút tải xong hoặc{" "}
-            <button type="button" className="font-semibold text-[#F26522] hover:underline" onClick={() => router.push("/dang-nhap")}>
-              đăng nhập tài khoản Đoàn
-            </button>{" "}
-            để bình chọn.
+            Chưa có Google button? Đợi nút tải xong rồi thử lại.
           </p>
         </div>
       </Modal>

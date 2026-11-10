@@ -849,7 +849,10 @@ export interface BinhChonStory {
   id: number;
   campaignId: number;
   studentName: string;
+  /** 0 = bài nộp bằng Gmail xác thực, không gắn đơn vị */
   schoolOrgUnitId: number;
+  /** Gmail đã xác thực của người nộp (bài nộp không qua tài khoản) */
+  submitterEmail?: string;
   schoolName: string;
   provinceName?: string;
   wardName?: string;

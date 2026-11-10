@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
 
   const countRows = await query<{ status: string; c: string }>(
     `SELECT s.status, count(*) c
-       FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id
+       FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id
       WHERE s.campaign_id = $1 AND ${countScopeSql} GROUP BY s.status`,
     countParams
   );
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
   const [totals, voters, top, bySchool, byProvince] = await Promise.all([
     query<{ total_votes: string | null }>(
       `SELECT sum(s.vote_count) total_votes
-         FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id
+         FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id
         WHERE s.campaign_id = $1 AND s.status = 'APPROVED' AND ${statScopeSql}`,
       statParams
     ),
@@ -154,27 +154,27 @@ export async function GET(request: NextRequest) {
       `SELECT count(DISTINCT v.voter_account_id) c
          FROM hs3t_votes v
          JOIN hs3t_stories s2 ON s2.id = v.story_id AND s2.status = 'APPROVED'
-         JOIN org_units sc2 ON sc2.id = s2.school_org_unit_id
+         LEFT JOIN org_units sc2 ON sc2.id = s2.school_org_unit_id
         WHERE s2.campaign_id = $1 AND ${voterScopeSql}`,
       voterParams
     ),
     query<{ id: number | string; student_name: string; school_name: string | null; vote_count: number | string }>(
       `SELECT s.id, s.student_name, COALESCE(s.org_display_name, school.name) school_name, s.vote_count
-         FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id
+         FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id
         WHERE s.campaign_id = $1 AND s.status = 'APPROVED' AND ${statScopeSql}
         ORDER BY s.vote_count DESC, s.approved_at ASC LIMIT 5`,
       statParams
     ),
     query<{ school_name: string | null; stories: string; votes: string | null }>(
-      `SELECT school.name school_name, count(*) stories, sum(s.vote_count) votes
-         FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id
+      `SELECT COALESCE(school.name, s.org_display_name) school_name, count(*) stories, sum(s.vote_count) votes
+         FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id
         WHERE s.campaign_id = $1 AND s.status = 'APPROVED' AND ${statScopeSql}
-        GROUP BY school.name ORDER BY sum(s.vote_count) DESC NULLS LAST, count(*) DESC LIMIT 20`,
+        GROUP BY 1 ORDER BY sum(s.vote_count) DESC NULLS LAST, count(*) DESC LIMIT 20`,
       statParams
     ),
     query<{ province_name: string | null; stories: string; votes: string | null }>(
       `SELECT COALESCE(prov.name, 'Khác') province_name, count(*) stories, sum(s.vote_count) votes
-         FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id
+         FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id
          LEFT JOIN LATERAL (
            SELECT au.name FROM org_units pu
              JOIN admin_units au ON au.id = pu.admin_unit_id
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
     ok: true,
     campaign,
     counts,
-    stories: rows.map((r) => toStoryDto(r)),
+    stories: rows.map((r) => toStoryDto(r, { withEmail: true })),
     stats: {
       totalVotes: Number(totals[0]?.total_votes ?? 0),
       voterAccounts: Number(voters[0]?.c ?? 0),
@@ -258,13 +258,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     // HS3T duyệt / từ chối
-    const rows = await query<{ path: string }>(
-      `SELECT school.path FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id WHERE s.id = $1 LIMIT 1`,
+    const rows = await query<{ path: string | null }>(
+      `SELECT school.path FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id WHERE s.id = $1 LIMIT 1`,
       [id]
     );
     const row = rows[0];
     if (!row) return NextResponse.json({ ok: false, error: "Bài không tồn tại." }, { status: 404 });
-    if (!admin.scope.all && !row.path.startsWith(admin.scope.pathPrefix ?? "\u0000")) {
+    // Bài gửi bằng Gmail không gắn trường (path NULL) → chỉ Quản trị TW (scope.all) duyệt/xoá
+    if (!admin.scope.all && !(row.path ?? "").startsWith(admin.scope.pathPrefix ?? "\u0000")) {
       return NextResponse.json({ ok: false, error: "Bài này ngoài phạm vi đơn vị của bạn." }, { status: 403 });
     }
 
@@ -320,13 +321,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const rows = await query<{ path: string }>(
-      `SELECT school.path FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id WHERE s.id = $1 LIMIT 1`,
+    const rows = await query<{ path: string | null }>(
+      `SELECT school.path FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id WHERE s.id = $1 LIMIT 1`,
       [id]
     );
     const row = rows[0];
     if (!row) return NextResponse.json({ ok: false, error: "Bài không tồn tại." }, { status: 404 });
-    if (!admin.scope.all && !row.path.startsWith(admin.scope.pathPrefix ?? "\u0000")) {
+    // Bài gửi bằng Gmail không gắn trường (path NULL) → chỉ Quản trị TW (scope.all) duyệt/xoá
+    if (!admin.scope.all && !(row.path ?? "").startsWith(admin.scope.pathPrefix ?? "\u0000")) {
       return NextResponse.json({ ok: false, error: "Bài này ngoài phạm vi đơn vị của bạn." }, { status: 403 });
     }
 

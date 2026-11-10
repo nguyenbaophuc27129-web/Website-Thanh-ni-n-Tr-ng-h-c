@@ -63,8 +63,9 @@ type StoryRow = {
   id: number | string;
   campaign_id: number | string;
   student_name: string;
-  school_org_unit_id: number | string;
+  school_org_unit_id: number | string | null;
   school_name: string | null;
+  submitter_email?: string | null;
   province_name: string | null;
   ward_name?: string | null;
   class_name: string | null;
@@ -86,13 +87,15 @@ type StoryRow = {
 };
 
 /** DTO — pg trả bigint dạng string → Number() MỌI id/count */
-export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean }): BinhChonStory {
+export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?: boolean }): BinhChonStory {
   return {
     id: Number(r.id),
     campaignId: Number(r.campaign_id),
     studentName: r.student_name,
-    schoolOrgUnitId: Number(r.school_org_unit_id),
+    schoolOrgUnitId: Number(r.school_org_unit_id) || 0,
     schoolName: r.school_name ?? "",
+    // Gmail người gửi: chỉ trả cho trang quản trị (withEmail) — KHÔNG trả ra API công khai
+    submitterEmail: opts?.withEmail ? (r.submitter_email ?? undefined) : undefined,
     provinceName: r.province_name ?? undefined,
     wardName: r.ward_name ?? undefined,
     className: r.class_name ?? undefined,
@@ -114,19 +117,20 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean }): BinhCho
   };
 }
 
-/** SELECT dùng lại cho cả list lẫn detail — join trường + tỉnh + danh hiệu đã đạt (HS tự khai) */
+/** SELECT dùng lại cho cả list lẫn detail — join trường + tỉnh + danh hiệu đã đạt (HS tự khai).
+ *  LEFT JOIN trường vì bài nộp bằng Gmail xác thực (không có tài khoản) không gắn đơn vị. */
 export const STORY_SELECT = `
   SELECT s.id, s.campaign_id, s.student_name, s.school_org_unit_id, s.class_name, s.quote, s.story,
-         s.achievements, s.org_display_name,
+         s.achievements, s.org_display_name, s.submitter_email,
          s.photo_data_url, s.photo_thumb_data_url, s.ai_verdict, s.ai_reason, s.status,
          s.rejection_reason, s.vote_count, s.approved_at, s.created_at, s.honor_level,
-         school.name AS school_name,
+         COALESCE(school.name, s.org_display_name) AS school_name,
          CASE WHEN school.path ~ '^/1/[0-9]+/' THEN split_part(school.path, '/', 3)::bigint END AS province_admin_id,
          s.ward_name,
          COALESCE(s.province_name, prov.name) AS province_name,
          acc.username
     FROM hs3t_stories s
-    JOIN org_units school ON school.id = s.school_org_unit_id
+    LEFT JOIN org_units school ON school.id = s.school_org_unit_id
     LEFT JOIN accounts acc ON acc.id = s.account_id
     LEFT JOIN LATERAL (
       SELECT au.name FROM org_units pu
@@ -161,7 +165,7 @@ export type UnitStoryRow = {
   account_username?: string | null;
 };
 
-export function toUnitStoryDto(r: UnitStoryRow, opts?: { withPhoto?: boolean }): UnitStory {
+export function toUnitStoryDto(r: UnitStoryRow, opts?: { withPhoto?: boolean; withEmail?: boolean }): UnitStory {
   return {
     id: Number(r.id),
     campaignId: Number(r.campaign_id),

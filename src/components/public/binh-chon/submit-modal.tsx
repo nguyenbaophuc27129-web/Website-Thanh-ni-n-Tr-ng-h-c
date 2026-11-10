@@ -92,10 +92,13 @@ export function SubmitModal({
   open,
   onClose,
   onSubmitted,
+  credentialRef,
 }: {
   open: boolean;
   onClose: () => void;
   onSubmitted: () => void;
+  /** Google ID token đã xác thực — dùng khi người gửi KHÔNG đăng nhập tài khoản */
+  credentialRef?: { current: string };
 }) {
   const { session } = useAuth();
   const { orgUnits } = useStore();
@@ -187,6 +190,7 @@ export function SubmitModal({
       honorLevel: honor,
       photoDataUrl: full,
       photoThumbDataUrl: thumb,
+      credential: session ? undefined : credentialRef?.current || undefined,
     });
     setSending(false);
     if (!res.ok) {

@@ -62,6 +62,8 @@ export interface SubmitStoryInput {
   honorLevel?: "TRUONG" | "TINH" | "TW_DE_CU";
   photoDataUrl: string;
   photoThumbDataUrl: string;
+  /** Google ID token đã xác thực — bắt buộc khi gửi bài KHÔNG qua tài khoản */
+  credential?: string;
 }
 
 async function jsonOf<T>(res: Response): Promise<T> {
@@ -97,14 +99,16 @@ export async function fetchStories(params: {
   return jsonOf<StoryListResult>(res);
 }
 
-/** POST /api/binh-chon — đăng bài (chỉ DOAN_VIEN) */
-export async function submitStory(input: SubmitStoryInput): Promise<{ ok: boolean; error?: string }> {
+/** POST /api/binh-chon — đăng bài (xác thực Gmail là đủ; có TK Đoàn viên thì nộp theo TK) */
+export async function submitStory(
+  input: SubmitStoryInput
+): Promise<{ ok: boolean; error?: string; needAuth?: boolean }> {
   const res = await fetch("/api/binh-chon", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  return jsonOf<{ ok: boolean; error?: string }>(res);
+  return jsonOf<{ ok: boolean; error?: string; needAuth?: boolean }>(res);
 }
 
 /** DELETE /api/binh-chon — hủy bài của mình đang chờ duyệt */

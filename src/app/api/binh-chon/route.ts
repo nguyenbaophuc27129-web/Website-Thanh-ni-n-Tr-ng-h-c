@@ -9,6 +9,8 @@ import {
   STORY_SELECT,
   toStoryDto,
 } from "@/lib/server/binh-chon";
+import { verifyGoogleCredential } from "@/lib/server/google-verify";
+import { readVoteEmail, setVoteEmail } from "@/lib/server/vote-cookie";
 import { FULL_PHOTO_MAX_BYTES, PAGE_SIZE, THUMB_PHOTO_MAX_BYTES } from "@/lib/binh-chon";
 
 export const runtime = "nodejs";
@@ -94,7 +96,7 @@ export async function GET(request: NextRequest) {
     let myVotedStoryIds: number[] = [];
     let myStory = null as ReturnType<typeof toStoryDto> | null;
     // Định danh phiếu của tôi: tài khoản hệ thống HOẶC Gmail đã xác thực (cookie sau khi bình chọn)
-    const voteEmailCookie = request.cookies.get("tnth_vote_email")?.value ?? "";
+    const voteEmailCookie = readVoteEmail(request);
     const voteIdentity: { accountId?: number; email?: string } = {};
     if (session) voteIdentity.accountId = session.accountId;
     else if (voteEmailCookie) voteIdentity.email = voteEmailCookie;
@@ -108,10 +110,13 @@ export async function GET(request: NextRequest) {
       myVotedStoryIds = voteRows.map((r) => Number(r.story_id));
       myVoteStoryId = myVotedStoryIds.length ? myVotedStoryIds[myVotedStoryIds.length - 1] : null;
     }
-    if (session) {
+    if (session || voteEmailCookie) {
+      // Bài của tôi: theo tài khoản (nếu đăng nhập) HOẶC Gmail đã xác thực (bài nộp không tài khoản)
       const myRows = await query<Parameters<typeof toStoryDto>[0]>(
-        `${STORY_SELECT} WHERE s.account_id = $1 AND s.campaign_id = $2 ORDER BY s.id DESC LIMIT 1`,
-        [session.accountId, campaign.id]
+        `${STORY_SELECT} WHERE s.campaign_id = $1
+           AND (($2::bigint IS NOT NULL AND s.account_id = $2) OR ($3::text IS NOT NULL AND lower(s.submitter_email) = lower($3)))
+         ORDER BY s.id DESC LIMIT 1`,
+        [campaign.id, session?.accountId ?? null, voteEmailCookie || null]
       );
       if (myRows[0]) myStory = toStoryDto(myRows[0]);
     }
@@ -158,16 +163,23 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * DELETE /api/binh-chon — hủy bài của chính mình (PENDING hoặc REJECTED)
+ * DELETE /api/binh-chon — hủy bài của chính mình (PENDING hoặc REJECTED).
+ * Định danh: tài khoản đăng nhập HOẶC Gmail đã xác thực (cookie).
  */
 export async function DELETE(request: NextRequest) {
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ ok: false, error: "Vui lòng đăng nhập." }, { status: 401 });
+  const voteEmailCookie = readVoteEmail(request);
+  if (!session && !voteEmailCookie) {
+    return NextResponse.json({ ok: false, error: "Chưa xác định được bài của bạn." }, { status: 401 });
+  }
 
   const deleted = await query<{ id: number; status: string }>(
-    "DELETE FROM hs3t_stories WHERE account_id = $1 AND status IN ('PENDING','REJECTED') RETURNING id, status",
-    [session.accountId]
+    `DELETE FROM hs3t_stories
+      WHERE status IN ('PENDING','REJECTED')
+        AND (($1::bigint IS NOT NULL AND account_id = $1) OR ($2::text IS NOT NULL AND lower(submitter_email) = lower($2)))
+      RETURNING id, status`,
+    [session?.accountId ?? null, voteEmailCookie || null]
   );
   if (!deleted[0]) {
     return NextResponse.json(
@@ -179,21 +191,13 @@ export async function DELETE(request: NextRequest) {
 }
 
 /**
- * POST /api/binh-chon — đăng bài dự thi (chỉ DOAN_VIEN)
+ * POST /api/binh-chon — đăng bài dự thi.
+ * Không cần đăng nhập tài khoản: xác thực Gmail là đủ (credential Google ID token).
+ * Có tài khoản Đoàn viên đăng nhập → vẫn nộp theo tài khoản như cũ.
  */
 export async function POST(request: NextRequest) {
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ ok: false, error: "Vui lòng đăng nhập để đăng bài." }, { status: 401 });
-  if (session.role !== "DOAN_VIEN") {
-    return NextResponse.json({ ok: false, error: "Chỉ tài khoản Đoàn viên - Hội viên mới đăng được bài dự thi." }, { status: 403 });
-  }
-
-  const campaign = await getActiveCampaign("HS3T");
-  if (!campaign) return NextResponse.json({ ok: false, error: "Chưa có chiến dịch bình chọn." }, { status: 404 });
-  if (!campaignOpenNow(campaign)) {
-    return NextResponse.json({ ok: false, error: "Chiến dịch chưa mở hoặc đã kết thúc." }, { status: 409 });
-  }
 
   const body = (await request.json().catch(() => null)) as
     | {
@@ -208,8 +212,33 @@ export async function POST(request: NextRequest) {
         honorLevel?: string;
         photoDataUrl?: string;
         photoThumbDataUrl?: string;
+        credential?: string;
       }
     | null;
+
+  // Định danh người nộp: tài khoản Đoàn viên (nếu đăng nhập) HOẶC Gmail đã xác thực
+  let accountId: number | null = null;
+  let orgUnitId: number | null = null;
+  let submitterEmail: string | null = null;
+  if (session && session.role === "DOAN_VIEN") {
+    accountId = session.accountId;
+    orgUnitId = session.orgUnitId;
+  } else {
+    const gu = await verifyGoogleCredential(body?.credential ?? "");
+    if (!gu) {
+      return NextResponse.json(
+        { ok: false, error: "Cần xác thực Gmail để gửi bài — không cần đăng ký tài khoản.", needAuth: true },
+        { status: 401 }
+      );
+    }
+    submitterEmail = gu.email;
+  }
+
+  const campaign = await getActiveCampaign("HS3T");
+  if (!campaign) return NextResponse.json({ ok: false, error: "Chưa có chiến dịch bình chọn." }, { status: 404 });
+  if (!campaignOpenNow(campaign)) {
+    return NextResponse.json({ ok: false, error: "Chiến dịch chưa mở hoặc đã kết thúc." }, { status: 409 });
+  }
 
   const studentName = body?.studentName?.trim() ?? "";
   const className = body?.className?.trim().slice(0, 60) || null;
@@ -233,11 +262,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Ảnh thu nhỏ không hợp lệ hoặc vượt 400KB." }, { status: 400 });
   }
 
-  const school = await query<{ id: number }>("SELECT id FROM org_units WHERE id = $1 AND deleted_at IS NULL", [
-    session.orgUnitId,
-  ]);
-  if (!school[0]) {
-    return NextResponse.json({ ok: false, error: "Tài khoản chưa gắn vào đơn vị trường hợp lệ — liên hệ Bí thư trường." }, { status: 400 });
+  if (accountId !== null) {
+    const school = await query<{ id: number }>("SELECT id FROM org_units WHERE id = $1 AND deleted_at IS NULL", [
+      orgUnitId,
+    ]);
+    if (!school[0]) {
+      return NextResponse.json({ ok: false, error: "Tài khoản chưa gắn vào đơn vị trường hợp lệ — liên hệ Bí thư trường." }, { status: 400 });
+    }
   }
 
   // Kiểm duyệt văn bản
@@ -249,13 +280,13 @@ export async function POST(request: NextRequest) {
       `INSERT INTO hs3t_stories
         (campaign_id, account_id, student_name, school_org_unit_id, class_name, quote, story,
          achievements, org_display_name, ward_name, province_name, honor_level,
-         photo_data_url, photo_thumb_data_url, ai_verdict, ai_reason, ai_model, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'PENDING') RETURNING id`,
+         photo_data_url, photo_thumb_data_url, ai_verdict, ai_reason, ai_model, submitter_email, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'PENDING') RETURNING id`,
       [
         campaign.id,
-        session.accountId,
+        accountId,
         studentName,
-        session.orgUnitId,
+        orgUnitId,
         className,
         quote,
         story,
@@ -269,13 +300,27 @@ export async function POST(request: NextRequest) {
         moderation.verdict,
         moderation.reason ?? null,
         moderation.model ?? null,
+        submitterEmail,
       ]
     );
-    return NextResponse.json({ ok: true, id: Number(inserted[0].id) });
+    const res = NextResponse.json({ ok: true, id: Number(inserted[0].id) });
+    if (submitterEmail) {
+      // Ghi nhận Gmail đã xác thực (cookie có chữ ký) — GET biết "bài của tôi" + "phiếu của tôi"
+      setVoteEmail(res, submitterEmail, 60 * 60 * 24 * 90);
+    }
+    return res;
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (code === "23505") {
-      return NextResponse.json({ ok: false, error: "Bạn đã đăng bài cho chiến dịch này rồi — mỗi tài khoản chỉ 1 bài." }, { status: 409 });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: submitterEmail
+            ? "Gmail này đã gửi bài cho chiến dịch rồi — mỗi Gmail chỉ 1 bài."
+            : "Bạn đã đăng bài cho chiến dịch này rồi — mỗi tài khoản chỉ 1 bài.",
+        },
+        { status: 409 }
+      );
     }
     const message = err instanceof Error ? err.message : "SUBMIT_FAILED";
     console.warn("[TNTH][BINH-CHON] Đăng bài lỗi:", message);
