@@ -301,7 +301,7 @@ export default function DangKyPage() {
 
             <div>
               <label className="text-xs font-medium text-slate-600">
-                3. Trường học / Cơ sở đào tạo (Cấp cơ sở) <span className="text-rose-500">*</span>
+                3. Đoàn trực thuộc cấp cơ sở (Trường học / Cơ sở đào tạo) <span className="text-rose-500">*</span>
               </label>
               <select
                 value={form.orgUnitId}

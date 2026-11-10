@@ -20,7 +20,7 @@ import type {
   OrgDirectory, PublishedPost, QuizAnswer, QuizAttempt, QuizExam, QuizQuestion,
   RankingEntry, RankingSnapshot, Report, Resource, Score,
   SystemSetting, Task, TaskAssignment, TaskMetric, TaskResult, VolunteerProject,
-  VolunteerProjectField, VolunteerProjectPhase,
+  VolunteerProjectField, VolunteerProjectPhase, VolunteerProjectPhaseEntry,
 } from "@/types";
 import { CONTRIBUTION_POINTS } from "@/types";
 import { orgUnits as seedOrgUnits, descendantIds } from "@/data/org-units";
@@ -75,6 +75,17 @@ export interface DirectiveTaskInput {
   metrics: { name: string; unit: string; targetValue: number; aggregationType: "SUM" | "COUNT" | "AVG" | "MAX" | "PERCENT" }[];
   targetOrgUnitIds: number[];
   sourceDocNumber?: string;
+}
+
+/** Phân công bổ sung — nhiệm vụ đột xuất gắn vào 1 tiêu chí (criteria_set_id NULL, không tính điểm cố định) */
+export interface SupplementaryTaskInput {
+  /** Tiêu chí (Task kind CRITERION) mà nhiệm vụ bổ sung nằm dưới */
+  parentTaskId: number;
+  title: string;
+  note?: string;
+  dueDate: string;
+  targetOrgUnitIds: number[];
+  metrics: { name: string; unit: string; targetValue: number }[];
 }
 
 let uid = 900000;
@@ -233,6 +244,8 @@ interface StoreValue {
   distributeAssignment: (session: Session, taskId: number, parentAssignmentId: number | null, orgUnitId: number, dueDate: string, targets: { taskMetricId: number; targetValue: number }[], note?: string) => void;
   /** Tạo nhiệm vụ từ AI lượng hoá công văn — tạo Task + TaskMetrics + giao nhiều đơn vị + thông báo, trả về id */
   createDirectiveTask: (session: Session, input: DirectiveTaskInput) => { taskId: number; assignmentIds: number[] };
+  /** Phân công bổ sung — nhiệm vụ đột xuất dưới 1 tiêu chí, giao nhiều đơn vị cấp dưới */
+  createSupplementaryTask: (session: Session, input: SupplementaryTaskInput) => { taskId: number; assignmentIds: number[] };
   updateResult: (session: Session, assignmentId: number, values: { assignmentTargetId: number; reportedValue: number }[], note?: string) => void;
   reviewAssignment: (session: Session, assignmentId: number, action: AssignmentReview["action"], note?: string) => void;
   /** Đánh dấu nhanh tiến độ (hoàn thành / đang làm / chưa bắt đầu) ngay từ danh sách nhiệm vụ */
@@ -313,12 +326,27 @@ interface StoreValue {
   orgDirectories: OrgDirectory[];
   saveDirectory: (session: Session, orgUnitId: number, input: { secretaryName: string; secretaryPhone: string; email: string; achievements: string; strengths: string; academicResources: string; clubs: string }) => void;
   volunteerProjects: VolunteerProject[];
-  submitVolunteerProject: (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => number;
+  submitVolunteerProject: (session: Session, input: {
+    orgUnitId: number; schoolName: string; province: string; ward?: string;
+    projectName: string; summary: string; objectives?: string; timeframe?: string;
+    beneficiaries: string; participants: number;
+    field: VolunteerProjectField; phase: VolunteerProjectPhase;
+    initialResults?: string; direction?: string;
+    phases?: VolunteerProjectPhaseEntry[];
+  }, mod: ModerationResult) => number;
   moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
   quizQuestions: QuizQuestion[];
   quizExams: QuizExam[];
   saveQuizExam: (session: Session, input: { code: string; title: string; description?: string; durationMinutes: number; shuffleQuestions: boolean; shuffleOptions: boolean; adaptive: boolean; topics?: string[]; status?: QuizExam["status"] }, questionIds: number[]) => number;
   setQuizExamStatus: (id: number, status: QuizExam["status"]) => void;
+  /** Lưu bộ câu hỏi (import Excel) vào ngân hàng câu hỏi — trả về số câu đã lưu */
+  saveQuizQuestions: (session: Session, items: Omit<QuizQuestion, "id">[]) => number;
+  /** Xóa kỳ thi đã đóng (kèm dòng dữ liệu sync qua /api/store) */
+  deleteQuizExam: (id: number) => void;
+  /** Xóa kỳ xếp hạng kèm bảng xếp hạng con */
+  deleteRankingSnapshot: (id: number) => void;
+  /** Xóa báo cáo */
+  deleteReport: (id: number) => void;
   quizAttempts: QuizAttempt[];
   startQuizAttempt: (examId: number, examinee: { name: string; orgText: string; accountId?: number }) => number;
   submitQuizAttempt: (attemptId: number, answers: Record<number, QuizAnswer>, autoScore: number, maxScore: number, trail?: AdaptiveStep[]) => void;
@@ -617,6 +645,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           };
           return {
             ...p,
+            phases: Array.isArray(p.phases) ? p.phases : [],
             reportFile: reportFileName ? { name: reportFileName, dataUrl: reportFileData ?? undefined } : undefined,
           } as VolunteerProject;
         });
@@ -943,6 +972,80 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             notificationType: "TASK_ASSIGNED",
             title: "Nhiệm vụ mới được giao",
             message: `Bạn nhận nhiệm vụ "${task.title}" với ${input.metrics.length} chỉ tiêu, hạn ${input.dueDate}.`,
+            refType: "ASSIGNMENT", refId: assignmentIds[i], linkUrl: `/quan-tri/nhiem-vu/phan-cong/${assignmentIds[i]}`,
+          });
+        }
+      }
+      return { taskId, assignmentIds };
+    },
+    [tasks, accountByOrgUnit, addNotification]
+  );
+
+  /**
+   * Phân công bổ sung: hoạt động đột xuất/ngoài kế hoạch nhưng vẫn nằm trong tiêu chí.
+   * Task mới criteria_set_id = NULL (đột xuất — không tính điểm bộ tiêu chí) + parentTaskId
+   * trỏ vào tiêu chí để hiển thị trong cây; metrics tự khai; giao nhiều đơn vị cấp dưới.
+   */
+  const createSupplementaryTask = useCallback(
+    (session: Session, input: SupplementaryTaskInput) => {
+      const taskId = nextId();
+      const codeSeq = tasks.filter((t) => t.code.startsWith("BS-")).length + 1;
+      const task: Task = {
+        id: taskId,
+        criteriaSetId: null,
+        parentTaskId: input.parentTaskId,
+        code: `BS-${String(codeSeq).padStart(2, "0")}`,
+        title: input.title.trim(),
+        description: input.note?.trim() || undefined,
+        taskKind: "TASK",
+        maxPoints: 0,
+        scoringMethod: "MANUAL_CONFIRM",
+        dueDate: input.dueDate,
+        displayOrder: 950 + tasks.length,
+        status: "PUBLISHED",
+      };
+      const metricIds = input.metrics.map((_, i) => nextId() + i);
+      const assignmentIds = input.targetOrgUnitIds.map((_, i) => nextId() + 100 + i);
+      let targetBase = nextId() + 200;
+      const newMetrics: TaskMetric[] = input.metrics.map((m, i) => ({
+        id: metricIds[i],
+        taskId,
+        code: `SUPPLEMENT_${i + 1}`,
+        name: m.name.trim(),
+        unitOfMeasure: m.unit.trim() || "đơn vị",
+        aggregationType: "SUM",
+      }));
+      const newAssignments: TaskAssignment[] = input.targetOrgUnitIds.map((orgUnitId, i) => ({
+        id: assignmentIds[i],
+        taskId,
+        orgUnitId,
+        assignedByOrgUnitId: session.orgUnitId,
+        parentAssignmentId: null,
+        dueDate: input.dueDate,
+        progressStatus: "NOT_STARTED",
+        confirmStatus: "PENDING",
+        completionRate: 0,
+        note: input.note?.trim() || "Phân công bổ sung",
+        assignedAt: nowISO(),
+      }));
+      const newTargets: AssignmentTarget[] = [];
+      assignmentIds.forEach((asgId) => {
+        input.metrics.forEach((m, i) => {
+          newTargets.push({ id: targetBase++, taskAssignmentId: asgId, taskMetricId: metricIds[i], targetValue: m.targetValue, achievedValue: 0 });
+        });
+      });
+      setTasks((prev) => [...prev, task]);
+      setTaskMetrics((prev) => [...prev, ...newMetrics]);
+      setTaskAssignments((prev) => [...prev, ...newAssignments]);
+      setAssignmentTargets((prev) => [...prev, ...newTargets]);
+      for (let i = 0; i < input.targetOrgUnitIds.length; i++) {
+        const acc = accountByOrgUnit(input.targetOrgUnitIds[i]);
+        if (acc) {
+          addNotification({
+            recipientAccountId: acc.id,
+            notificationType: "TASK_ASSIGNED",
+            title: "Nhiệm vụ bổ sung mới được giao",
+            message: `Bạn nhận nhiệm vụ bổ sung "${task.title}" với ${input.metrics.length} chỉ tiêu, hạn ${input.dueDate}.`,
             refType: "ASSIGNMENT", refId: assignmentIds[i], linkUrl: `/quan-tri/nhiem-vu/phan-cong/${assignmentIds[i]}`,
           });
         }
@@ -1880,24 +1983,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const submitVolunteerProject = useCallback(
-    (session: Session, input: { orgUnitId: number; schoolName: string; province: string; projectName: string; summary: string; beneficiaries: string; participants: number; field: VolunteerProjectField; phase: VolunteerProjectPhase; reportFile?: { name: string; dataUrl?: string } }, mod: ModerationResult) => {
+    (session: Session, input: {
+      orgUnitId: number; schoolName: string; province: string; ward?: string;
+      projectName: string; summary: string; objectives?: string; timeframe?: string;
+      beneficiaries: string; participants: number;
+      field: VolunteerProjectField; phase: VolunteerProjectPhase;
+      initialResults?: string; direction?: string;
+      phases?: VolunteerProjectPhaseEntry[];
+    }, mod: ModerationResult) => {
       const id = nextId();
       const project: VolunteerProject = {
         id,
         orgUnitId: input.orgUnitId,
         schoolName: input.schoolName.trim(),
         province: input.province,
+        ward: input.ward?.trim() || undefined,
         projectName: input.projectName.trim(),
         summary: input.summary.trim(),
+        objectives: input.objectives?.trim() || undefined,
+        timeframe: input.timeframe?.trim() || undefined,
         beneficiaries: input.beneficiaries.trim(),
         participants: input.participants || 1,
         status: "PENDING",
         submittedByAccountId: session.accountId,
         field: input.field,
         phase: input.phase,
+        initialResults: input.initialResults?.trim() || undefined,
+        direction: input.direction?.trim() || undefined,
+        phases: (input.phases ?? []).filter((ph) => ph.at.trim() || ph.content.trim()),
         aiVerdict: mod.verdict,
         aiReason: mod.reason,
-        reportFile: input.reportFile?.name ? input.reportFile : undefined,
         createdAt: nowISO(),
       };
       setVolunteerProjects((prev) => [project, ...prev]);
@@ -1984,6 +2099,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setQuizExamStatus = useCallback((id: number, status: QuizExam["status"]) => {
     setQuizExams((prev) => prev.map((e) => (e.id === id ? { ...e, status } : e)));
   }, []);
+
+  /** Lưu bộ câu hỏi (import Excel / nhập tay) vào ngân hàng — id tự sinh phía client, sync qua /api/store */
+  const saveQuizQuestions = useCallback(
+    (session: Session, items: Omit<QuizQuestion, "id">[]) => {
+      const maxId = Math.max(0, ...quizQuestions.map((q) => Number(q.id)));
+      const withIds = items.map((q, i) => ({ ...q, id: maxId + 1 + i }));
+      setQuizQuestions((prev) => [...prev, ...withIds]);
+      return withIds.length;
+    },
+    [quizQuestions]
+  );
+
+  const deleteQuizExam = useCallback((id: number) => {
+    setQuizExams((prev) => prev.filter((e) => e.id !== id));
+    trackDelete("quizExams", [id]);
+  }, [trackDelete]);
+
+  const deleteRankingSnapshot = useCallback((id: number) => {
+    const entryIds = rankingEntries.filter((e) => Number(e.snapshotId) === Number(id)).map((e) => e.id);
+    setRankingEntries((prev) => prev.filter((e) => Number(e.snapshotId) !== Number(id)));
+    setRankingSnapshots((prev) => prev.filter((r) => r.id !== id));
+    trackDelete("rankingEntries", entryIds);
+    trackDelete("rankingSnapshots", [id]);
+  }, [trackDelete, rankingEntries]);
+
+  const deleteReport = useCallback((id: number) => {
+    setReports((prev) => prev.filter((r) => r.id !== id));
+    trackDelete("reports", [id]);
+  }, [trackDelete]);
 
   const startQuizAttempt = useCallback(
     (examId: number, examinee: { name: string; orgText: string; accountId?: number }) => {
@@ -2147,7 +2291,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createActivity, updateActivity, deleteActivity, submitActivity, reviewActivity,
       savePost, setPostStatus, createPostFromActivity,
       distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, revokeAssignment, saveScore,
-      createDirectiveTask,
+      createDirectiveTask, createSupplementaryTask,
       createReport, updateReport, finalizeReport, exportReport,
       createRankingSnapshot, finalizeRanking,
       issueDocument, revokeDocument, markDocumentRead,
@@ -2162,6 +2306,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orgDirectories, saveDirectory,
       volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
       quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
+      saveQuizQuestions,
+      deleteQuizExam, deleteRankingSnapshot, deleteReport,
       startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,
       hs3tProfiles, hs3tAchievements, hs3tUnitStandards, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel, saveHs3tUnitStandard,
     }),
@@ -2173,6 +2319,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orgDirectories, saveDirectory,
       volunteerProjects, submitVolunteerProject, moderateVolunteerProject,
       quizQuestions, quizExams, saveQuizExam, setQuizExamStatus, quizAttempts,
+      saveQuizQuestions,
+      deleteQuizExam, deleteRankingSnapshot, deleteReport,
       startQuizAttempt, submitQuizAttempt, gradeQuizAttempt,
       hs3tProfiles, hs3tAchievements, hs3tUnitStandards, ensureHs3tProfile, addHs3tAchievement, awardHs3tLevel, saveHs3tUnitStandard,
       orgUnits, accounts, activities, publishedPosts, criteriaSets, tasks, taskMetrics,
@@ -2185,6 +2333,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       savePost, setPostStatus, createPostFromActivity,
       distributeAssignment, updateResult, reviewAssignment, setAssignmentProgress, revokeAssignment, saveScore,
       createDirectiveTask,
+      createSupplementaryTask,
       createReport, updateReport, finalizeReport, exportReport,
       createRankingSnapshot, finalizeRanking,
       issueDocument, revokeDocument, markDocumentRead,

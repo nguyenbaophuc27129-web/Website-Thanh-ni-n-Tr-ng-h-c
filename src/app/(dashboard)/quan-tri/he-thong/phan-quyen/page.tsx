@@ -87,8 +87,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // 2 tab chuẩn: Danh sách tài khoản & Danh mục chức danh
-  const [activeTab, setActiveTab] = useState<"accounts" | "nametags">("accounts");
+  // 3 tab: Danh sách tài khoản & phân quyền · Tài khoản đơn vị · Danh mục chức danh
+  const [activeTab, setActiveTab] = useState<"accounts" | "unit-accounts" | "nametags">("accounts");
 
   // Filters
   const [search, setSearch] = useState("");
@@ -96,6 +96,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [nametagFilter, setNametagFilter] = useState<string>("all");
   const [permFilter, setPermFilter] = useState<string>("all");
+  const [unitSearch, setUnitSearch] = useState("");
 
   // Nametags dynamic list from DB
   const [dbNametags, setDbNametags] = useState<DbNametag[]>([]);
@@ -289,6 +290,29 @@ export default function PhanQuyenVaTaiKhoanPage() {
       withNametag: scoped.filter((a) => Boolean(a.chucDanh)).length,
     };
   }, [store.accounts, scope, session]);
+
+  /* ================= Danh sách TÀI KHOẢN ĐƠN VỊ (mục riêng — TK tổ chức, không gồm Đoàn viên cá nhân) ================= */
+  const unitAccounts = useMemo(() => {
+    const q = unitSearch.trim().toLowerCase();
+    return store.accounts
+      .filter((a) => a.role !== "DOAN_VIEN")
+      .filter((a) => (session?.role === "QUAN_TRI_TW" ? true : scope.includes(a.orgUnitId)))
+      .filter((a) => {
+        if (!q) return true;
+        const u = store.orgById(a.orgUnitId);
+        return (
+          a.username.toLowerCase().includes(q) ||
+          a.contactPerson.toLowerCase().includes(q) ||
+          a.email.toLowerCase().includes(q) ||
+          (u?.name ?? "").toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const ua = store.orgById(a.orgUnitId);
+        const ub = store.orgById(b.orgUnitId);
+        return (ua?.path ?? "").localeCompare(ub?.path ?? "") || a.username.localeCompare(b.username);
+      });
+  }, [store.accounts, store, scope, session, unitSearch]);
 
   /* ================= Xử lý sửa Chức danh (Nametag) ================= */
   const openEditNametagModal = (item: { id?: number; name: string; description?: string }) => {
@@ -886,6 +910,17 @@ export default function PhanQuyenVaTaiKhoanPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab("unit-accounts")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+            activeTab === "unit-accounts"
+              ? "border-blue-700 text-blue-800"
+              : "border-transparent text-stone-500 hover:text-stone-800"
+          }`}
+        >
+          <FileSpreadsheet className="h-4 w-4" /> Danh sách tài khoản đơn vị ({unitAccounts.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab("nametags")}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
             activeTab === "nametags"
@@ -936,8 +971,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
                     <option value="all">Tất cả Cấp đơn vị</option>
                     <option value="1">Thuộc Trung ương Đoàn (Cấp 1)</option>
                     <option value="2">Tỉnh / Thành đoàn &amp; Trực thuộc (Cấp 2)</option>
-                    <option value="3">Cấp cơ sở (Đoàn trường, Xã/Phường…) (Cấp 3)</option>
-                    <option value="4">Dưới cơ sở (Chi đoàn) (Cấp 4)</option>
+                    <option value="3">Cấp cơ sở và tương đương</option>
+                    <option value="4">Đoàn trực thuộc cấp cơ sở</option>
                     <option value="doanvien">Tài khoản Đoàn viên</option>
                   </select>
                 </div>
@@ -1050,8 +1085,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
                                 : unit?.orgLevel === 2
                                 ? "Cấp 2 · Tỉnh / Thành / Trực thuộc"
                                 : unit?.orgLevel === 3
-                                ? "Cấp 3 · Cấp cơ sở"
-                                : "Cấp 4 · Dưới cơ sở"}
+                                ? "Cấp cơ sở và tương đương"
+                                : "Đoàn trực thuộc cấp cơ sở"}
                             </span>
                           </Td>
 
@@ -1173,6 +1208,107 @@ export default function PhanQuyenVaTaiKhoanPage() {
       {/* ==============================================================
        * TAB 2: DANH MỤC CHỨC DANH (19) — ĐỒNG BỘ CỘT THẲNG HÀNG, MÀU XANH DƯƠNG, BỎ ICON
        * ============================================================== */}
+      {/* ==============================================================
+       * TAB: DANH SÁCH TÀI KHOẢN ĐƠN VỊ (TK dùng chung của tổ chức cơ sở)
+       * ============================================================== */}
+      {activeTab === "unit-accounts" && (
+        <div className="space-y-4">
+          <p className="rounded-lg bg-sky-50 px-3.5 py-2.5 text-xs leading-relaxed text-sky-800">
+            Mỗi đơn vị tổ chức (Tỉnh/Thành đoàn, cấp cơ sở, trường…) dùng chung <b>01 tài khoản đơn vị</b> — khác với
+            tài khoản Đoàn viên cá nhân. Tạo mới từng tài khoản hoặc nhập hàng loạt bằng file Excel.
+          </p>
+          <Card>
+            <CardBody className="p-3.5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="relative lg:col-span-2">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
+                  <input
+                    type="text"
+                    value={unitSearch}
+                    onChange={(e) => setUnitSearch(e.target.value)}
+                    placeholder="Tìm theo tên đăng nhập, người đại diện, đơn vị…"
+                    className="w-full rounded-lg border border-stone-200 bg-white py-2 pl-9 pr-3 text-sm text-stone-800 placeholder-stone-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+                <Button
+                  onClick={() => setCreateOpen(true)}
+                  className="bg-blue-700 hover:bg-blue-800 text-white"
+                >
+                  <UserPlus className="h-4 w-4" /> Tạo tài khoản đơn vị
+                </Button>
+                <Button variant="outline" onClick={() => setImportOpen(true)}>
+                  <FileUp className="h-4 w-4" /> Import Excel
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardBody className="p-0">
+              <TableWrap>
+                <THead>
+                  <Th>Tài khoản &amp; Người đại diện</Th>
+                  <Th>Đơn vị</Th>
+                  <Th>Cấp</Th>
+                  <Th>Email / Điện thoại</Th>
+                  <Th>Trạng thái</Th>
+                  <Th className="text-right">Thao tác</Th>
+                </THead>
+                <tbody>
+                  {unitAccounts.length === 0 ? <EmptyRow colSpan={6} message="Chưa có tài khoản đơn vị nào trong phạm vi của bạn." /> : null}
+                  {unitAccounts.map((a) => {
+                    const u = store.orgById(a.orgUnitId);
+                    const lvl = u?.orgLevel;
+                    const levelLabel =
+                      lvl === 1 ? "Trung ương Đoàn"
+                      : lvl === 2 ? "Tỉnh / Thành đoàn"
+                      : lvl === 3 ? "Cấp cơ sở và tương đương"
+                      : lvl === 4 ? "Đoàn trực thuộc cấp cơ sở"
+                      : lvl === 5 ? "Dưới cơ sở"
+                      : "—";
+                    return (
+                      <Tr key={a.id}>
+                        <Td>
+                          <p className="font-mono text-xs font-bold text-stone-900">@{a.username}</p>
+                          <p className="text-[11px] text-stone-500">{a.contactPerson || "—"}{a.contactPosition ? ` · ${a.contactPosition}` : ""}</p>
+                        </Td>
+                        <Td className="max-w-56">
+                          <span className="block truncate text-xs font-medium text-stone-800" title={u?.name}>
+                            {u?.name ?? `Đơn vị #${a.orgUnitId}`}
+                          </span>
+                        </Td>
+                        <Td><Badge tone={lvl === 2 ? "blue" : lvl === 3 ? "purple" : lvl === 4 ? "orange" : "gray"}>{levelLabel}</Badge></Td>
+                        <Td className="text-xs text-stone-500">
+                          <p className="truncate">{a.email || "—"}</p>
+                          <p className="text-[11px] text-stone-400">{a.phone || ""}</p>
+                        </Td>
+                        <Td>
+                          {a.status === "ACTIVE" ? <Badge tone="green">Đang hoạt động</Badge>
+                            : a.status === "LOCKED" ? <Badge tone="gray">Đã khóa</Badge>
+                            : <Badge tone="yellow">Chờ duyệt</Badge>}
+                        </Td>
+                        <Td className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => openEditModal(a)}>
+                              <Edit3 className="h-3.5 w-3.5" /> Sửa
+                            </Button>
+                            {session && isSuperior(a) ? (
+                              <Button size="sm" variant="ghost" onClick={() => setDeletingAccount(a)} className="text-red-600 hover:text-red-700">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </tbody>
+              </TableWrap>
+            </CardBody>
+          </Card>
+        </div>
+      )}
+
       {activeTab === "nametags" && (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1477,7 +1613,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 </optgroup>
               )}
               {creatableUnits.filter((u) => u.orgLevel === 3).length > 0 && (
-                <optgroup label="Cấp 3 — Cấp cơ sở (Đoàn trường, Đoàn xã/phường…)">
+                <optgroup label="Cấp cơ sở và tương đương">
                   {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
@@ -1486,7 +1622,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                 </optgroup>
               )}
               {creatableUnits.filter((u) => u.orgLevel === 4).length > 0 && (
-                <optgroup label="Cấp 4 — Dưới cơ sở (Chi đoàn)">
+                <optgroup label="Đoàn trực thuộc cấp cơ sở">
                   {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
@@ -1717,7 +1853,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   </optgroup>
                 )}
                 {creatableUnits.filter((u) => u.orgLevel === 3).length > 0 && (
-                  <optgroup label="Cấp 3 — Cấp cơ sở (Đoàn trường, Đoàn xã/phường…)">
+                  <optgroup label="Cấp cơ sở và tương đương">
                     {creatableUnits.filter((u) => u.orgLevel === 3).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}
@@ -1726,7 +1862,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                   </optgroup>
                 )}
                 {creatableUnits.filter((u) => u.orgLevel === 4).length > 0 && (
-                  <optgroup label="Cấp 4 — Dưới cơ sở (Chi đoàn)">
+                  <optgroup label="Đoàn trực thuộc cấp cơ sở">
                     {creatableUnits.filter((u) => u.orgLevel === 4).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}

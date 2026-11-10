@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Trophy, Plus, Lock, Loader2 } from "lucide-react";
+import { Trophy, Plus, Lock, Loader2, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -129,6 +129,19 @@ export default function BangXepHangAdminPage() {
                       Chốt kỳ
                     </Button>
                   ) : null}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-600 hover:text-red-700"
+                    onClick={() => {
+                      if (confirm(`Xóa kỳ xếp hạng "${selected.name}"? Bảng hạng con của kỳ này cũng bị xóa, không thể hoàn tác.`)) {
+                        store.deleteRankingSnapshot(selected.id);
+                        setSelectedId(null);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               }
             />
@@ -211,8 +224,8 @@ export default function BangXepHangAdminPage() {
             <Field label="Xếp hạng đơn vị cấp">
               <Select value={form.rankedOrgLevel} onChange={(e) => setForm((f) => ({ ...f, rankedOrgLevel: e.target.value }))}>
                 <option value="2">Cấp 2 — Tỉnh Đoàn / Thành Đoàn</option>
-                <option value="3">Cấp 3 — Cấp cơ sở (Đoàn trường / Xã phường)</option>
-                <option value="4">Cấp 4 — Dưới cơ sở (Chi đoàn)</option>
+                <option value="3">Cấp cơ sở và tương đương</option>
+                <option value="4">Đoàn trực thuộc cấp cơ sở</option>
               </Select>
             </Field>
             <Field label="Kiểu xếp hạng">

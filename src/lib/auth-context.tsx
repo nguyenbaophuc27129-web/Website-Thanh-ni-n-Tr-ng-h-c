@@ -20,7 +20,7 @@ export type Role =
 export const ROLE_LABELS: Record<Role, string> = {
   QUAN_TRI_TW: "Quản trị Trung ương",
   QUAN_TRI_TINH: "Quản trị cấp Tỉnh/Tw",
-  QUAN_TRI_CAP3: "Quản trị cấp 3",
+  QUAN_TRI_CAP3: "Quản trị cấp cơ sở",
   DON_VI: "Đơn vị cơ sở",
   BIEN_TAP_VIEN: "Biên tập viên",
   DOAN_VIEN: "Đoàn viên",

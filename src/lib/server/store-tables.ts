@@ -420,7 +420,11 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
     fields: {
       id: f("id", "int"), orgUnitId: f("org_unit_id", "int"),
       schoolName: f("school_name", "str"), province: f("province", "str"),
+      ward: f("ward", "str"),
       projectName: f("project_name", "str"), summary: f("summary", "str"),
+      objectives: f("objectives", "str"), timeframe: f("timeframe", "str"),
+      initialResults: f("initial_results", "str"), direction: f("direction", "str"),
+      phases: f("phases", "json"),
       beneficiaries: f("beneficiaries", "str"), participants: f("participants", "int"),
       status: f("status", "str"), submittedByAccountId: f("submitted_by_account_id", "int"),
       field: f("field", "str"), phase: f("phase", "str"),

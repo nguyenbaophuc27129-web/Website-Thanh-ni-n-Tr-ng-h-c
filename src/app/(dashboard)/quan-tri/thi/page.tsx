@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   ShieldAlert, Plus, Wand2, Timer, ListChecks, Shuffle, Sparkles, Play, Square,
-  ClipboardCheck, MonitorPlay, FileUp,
+  ClipboardCheck, MonitorPlay, FileUp, Download, FileSpreadsheet, Save, Trash2,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -18,7 +18,17 @@ import { TableWrap, THead, Th, Tr, Td, EmptyRow } from "@/components/ui/table";
 import { pickExamQuestions } from "@/lib/quiz";
 import { quizQuestions as quizBank } from "@/data/quiz-bank";
 import { formatDateTime } from "@/lib/utils";
-import type { QuizDifficulty, QuizQuestionType } from "@/types";
+import type { QuizDifficulty, QuizQuestion, QuizQuestionType } from "@/types";
+
+/** Bỏ hoa thường + dấu để so khớp cột Excel khi import */
+function norm(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .trim();
+}
 
 const DIFF_LABEL: Record<QuizDifficulty, string> = { EASY: "Dễ", MEDIUM: "Vừa", HARD: "Khó" };
 const DIFF_TONE: Record<QuizDifficulty, "green" | "yellow" | "red"> = { EASY: "green", MEDIUM: "yellow", HARD: "red" };
@@ -37,7 +47,20 @@ const isEssay = (t: QuizQuestionType) => t === "SHORT_ANSWER" || t === "LONG_ANS
 /** Danh sách chuyên mục trong ngân hàng câu hỏi — sắp xếp alphabet tiếng Việt */
 const TOPIC_LIST = Array.from(new Set(quizBank.map((q) => q.topic))).sort((a, b) => a.localeCompare(b, "vi"));
 
-type View = "EXAMS" | "ATTEMPTS";
+/** Map nhãn Excel → loại câu hỏi hệ thống */
+const TYPE_IMPORT_MAP: Record<string, QuizQuestionType> = {
+  "mot dap an": "MCQ_SINGLE",
+  "nhieu dap an": "MCQ_MULTI",
+  "dung / sai": "TRUE_FALSE",
+  "dung sai": "TRUE_FALSE",
+  "dien khuyet": "FILL",
+  "tu luan ngan": "SHORT_ANSWER",
+  "tu luan dai": "LONG_ANSWER",
+  "nop tep": "FILE_UPLOAD",
+};
+const DIFF_IMPORT_MAP: Record<string, QuizDifficulty> = { "de": "EASY", "vua": "MEDIUM", "kho": "HARD" };
+
+type View = "EXAMS" | "ATTEMPTS" | "BANK";
 
 export default function ThiAdminPage() {
   const { session } = useAuth();
@@ -75,6 +98,14 @@ export default function ThiAdminPage() {
   // ===== Chấm tay =====
   const [gradingId, setGradingId] = useState<number | null>(null);
   const [gradeInputs, setGradeInputs] = useState<Record<number, number>>({});
+
+  // ===== Ngân hàng câu hỏi — import Excel =====
+  interface BankImportRow {
+    question: Omit<QuizQuestion, "id">;
+    error?: string;
+  }
+  const [importRows, setImportRows] = useState<BankImportRow[]>([]);
+  const [parsing, setParsing] = useState(false);
 
   if (!session || (session.role !== "QUAN_TRI_TW" && session.role !== "QUAN_TRI_TINH" && session.role !== "QUAN_TRI_CAP3" && session.role !== "DON_VI")) {
     return (
@@ -187,6 +218,123 @@ export default function ThiAdminPage() {
     setGradingId(null);
   };
 
+  /* ============ Ngân hàng câu hỏi — import Excel ============ */
+
+  const saveBank = () => {
+    const valid = importRows.filter((r) => !r.error);
+    if (valid.length === 0) {
+      toast("Không có dòng hợp lệ nào để lưu.", "warning");
+      return;
+    }
+    const n = store.saveQuizQuestions(session!, valid.map((r) => r.question));
+    toast(`Đã lưu ${n} câu hỏi vào ngân hàng — dùng ngay khi sinh đề.`, "success");
+    setImportRows([]);
+  };
+
+  const parseBankFile = async (file?: File) => {
+    if (!file) return;
+    setParsing(true);
+    try {
+      const isCsv = file.name.endsWith(".csv") || file.name.endsWith(".txt");
+      let rows: string[][] = [];
+      if (!isCsv) {
+        const ExcelJS = (await import("exceljs")).default;
+        const wb = new ExcelJS.Workbook();
+        const buffer = await file.arrayBuffer();
+        await wb.xlsx.load(buffer);
+        const ws = wb.getWorksheet("CauHoi") ?? wb.worksheets[0];
+        if (!ws) throw new Error("File Excel không có trang tính (worksheet).");
+        ws.eachRow({ includeEmpty: false }, (row) => {
+          const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+          rows.push(
+            values.map((v) => {
+              if (v == null) return "";
+              if (typeof v === "object" && "richText" in (v as { richText?: { text: string }[] })) {
+                return (v as { richText?: { text: string }[] }).richText?.map((x) => x.text).join("") ?? "";
+              }
+              if (typeof v === "object" && "result" in (v as { result?: string })) {
+                return String((v as { result?: string }).result ?? "");
+              }
+              return String(v);
+            })
+          );
+        });
+      } else {
+        const text = await file.text();
+        rows = text
+          .split(/\r?\n/)
+          .filter((line) => line.trim().length > 0)
+          .map((line) => line.split(","));
+      }
+
+      const headerIdx = rows.findIndex((r) => r.some((c) => norm(String(c)).includes("loai cau hoi")));
+      if (headerIdx === -1) throw new Error("Thiếu cột 'Loại câu hỏi' trong dòng tiêu đề — hãy dùng file mẫu.");
+      const header = rows[headerIdx].map((c) => norm(String(c)));
+      const col = (kw: string) => header.findIndex((h) => h.includes(kw));
+      const iType = col("loai cau hoi");
+      const iTopic = col("chuyen muc");
+      const iDiff = col("do kho");
+      const iPoints = col("diem");
+      const iStem = col("cau hoi");
+      const iOpts = [col("dap an a"), col("dap an b"), col("dap an c"), col("dap an d")];
+      const iAnswer = col("dap an dung");
+
+      const parsed: BankImportRow[] = [];
+      for (const r of rows.slice(headerIdx + 1)) {
+        const get = (i: number) => (i >= 0 ? String(r[i] ?? "").trim() : "");
+        const rawType = get(iType);
+        const type = TYPE_IMPORT_MAP[norm(rawType)];
+        const topic = get(iTopic);
+        const stem = get(iStem);
+        const points = Math.max(1, Math.round(Number(get(iPoints).replace(/[^\d.]/g, "")) || 1));
+        const difficulty = DIFF_IMPORT_MAP[norm(get(iDiff))] ?? "MEDIUM";
+        const rawAnswer = get(iAnswer);
+        let error: string | undefined;
+        let question: Omit<QuizQuestion, "id"> | undefined;
+
+        if (!type) error = `Loại câu hỏi "${rawType}" không hợp lệ.`;
+        else if (!topic) error = "Thiếu chuyên mục.";
+        else if (!stem) error = "Thiếu nội dung câu hỏi.";
+        else {
+          if (type === "MCQ_SINGLE" || type === "MCQ_MULTI") {
+            const options = iOpts.map((i) => get(i)).filter(Boolean);
+            const letters = rawAnswer.toUpperCase().replace(/[^ABCD]/g, "").split("");
+            if (options.length < 2) error = "Trắc nghiệm cần ít nhất 2 đáp án.";
+            else if (letters.length === 0) error = "Thiếu chữ đáp án đúng (A/B/C/D).";
+            else if (letters.some((L) => L.charCodeAt(0) - 65 >= options.length)) error = `Chữ đáp án vượt số cột đã điền (${options.length} đáp án).`;
+            else if (type === "MCQ_SINGLE" && letters.length > 1) error = "Một đáp án chỉ được chọn 1 chữ.";
+            else if (new Set(letters).size !== letters.length) error = "Chữ đáp án bị lặp.";
+            if (!error) {
+              const idx = Array.from(new Set(letters.map((L) => L.charCodeAt(0) - 65)));
+              question = { topic, difficulty, type, stem, options, correctIndexes: idx, points };
+            }
+          } else if (type === "TRUE_FALSE") {
+            if (!/^(dung|sai)/i.test(norm(rawAnswer))) error = "Đúng / Sai: điền 'Đúng' hoặc 'Sai'.";
+            else question = {
+              topic, difficulty, type, stem,
+              options: ["Đúng", "Sai"],
+              correctIndexes: [norm(rawAnswer).startsWith("dung") ? 0 : 1],
+              points,
+            };
+          } else {
+            // FILL / SHORT_ANSWER / LONG_ANSWER / FILE_UPLOAD — đáp án dạng chữ (tham khảo với tự luận)
+            if (!rawAnswer && type === "FILL") error = "Điền khuyết: thiếu đáp án cần điền.";
+            else question = { topic, difficulty, type, stem, correctText: rawAnswer || undefined, points };
+          }
+        }
+        parsed.push(question ? { question, error } : { question: { topic: topic || "—", difficulty, type: type ?? "MCQ_SINGLE", stem: stem || "—", points }, error: error ?? "Lỗi không rõ" });
+      }
+      if (parsed.length === 0) throw new Error("File không có dòng dữ liệu nào.");
+      setImportRows(parsed);
+      const bad = parsed.filter((p) => p.error).length;
+      toast(`Đã đọc ${parsed.length} câu — ${bad} dòng có lỗi cần sửa trước khi lưu.`, bad ? "warning" : "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Không đọc được file. Hãy dùng file .xlsx theo mẫu.", "warning");
+    } finally {
+      setParsing(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -201,11 +349,122 @@ export default function ThiAdminPage() {
         onChange={setView}
         tabs={[
           { value: "EXAMS", label: "Kỳ thi", count: store.quizExams.length },
+          { value: "BANK", label: "Ngân hàng câu hỏi", count: store.quizQuestions.length },
           { value: "ATTEMPTS", label: "Bài thi & chấm", count: store.quizAttempts.length },
         ]}
       />
 
-      {view === "EXAMS" ? (
+      {view === "BANK" ? (
+        <>
+          {/* ===== Import câu hỏi từ Excel ===== */}
+          <Card>
+            <CardBody className="space-y-4">
+              <p className="inline-flex items-center gap-2 text-sm font-bold text-stone-900">
+                <FileSpreadsheet className="h-4 w-4 text-doan-600" /> Tạo câu hỏi bằng file Excel
+              </p>
+              <p className="text-xs leading-relaxed text-stone-500">
+                Hỗ trợ đủ 7 loại: trắc nghiệm một đáp án, nhiều đáp án, đúng/sai, điền khuyết, tự luận ngắn, tự luận dài và nộp tệp.
+                Mỗi dòng là một câu hỏi — máy chấm tự động trắc nghiệm/đúng-sai/điền khuyết, phần tự luận giám khảo chấm tay.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="secondary" onClick={() => window.open("/api/quiz-questions/template", "_blank")}>
+                  <Download className="h-4 w-4" /> Tải file mẫu (.xlsx)
+                </Button>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-doan-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-doan-600/20 transition hover:bg-doan-700">
+                  <FileSpreadsheet className="h-4 w-4" /> {parsing ? "Đang đọc file…" : "Chọn file (.xlsx)"}
+                  <input type="file" accept=".xlsx,.xls,.csv,.txt" className="hidden" onChange={(e) => parseBankFile(e.target.files?.[0] ?? undefined)} />
+                </label>
+                {importRows.length > 0 ? (
+                  <>
+                    <Button onClick={saveBank} disabled={importRows.every((r) => r.error)}>
+                      <Save className="h-4 w-4" /> Lưu bộ câu hỏi vào ngân hàng
+                    </Button>
+                    <Button variant="ghost" onClick={() => setImportRows([])}>
+                      Bỏ qua
+                    </Button>
+                  </>
+                ) : null}
+                {importRows.length > 0 ? (
+                  <span className="text-[11px] font-semibold text-stone-500">
+                    {importRows.filter((r) => !r.error).length}/{importRows.length} dòng hợp lệ
+                  </span>
+                ) : null}
+              </div>
+
+              {importRows.length > 0 ? (
+                <div className="rounded-xl border border-stone-100">
+                  <p className="border-b border-stone-100 px-4 py-2.5 text-xs font-bold text-stone-700">
+                    Xem trước bộ câu hỏi ({importRows.length} câu)
+                  </p>
+                  <div className="max-h-96 overflow-y-auto">
+                    <ul className="divide-y divide-stone-50">
+                      {importRows.map((r, i) => (
+                        <li key={i} className="px-4 py-2 text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-6 shrink-0 text-stone-400">{i + 1}.</span>
+                            <span className="min-w-0 flex-1 truncate text-stone-700">{r.question.stem}</span>
+                            <Badge tone="blue">{r.question.topic}</Badge>
+                            <Badge tone={DIFF_TONE[r.question.difficulty]}>{DIFF_LABEL[r.question.difficulty]}</Badge>
+                            <span className="hidden w-24 shrink-0 text-right text-stone-400 sm:block">{TYPE_LABEL[r.question.type]}</span>
+                            <span className="w-10 shrink-0 text-right font-bold text-stone-600">{r.question.points}đ</span>
+                          </div>
+                          {r.error ? (
+                            <p className="mt-1 pl-8 text-[11px] font-medium text-red-600">⚠ {r.error} — dòng này sẽ bị bỏ qua khi lưu.</p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
+            </CardBody>
+          </Card>
+
+          {/* ===== Bảng ngân hàng câu hỏi ===== */}
+          <Card>
+            <CardBody className="p-0">
+              <div className="flex items-center justify-between border-b border-stone-100 px-5 py-3">
+                <p className="inline-flex items-center gap-2 text-xs font-bold text-stone-600">
+                  <ListChecks className="h-3.5 w-3.5 text-doan-600" /> Ngân hàng hiện có: {store.quizQuestions.length} câu ·{" "}
+                  {Array.from(new Set(store.quizQuestions.map((q) => q.topic))).length} chuyên mục · tổng{" "}
+                  {store.quizQuestions.reduce((s, q) => s + q.points, 0)} điểm
+                </p>
+                <span className="text-[11px] text-stone-400">Dễ {store.quizQuestions.filter((q) => q.difficulty === "EASY").length} · Vừa {store.quizQuestions.filter((q) => q.difficulty === "MEDIUM").length} · Khó {store.quizQuestions.filter((q) => q.difficulty === "HARD").length}</span>
+              </div>
+              <TableWrap>
+                <THead>
+                  <Th>Câu hỏi</Th>
+                  <Th>Chuyên mục</Th>
+                  <Th>Loại</Th>
+                  <Th>Độ khó</Th>
+                  <Th className="text-right">Điểm</Th>
+                </THead>
+                <tbody>
+                  {store.quizQuestions.length === 0 ? <EmptyRow colSpan={5} message="Ngân hàng chưa có câu hỏi — import file Excel ở khung trên." /> : null}
+                  {store.quizQuestions.map((q) => (
+                    <Tr key={q.id}>
+                      <Td className="max-w-96">
+                        <p className="truncate text-xs font-medium text-stone-800">{q.stem}</p>
+                        {q.options?.length ? (
+                          <p className="mt-0.5 truncate text-[11px] text-stone-400">
+                            {q.options.map((o, j) => `${String.fromCharCode(65 + j)}. ${o}`).join(" · ")}
+                          </p>
+                        ) : q.correctText ? (
+                          <p className="mt-0.5 truncate text-[11px] text-stone-400">Đáp án: {q.correctText}</p>
+                        ) : null}
+                      </Td>
+                      <Td><Badge tone="blue">{q.topic}</Badge></Td>
+                      <Td className="text-xs text-stone-600">{TYPE_LABEL[q.type]}</Td>
+                      <Td><Badge tone={DIFF_TONE[q.difficulty]}>{DIFF_LABEL[q.difficulty]}</Badge></Td>
+                      <Td className="text-right text-xs font-bold text-stone-700">{q.points}đ</Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </TableWrap>
+            </CardBody>
+          </Card>
+        </>
+      ) : view === "EXAMS" ? (
         <>
           {/* ===== Form tạo kỳ thi ===== */}
           <Card>
@@ -365,15 +624,32 @@ export default function ThiAdminPage() {
                           : <Badge tone="yellow">Nháp</Badge>}
                       </Td>
                       <Td className="text-right">
-                        {e.status === "OPEN" ? (
-                          <Button size="sm" variant="outline" onClick={() => toggleStatus(e.id, "OPEN")}>
-                            <Square className="h-3.5 w-3.5" /> Đóng thi
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="outline" onClick={() => toggleStatus(e.id, "CLOSED")}>
-                            <Play className="h-3.5 w-3.5" /> Mở lại
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {e.status === "OPEN" ? (
+                            <Button size="sm" variant="outline" onClick={() => toggleStatus(e.id, "OPEN")}>
+                              <Square className="h-3.5 w-3.5" /> Đóng thi
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => toggleStatus(e.id, "CLOSED")}>
+                              <Play className="h-3.5 w-3.5" /> Mở lại
+                            </Button>
+                          )}
+                          {e.status === "CLOSED" ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => {
+                                if (confirm(`Xóa kỳ thi ${e.code} — "${e.title}"? Kỳ thi đã đóng, xóa không thể hoàn tác.`)) {
+                                  store.deleteQuizExam(e.id);
+                                  toast(`Đã xóa kỳ thi ${e.code}.`, "info");
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : null}
+                        </div>
                       </Td>
                     </Tr>
                   ))}

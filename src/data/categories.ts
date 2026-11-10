@@ -19,6 +19,7 @@ export const contentCategories: ContentCategory[] = [
   { id: 11, code: "TOI_LA_DANG_VIEN_TRE", name: "Câu chuyện \"Tôi là Đảng viên trẻ\"", description: "Gương đảng viên trẻ - học sinh THPT" },
   { id: 12, code: "MOI_TUAN_MOT_CAU_CHUYEN", name: "Mỗi tuần một câu chuyện đẹp", description: "Câu chuyện đẹp mỗi tuần — đồng bộ migration 0026" },
   { id: 13, code: "TIN_TUC_HOAT_DONG_DOAN", name: "Tin tức hoạt động Đoàn", description: "Chuyên mục chuẩn cho tin hoạt động Đoàn - Hội" },
+  { id: 14, code: "CHIEN_DICH_TNCL", name: "Chiến dịch tình nguyện chủ lực", description: "Tiếp sức mùa thi · Hoa phượng đỏ · Mùa hè xanh — ba chiến dịch chủ lực khối trường học" },
 ];
 
 export const documentCategories: DocumentCategory[] = [
@@ -98,15 +99,14 @@ export const SECTION_TAGS: string[] = [
 ];
 
 /**
- * Hệ thống nút chuyên mục đặc biệt trên trang chủ — mỗi nút lọc trang tin tức theo tag.
- * Các giai đoạn sau sẽ nâng từng chuyên mục thành trang riêng của nó.
+ * Hệ thống nút chuyên mục nổi bật trên trang chủ — ĐỒNG BỘ với Cổng Tin tức
+ * (6 chuyên mục, lãnh đạo chốt 10/11/2026). Mỗi nút lọc trang tin theo chuyên mục.
  */
 export const SPECIAL_CATEGORIES: { name: string; href: string }[] = [
-  { name: "3 Chiến dịch tình nguyện chủ lực", href: "/tin-tuc?q=Chiến dịch" },
+  { name: "Chiến dịch tình nguyện chủ lực", href: `/tin-tuc?cat=${encodeURIComponent("Chiến dịch tình nguyện chủ lực")}` },
   { name: "Gương mặt Học sinh 3 tốt", href: `/tin-tuc?cat=${encodeURIComponent("Gương mặt Học sinh 3 tốt cấp Trung ương")}` },
   { name: "Mỗi ngày một tin tốt, mỗi tuần một câu chuyện đẹp", href: `/tin-tuc?cat=${encodeURIComponent("Mỗi tuần một câu chuyện đẹp")}` },
   { name: "Hành trình khoa học trẻ", href: `/tin-tuc?cat=${encodeURIComponent("Hành trình khoa học trẻ")}` },
-  { name: "Học sinh THPT — Công dân toàn cầu", href: `/tin-tuc?cat=${encodeURIComponent("Học sinh THPT - Công dân toàn cầu")}` },
   { name: "Câu chuyện \"Tôi là Đảng viên trẻ\"", href: `/tin-tuc?cat=${encodeURIComponent('Câu chuyện "Tôi là Đảng viên trẻ"')}` },
   { name: "Tin tức hoạt động Đoàn", href: `/tin-tuc?cat=${encodeURIComponent("Tin tức hoạt động Đoàn")}` },
 ];

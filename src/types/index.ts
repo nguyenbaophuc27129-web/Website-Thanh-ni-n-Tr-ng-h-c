@@ -625,14 +625,29 @@ export type VolunteerProjectPhase =
   | "DANG_TRIEN_KHAI"
   | "HOAN_THANH";
 
-/** Dự án tình nguyện "Mỗi trường THPT — 01 dự án" — đăng trong ngân hàng dự án */
+/** Một giai đoạn triển khai của dự án tình nguyện (tự khai): mốc thời gian + nội dung chính */
+export interface VolunteerProjectPhaseEntry {
+  /** Mốc thời gian, VD: "06/2026 — 07/2026" */
+  at: string;
+  /** Nội dung chính thực hiện trong giai đoạn */
+  content: string;
+}
+
+/** Dự án tình nguyện "Mỗi trường THPT — 01 dự án" — đơn vị tự khai, đăng trong ngân hàng dự án */
 export interface VolunteerProject {
   id: number;
   orgUnitId: number;
   schoolName: string;
   province: string;
+  /** Xã / phường nơi thực hiện dự án */
+  ward?: string;
   projectName: string;
+  /** Ý nghĩa dự án */
   summary: string;
+  /** Mục tiêu dự án */
+  objectives?: string;
+  /** Thời gian thực hiện, VD: "06/2026 — 08/2026" */
+  timeframe?: string;
   beneficiaries: string;
   participants: number;
   status: "PENDING" | "APPROVED" | "REJECTED";
@@ -641,12 +656,18 @@ export interface VolunteerProject {
   field: VolunteerProjectField;
   /** Giai đoạn: đang tuyển thành viên / đang triển khai / hoàn thành */
   phase: VolunteerProjectPhase;
+  /** Kết quả bước đầu (đơn vị tự khai) */
+  initialResults?: string;
+  /** Định hướng phát triển dự án */
+  direction?: string;
+  /** Các giai đoạn triển khai của dự án */
+  phases?: VolunteerProjectPhaseEntry[];
   aiVerdict?: "CLEAN" | "FLAGGED";
   aiReason?: string;
   moderatedByAccountId?: number;
   moderatedAt?: string;
   rejectionReason?: string;
-  /** File báo cáo phương pháp thực hiện đính kèm (≤5MB) */
+  /** Legacy: file báo cáo đính kèm từ mẫu cũ (đã bỏ upload từ form tự khai) */
   reportFile?: { name: string; dataUrl?: string };
   createdAt: string;
 }

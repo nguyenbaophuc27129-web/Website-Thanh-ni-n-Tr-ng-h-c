@@ -3,7 +3,7 @@
 /**
  * Lưới Bento "Chuẩn mực & Giá trị danh hiệu" — tông cam "Rực rỡ tuổi học sinh":
  * - Nền thẻ trắng kem viền cam, heading đỏ son.
- * - Ô 3 tiêu chí: nội dung ĐÚNG Điều 4 Quy chế 317/QĐ-TWĐTN-TNTH (HS3T_SUB_CRITERIA), không "ấn tín" tự chế.
+ * - Ô 3 tiêu chí: nội dung ĐÚNG Quy chế danh hiệu "Học sinh 3 tốt" (HS3T_SUB_CRITERIA), không "ấn tín" tự chế.
  * - Ô thống kê: countdown + số liệu trực tiếp. Ô thông điệp: con dấu nhỏ góc phải.
  */
 
@@ -77,8 +77,7 @@ export function BentoGrid({ cd, stats, giftNote, year = 2026 }: BentoGridProps) 
           </h2>
         </div>
         <p className="max-w-md text-xs text-left sm:text-sm text-[#7A4A33]">
-          Ba nhóm tiêu chí theo Điều 4 Quy chế danh hiệu &ldquo;Học sinh 3 tốt&rdquo; giai đoạn 2023&ndash;2027 (Quyết định
-          317/QĐ-TWĐTN-TNTH) — cùng bộ đếm bình chọn trực tiếp toàn quốc.
+          Ba nhóm tiêu chí của danh hiệu &ldquo;Học sinh 3 tốt&rdquo; — cùng bộ đếm bình chọn trực tiếp toàn quốc.
         </p>
       </div>
 
@@ -89,7 +88,7 @@ export function BentoGrid({ cd, stats, giftNote, year = 2026 }: BentoGridProps) 
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F26522]/15 pb-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#F26522]">
-                Điều 4 · Quy chế 317/QĐ-TWĐTN-TNTH
+                Quy chế danh hiệu &ldquo;Học sinh 3 tốt&rdquo;
               </span>
               <h3 className="font-serif-display text-xl font-black text-[#C4161C] sm:text-2xl">
                 Ba nhóm tiêu chí danh hiệu
@@ -254,7 +253,7 @@ export function BentoGrid({ cd, stats, giftNote, year = 2026 }: BentoGridProps) 
           </div>
 
           <div className="mt-5 flex items-center justify-between border-t border-[#F26522]/15 pt-3 font-mono text-[10px] text-[#7A4A33]/70">
-            <span>MỖI TÀI KHOẢN 1 PHIẾU</span>
+            <span>1 GMAIL · 1 PHIẾU / MỖI GƯƠNG</span>
             <span className="font-bold text-[#F26522]">NĂM {year}</span>
           </div>
         </div>
@@ -286,7 +285,7 @@ export function BentoGrid({ cd, stats, giftNote, year = 2026 }: BentoGridProps) 
             <div className="mt-6 flex items-center justify-between border-t border-[#F26522]/15 pt-4">
               <div>
                 <p className="font-serif-display text-sm font-black text-[#C4161C] uppercase sm:text-base">
-                  Ban Thanh niên Trường học
+                  Ban Tổ chức bình chọn
                 </p>
                 <p className="text-[10px] font-semibold text-[#F26522] sm:text-[11px]">
                   Cổng Thanh niên Trường học · Cổng bình chọn {year}
@@ -318,19 +317,19 @@ export function BentoGrid({ cd, stats, giftNote, year = 2026 }: BentoGridProps) 
 
               <p className="mt-4 text-xs leading-relaxed text-justify text-[#5B3A2A] sm:text-sm">
                 {giftNote ??
-                  "Câu chuyện nhận được nhiều sự đồng hành và bình chọn nhất sẽ nhận phần quà vinh danh trong minigame truyền thông của Cổng Thanh niên Trường học."}
+                  "Nhằm vinh danh những hành trình phấn đấu đẹp nhất của tuổi trẻ học đường, câu chuyện nhận được nhiều lượt bình chọn và sự đồng hành nhất sẽ trở thành nguồn cảm hứng của minigame truyền thông số — cùng phần quà vinh danh từ Ban Tổ chức trao tặng khi cổng bình chọn khép lại."}
               </p>
             </div>
 
-            {/* Thẻ minh bạch */}
+            {/* Thẻ cơ chế xác thực */}
             <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-50 p-3.5">
               <div className="flex items-center gap-2 text-emerald-700">
                 <ShieldCheck className="h-4 w-4" />
-                <span className="text-xs font-bold tracking-wider uppercase">Cơ chế bình chọn minh bạch</span>
+                <span className="text-xs font-bold tracking-wider uppercase">Bình chọn xác thực Gmail</span>
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-emerald-800/80">
-                Mỗi tài khoản chỉ sở hữu duy nhất 1 phiếu bình chọn, có thể đổi phiếu trước khi cổng đóng. Dữ liệu ghi
-                nhận công khai trực tiếp.
+                Không cần đăng ký tài khoản — xác thực nhanh bằng Gmail là bình chọn được. Mỗi Gmail bình chọn duy nhất
+                một lần cho mỗi gương; phiếu trùng tự động được hệ thống lọc.
               </p>
             </div>
           </div>

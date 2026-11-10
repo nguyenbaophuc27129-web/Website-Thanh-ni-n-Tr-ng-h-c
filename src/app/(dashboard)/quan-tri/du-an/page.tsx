@@ -128,12 +128,44 @@ export default function DuAnAdminPage() {
                     <div className="rounded-lg bg-stone-50 p-3.5">
                       <p className="mb-1 text-sm font-semibold text-stone-800">{p.projectName}</p>
                       <p className="mb-2 text-xs text-stone-500">
-                        Đơn vị: {p.schoolName} ({store.orgName(p.orgUnitId)}) · Tỉnh: {p.province}
+                        Đơn vị: {p.schoolName} ({store.orgName(p.orgUnitId)}) · {p.province}{p.ward ? ` · ${p.ward}` : ""}
+                        {p.timeframe ? ` · Thời gian: ${p.timeframe}` : ""}
                       </p>
                       <p className="whitespace-pre-line text-sm leading-relaxed text-stone-700">{p.summary}</p>
+                      {p.objectives ? (
+                        <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
+                          <b className="text-stone-700">Mục tiêu:</b> {p.objectives}
+                        </p>
+                      ) : null}
                       <p className="mt-2 text-xs text-stone-500">
                         Người thụ hưởng: <b className="text-stone-700">{p.beneficiaries}</b> · Tham gia: {p.participants} đoàn viên
                       </p>
+                      {p.initialResults ? (
+                        <p className="mt-2 whitespace-pre-line rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-stone-700">
+                          <b className="text-emerald-700">Kết quả bước đầu (đơn vị tự khai):</b> {p.initialResults}
+                        </p>
+                      ) : null}
+                      {p.direction ? (
+                        <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
+                          <b className="text-stone-700">Định hướng phát triển:</b> {p.direction}
+                        </p>
+                      ) : null}
+                      {(p.phases?.length ?? 0) > 0 ? (
+                        <div className="mt-3 border-t border-stone-200 pt-2.5">
+                          <p className="text-xs font-bold text-stone-600">Tiến trình các giai đoạn</p>
+                          <ol className="mt-1.5 space-y-1.5">
+                            {(p.phases ?? []).map((ph, i) => (
+                              <li key={i} className="flex gap-2 text-xs text-stone-600">
+                                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-doan-100 text-[10px] font-bold text-doan-700">{i + 1}</span>
+                                <span>
+                                  {ph.at ? <b className="text-stone-800">{ph.at}: </b> : null}
+                                  {ph.content}
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      ) : null}
                       {p.reportFile?.name ? (
                         <p className="mt-2 text-xs">
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 py-1 pl-2.5 pr-3 font-medium text-slate-600">

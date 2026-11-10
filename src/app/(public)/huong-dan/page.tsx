@@ -28,7 +28,7 @@ const ROLE_STEPS: Record<Role, Step[]> = {
   ],
   QUAN_TRI_TINH: [
     { icon: Users, title: "Tạo tài khoản đơn vị con", desc: "Khởi tạo tài khoản cho Đoàn phường/xã và trường học trực thuộc tỉnh.", href: "/quan-tri/he-thong/tai-khoan" },
-    { icon: ClipboardList, title: "Giao nhiệm vụ xuống cấp dưới", desc: "Phân bổ chỉ tiêu thi đua cho các Đoàn cấp 3 trong tỉnh, theo dõi tiến độ.", href: "/quan-tri/nhiem-vu" },
+    { icon: ClipboardList, title: "Giao nhiệm vụ xuống cấp dưới", desc: "Phân bổ chỉ tiêu thi đua cho các Đoàn cấp cơ sở trong tỉnh, theo dõi tiến độ.", href: "/quan-tri/nhiem-vu" },
     { icon: CheckSquare, title: "Xác nhận hoạt động & báo cáo", desc: "Duyệt hoạt động, xác nhận báo cáo kết quả của cấp dưới; hoạt động chờ quá 3 ngày sẽ thành đèn đỏ ở bảng Trực tiếp.", href: "/quan-tri/nhiem-vu/xac-nhan" },
     { icon: Flag, title: "Theo dõi chương trình trọng tâm", desc: "Xem tiến triển các chương trình trọng tâm (HS3T, dự án tình nguyện, thi kiến thức) của đơn vị bạn.", href: "/quan-tri/chuong-trinh" },
   ],

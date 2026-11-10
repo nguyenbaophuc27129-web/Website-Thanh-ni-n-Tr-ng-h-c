@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
     const sort = sp.get("sort") === "new" ? "new" : "hot";
     const q = sp.get("q")?.trim() ?? "";
     const provinceId = Number(sp.get("provinceId")) || 0;
+    const honorParam = sp.get("honorLevel") ?? "";
 
     const where: string[] = ["s.status = 'APPROVED'", "s.campaign_id = $1"];
     const params: unknown[] = [campaign.id];
@@ -66,6 +67,10 @@ export async function GET(request: NextRequest) {
     if (provinceId) {
       params.push(provinceId);
       where.push(`CASE WHEN school.path ~ '^/1/[0-9]+/' THEN split_part(school.path, '/', 3)::bigint END = $${params.length}`);
+    }
+    if (["TRUONG", "TINH", "TW_DE_CU"].includes(honorParam)) {
+      params.push(honorParam);
+      where.push(`COALESCE(s.honor_level, 'TRUONG') = $${params.length}`);
     }
     const whereSql = `WHERE ${where.join(" AND ")}`;
     const orderBy = sort === "hot" ? "s.vote_count DESC, s.approved_at ASC" : "s.approved_at DESC";
@@ -86,13 +91,24 @@ export async function GET(request: NextRequest) {
     );
 
     let myVoteStoryId: number | null = null;
+    let myVotedStoryIds: number[] = [];
     let myStory = null as ReturnType<typeof toStoryDto> | null;
-    if (session) {
+    // Định danh phiếu của tôi: tài khoản hệ thống HOẶC Gmail đã xác thực (cookie sau khi bình chọn)
+    const voteEmailCookie = request.cookies.get("tnth_vote_email")?.value ?? "";
+    const voteIdentity: { accountId?: number; email?: string } = {};
+    if (session) voteIdentity.accountId = session.accountId;
+    else if (voteEmailCookie) voteIdentity.email = voteEmailCookie;
+    if (voteIdentity.accountId || voteIdentity.email) {
       const voteRows = await query<{ story_id: number | string }>(
-        "SELECT story_id FROM hs3t_votes WHERE campaign_id = $1 AND voter_account_id = $2 LIMIT 1",
-        [campaign.id, session.accountId]
+        `SELECT story_id FROM hs3t_votes
+          WHERE campaign_id = $1 AND is_valid
+            AND (($2::bigint IS NOT NULL AND voter_account_id = $2) OR ($3::text IS NOT NULL AND lower(voter_email) = lower($3)))`,
+        [campaign.id, voteIdentity.accountId ?? null, voteIdentity.email ?? null]
       );
-      myVoteStoryId = voteRows[0] ? Number(voteRows[0].story_id) : null;
+      myVotedStoryIds = voteRows.map((r) => Number(r.story_id));
+      myVoteStoryId = myVotedStoryIds.length ? myVotedStoryIds[myVotedStoryIds.length - 1] : null;
+    }
+    if (session) {
       const myRows = await query<Parameters<typeof toStoryDto>[0]>(
         `${STORY_SELECT} WHERE s.account_id = $1 AND s.campaign_id = $2 ORDER BY s.id DESC LIMIT 1`,
         [session.accountId, campaign.id]
@@ -130,6 +146,7 @@ export async function GET(request: NextRequest) {
       totalPages,
       total,
       myVoteStoryId,
+      myVotedStoryIds,
       myStory,
       topByHonor,
     });

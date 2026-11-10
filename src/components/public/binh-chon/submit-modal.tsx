@@ -248,7 +248,7 @@ export function SubmitModal({
           </Field>
           <Field
             label="Trường / Đơn vị"
-            hint="Hiển thị trên khung ảnh — có thể sửa lại theo ý em"
+            hint="In trên khối thông tin khung ảnh (Đoàn trường) — có thể sửa theo ý em"
           >
             <Input
               value={orgName}
@@ -556,6 +556,8 @@ export function SubmitModal({
         }}
         studentName={studentName}
         orgName={orgName}
+        wardName={wardName}
+        provinceName={provinceName}
       />
       {/* Loader AI gửi bài */}
       {sending ? (

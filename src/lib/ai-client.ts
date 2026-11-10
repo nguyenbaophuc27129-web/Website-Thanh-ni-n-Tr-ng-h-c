@@ -124,6 +124,9 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
             generationConfig: {
               temperature: options.temperature ?? 0.3,
               maxOutputTokens: options.maxTokens ?? 1024,
+              // Family 2.5 bật thinking mặc định — thinking nuốt maxOutputTokens
+              // → trả rỗng. Tác vụ hệ thống đều kiểu phân lớp/văn luật nên tắt hẳn.
+              thinkingConfig: { thinkingBudget: 0 },
               // JSON mode: khoá đầu ra đúng schema thay vì chỉ dựa vào prompt
               ...(options.json
                 ? {
