@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
+import { NextResponse } from "next/server";
 import { callAI } from "@/lib/ai-client";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 import { cleanAiText } from "@/lib/ai-text";
 import { buildDocContext } from "@/lib/server/doc-context";
 import { buildBaoCaoSystemPrompt, periodKindOf } from "@/data/bao-cao-agent";
@@ -60,6 +60,9 @@ export interface ReportDraftContext {
   suggestions?: string[];
 }
 
+/** Trần độ dài ngữ cảnh gửi AI (ký tự JSON) — nới cho danh sách bản ghi hoạt động của cả kỳ */
+const MAX_CTX_CHARS = 100_000;
+
 const SYSTEM_PROMPT = buildBaoCaoSystemPrompt();
 
 /** Đặc tả: phần V "CHỈ có khi đầu vào có đề xuất" — cắt hẳn phần V rỗng (model hay in câu thay thế) */
@@ -70,21 +73,6 @@ function stripEmptySectionV(text: string, hasSuggestions: boolean): string {
   const noiNhanIdx = text.indexOf("Nơi nhận:", idx);
   const cut = noiNhanIdx === -1 ? text.length : noiNhanIdx;
   return (text.slice(0, idx) + text.slice(cut)).replace(/\n{3,}/g, "\n\n").trim();
-}
-
-async function requireSession(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) return { error: 401 as const, message: "Bạn cần đăng nhập để dùng chức năng này." };
-  try {
-    const session = await sessionFromToken(token);
-    if (!session) return { error: 401 as const, message: "Phiên làm việc không hợp lệ." };
-    if (session.role === "DOAN_VIEN") {
-      return { error: 403 as const, message: "Chức năng dành cho cán bộ quản trị." };
-    }
-    return { session };
-  } catch {
-    return { error: 401 as const, message: "Phiên làm việc không hợp lệ." };
-  }
 }
 
 async function draftWithAI(ctx: ReportDraftContext): Promise<{ content: string; model: string }> {
@@ -160,11 +148,16 @@ async function draftWithClassified(
 }
 
 /** POST /api/ai/nhap-bao-cao — { ctx, classified? } → { ok, content, model, checks? } */
-export async function POST(request: NextRequest) {
-  const auth = await requireSession(request);
-  if ("error" in auth) {
-    return NextResponse.json({ ok: false, error: auth.message }, { status: auth.error });
-  }
+export async function POST(request: Request) {
+  // Chỉ cán bộ (trang /quan-tri/bao-cao) + giới hạn lượt theo tài khoản
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "ai-nhap-bao-cao",
+    windowMs: 10 * 60_000,
+    perAccount: 20,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
 
   const payload = (await request.json().catch(() => null)) as
     | { ctx?: ReportDraftContext; classified?: unknown[] }
@@ -173,8 +166,10 @@ export async function POST(request: NextRequest) {
   if (!ctx || !ctx.orgUnitName) {
     return NextResponse.json({ ok: false, error: "Thiếu ngữ cảnh báo cáo (ctx)." }, { status: 400 });
   }
+  if (JSON.stringify(ctx).length > MAX_CTX_CHARS) {
+    return NextResponse.json({ ok: false, error: "Số liệu gửi lên quá lớn để tạo nháp." }, { status: 413 });
+  }
   const normalized: ReportDraftContext = { ...ctx, periodKind: periodKindOf(ctx.periodKind ?? "") };
-
   try {
     if (Array.isArray(payload?.classified) && payload.classified.length > 0) {
       const { content, model, checks, repaired } = await draftWithClassified(normalized, payload.classified);

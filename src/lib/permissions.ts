@@ -40,6 +40,16 @@ export function effectivePermissions(subject: PermissionSubject): string[] {
 export const hasPerm = (perms: string[], code: string) =>
   perms.includes("*") || perms.includes(code);
 
+/**
+ * Vai trò được xem/tạo/sửa/xoá tài khoản khác qua /api/accounts (route kiểm ở server, client
+ * dùng chung hằng này để KHÔNG gọi/poll khi không được phép — tránh 401/403 mỗi 4 giây).
+ */
+export const ACCOUNT_ADMIN_ROLES: readonly string[] = ["QUAN_TRI_TW", "QUAN_TRI_TINH", "QUAN_TRI_CAP3"];
+
+/** Vai trò được XEM danh sách tài khoản (GET /api/accounts): thêm Đoàn trường (DON_VI) để duyệt hồ sơ
+ *  Đoàn viên đăng ký — route chỉ trả DOAN_VIEN trong cây đơn vị của trường. */
+export const ACCOUNT_VIEW_ROLES: readonly string[] = [...ACCOUNT_ADMIN_ROLES, "DON_VI"];
+
 /* =====================================================================
  * DANH MỤC CHỨC NĂNG PHÂN QUYỀN — gom permissionsList thành các nhóm
  * hiển thị trên trang "Phân quyền nhiệm vụ" của từng tài khoản.

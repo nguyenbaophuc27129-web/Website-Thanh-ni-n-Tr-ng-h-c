@@ -27,13 +27,15 @@ Thư mục [xuat-van-ban-theo-the-thuc/](./xuat-van-ban-theo-the-thuc/README.md)
 | [04-ky-thuat-sinh-van-ban](./xuat-van-ban-theo-the-thuc/04-ky-thuat-sinh-van-ban.md) | Kỹ thuật: DOCX template + docxtemplater, slot JSON, API, kiểm thử |
 | [05-vi-du-bao-cao-thang](./xuat-van-ban-theo-the-thuc/05-vi-du-bao-cao-thang.md) | Ví dụ mẫu Báo cáo tháng BC-T01 + bảng ánh xạ từng ô → DB |
 
-### Phần III — Đề xuất: Lưu trữ file tải lên
+### Phần III — Lưu trữ file tải lên (đã triển khai)
 
 | File | Nội dung |
 |---|---|
-| [de-xuat-luu-tru-file.md](./de-xuat-luu-tru-file.md) | Lưu ảnh bài đăng, file Word/PDF trên server thay cho base64 trong DB: luồng tải lên/lấy ra, phân quyền, sao lưu, thứ tự triển khai |
+| [de-xuat-luu-tru-file.md](./de-xuat-luu-tru-file.md) | Ghi chú: đề xuất lưu tệp trên server đã triển khai — trỏ sang `DEPLOY.md` (mục "Tệp tải lên") và `src/lib/server/media.ts`, kèm bảng khác biệt so với đề xuất ban đầu |
 
 ## Tóm tắt nhanh
+
+- **Việc còn tồn đọng (kỹ thuật & nghiệp vụ):** [VIEC-TON-DONG.md](./VIEC-TON-DONG.md) — đọc trước khi sửa đồng bộ dữ liệu / phân quyền.
 
 - **Tham chiếu CSDL:** `THIET-KE-SCHEMA (1).md` — đặc tả 43 bảng, 8 phân hệ (nguồn sự thật).
 - **Prototype:** Next.js 16 + TypeScript + Tailwind 4, chạy 100% mock data, không cần backend.

@@ -238,10 +238,14 @@ export interface PublishedPost {
   slug: string;
   title: string;
   excerpt: string;
+  /** Văn bản thuần (máy chủ rút từ contentDoc) — bài cũ: Markdown rút gọn */
   content: string;
+  /** Nội dung có định dạng (Tiptap JSON, src/lib/editor/schema.ts) — có thì hiển thị theo đây */
+  contentDoc?: import("@tiptap/core").JSONContent | null;
   coverSeed: number;
-  /** Ảnh bìa thật do người dùng tải lên (data URL) — ưu tiên hơn coverSeed */
+  /** Ảnh bìa thật — đường dẫn /uploads/... trên máy chủ (dữ liệu cũ có thể là link ngoài), ưu tiên hơn coverSeed */
   coverDataUrl?: string;
+  /** Cột cũ cover_url — không còn ghi mới, chỉ đọc để tương thích */
   coverUrl?: string;
   subtitle?: string;
   seoTitle?: string;
@@ -251,8 +255,6 @@ export interface PublishedPost {
   relatedPosts?: string[];
   relatedTopics?: string[];
   internalNotes?: string;
-  royaltyAmount?: number;
-  royaltyNotes?: string;
   status: "DRAFT" | "SCHEDULED" | "PUBLISHED" | "UNPUBLISHED";
   isFeatured: boolean;
   publishedAt?: string;
@@ -456,12 +458,22 @@ export interface ResourceType {
   short?: string;
 }
 
+/** Một tệp của tài nguyên — url là đường dẫn /uploads/tai-nguyen/... trên máy chủ */
+export interface ResourceAttachment {
+  name: string;
+  url: string;
+  sizeKb: number;
+  mime?: string;
+}
+
 export interface Resource {
   id: number;
   resourceTypeId: number;
   title: string;
   description: string;
+  /** Tên tệp chính (= tệp đầu của attachments) */
   fileName: string;
+  /** Tổng dung lượng mọi tệp (KB) */
   fileSizeKb: number;
   isPublic: boolean;
   downloadCount: number;
@@ -472,8 +484,12 @@ export interface Resource {
   submittedByAccountId?: number;
   /** Link YouTube (watch hoặc embed videoseries) — tài nguyên xem trực tuyến thay vì tải file */
   videoUrl?: string;
-  /** Nội dung tệp base64 dataUrl — cho phép tải xuống thật từ kho tài nguyên (≤ ~4MB) */
+  /** Đường dẫn /uploads/... của tệp chính (không còn base64) */
   fileDataUrl?: string;
+  /** Mọi tệp của tài nguyên (≤ 10); rỗng với dữ liệu cũ → dùng resourceFiles() để suy từ fileName/fileDataUrl */
+  attachments?: ResourceAttachment[];
+  /** Tên người đóng góp, hiển thị công khai ("Đóng góp bởi …") */
+  contributorName?: string;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
 }
 
@@ -511,6 +527,7 @@ export interface ModerationResult {
 /** Ảnh/video đính kèm diễn đàn — base64 dataUrl (ảnh ≤2MB × 4, video ≤15MB × 1) */
 export interface ForumMedia {
   kind: "image" | "video";
+  /** Đường dẫn /uploads/dien-dan/... trên máy chủ (tên trường giữ nguyên để tương thích dữ liệu cũ) */
   dataUrl: string;
   name?: string;
 }
@@ -518,13 +535,16 @@ export interface ForumMedia {
 export interface ForumThread {
   id: number;
   alias: string; // "Bằng Lăng Tim Xanh #2481" — sinh cứng lúc tạo, KHÔNG random lúc render
-  authorAccountId: number; // RIÊNG TƯ — không bao giờ hiển thị công khai
+  authorAccountId: number; // RIÊNG TƯ — khách / đoàn viên nhận null nếu không phải bài của mình
   title: string;
   content: string;
   topic?: string;
   media?: ForumMedia[];
   status: "PUBLISHED" | "HIDDEN"; // chờ duyệt = FLAGGED && !moderatedByAccountId
+  /** Khách / đoàn viên chỉ nhận [id của mình] nếu đã thích, ngược lại [] — đếm bằng likeCount */
   likedByAccountIds: number[];
+  /** Tổng lượt thích do máy chủ đếm (dòng đã che); thiếu thì dùng likedByAccountIds.length */
+  likeCount?: number;
   aiVerdict: "CLEAN" | "FLAGGED";
   aiReason?: string;
   aiModel?: string;
@@ -543,6 +563,8 @@ export interface ForumComment {
   media?: ForumMedia[];
   status: "PUBLISHED" | "PENDING_REVIEW" | "REJECTED";
   likedByAccountIds: number[];
+  /** Tổng lượt thích do máy chủ đếm (dòng đã che); thiếu thì dùng likedByAccountIds.length */
+  likeCount?: number;
   aiVerdict: "CLEAN" | "FLAGGED";
   aiReason?: string;
   aiModel?: string;

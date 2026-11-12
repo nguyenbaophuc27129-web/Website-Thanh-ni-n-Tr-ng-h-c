@@ -9,7 +9,6 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
 import { useToast } from "@/lib/toast-context";
-import { moderateText } from "@/lib/ai-moderation";
 import { readForumMediaFiles } from "@/lib/forum-media";
 import { avatarInitials, avatarTone } from "@/lib/forum-alias";
 import { formatDateTime, relTime } from "@/lib/utils";
@@ -58,6 +57,11 @@ export default function DienDanPage() {
     );
   }, [store.forumThreads, session]);
 
+  const likeThread = async (id: number) => {
+    const res = await store.toggleForumLike("THREAD", id);
+    if (!res.ok && !res.busy) toast(res.error, "warning");
+  };
+
   const onPickMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const res = await readForumMediaFiles(e.target.files ?? [], media);
     if ("error" in res) toast(res.error, "warning");
@@ -73,19 +77,24 @@ export default function DienDanPage() {
       toast("Tiêu đề cần tối thiểu 5 ký tự, nội dung tối thiểu 10 ký tự.", "warning");
       return;
     }
+    // Máy chủ tự kiểm duyệt AI + sinh bí danh — trình duyệt chỉ gửi nội dung
     setChecking(true);
-    const mod = await moderateText(`${t}\n${c}`);
+    const res = await store.createForumThread({ title: t, content: c, topic: topic || undefined, media: media.length ? media : undefined });
     setChecking(false);
-    store.createForumThread(session, { title: t, content: c, topic: topic || undefined, media: media.length ? media : undefined }, mod);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setTitle("");
     setContent("");
     setTopic("");
     setMedia([]);
+    const clean = res.mod?.verdict !== "FLAGGED";
     toast(
-      mod.verdict === "CLEAN"
+      clean
         ? "Đã gửi bài chia sẻ — cảm ơn bạn đã đóng góp ý kiến!"
-        : `Bài của bạn đang chờ kiểm duyệt: ${mod.reason ?? "nội dung đáng ngờ"}.`,
-      mod.verdict === "CLEAN" ? "success" : "warning"
+        : `Bài của bạn đang chờ kiểm duyệt: ${res.mod?.reason ?? "nội dung đáng ngờ"}.`,
+      clean ? "success" : "warning"
     );
   };
 
@@ -305,13 +314,13 @@ export default function DienDanPage() {
               </Link>
               <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-3.5">
                 <button
-                  onClick={() => (session ? store.toggleForumLike(session, "THREAD", t.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}
+                  onClick={() => (session ? void likeThread(t.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     liked ? "bg-rose-50 text-rose-600" : "text-slate-400 hover:bg-slate-50 hover:text-rose-500"
                   }`}
                 >
                   <Heart className={`h-3.5 w-3.5 ${liked ? "fill-rose-500 text-rose-500" : ""}`} />
-                  {t.likedByAccountIds.length}
+                  {t.likeCount ?? t.likedByAccountIds.length}
                 </button>
                 <Link
                   href={`/dien-dan/${t.id}`}

@@ -1,10 +1,10 @@
 import type { ModerationResult } from "@/types";
 
 /**
- * Kiểm duyệt nội dung Diễn đàn ẩn danh.
- * - Client luôn gọi `moderateText` → POST /api/ai/kiem-duyet.
- * - API lỗi (chưa nối key AI, mạng…) → fallback `ruleModerate` cục bộ để
- *   demo không bao giờ gãy (cùng pattern với ai-chat-widget).
+ * Bộ quy tắc kiểm duyệt dự phòng (diễn đàn, bài đóng góp, dự án…).
+ * - Kết quả kiểm duyệt do MÁY CHỦ tính (src/lib/server/moderation.ts): gọi AI
+ *   trước, AI lỗi / chưa có key thì dùng `ruleModerate` dưới đây.
+ * - Trình duyệt không còn tự tính rồi gửi verdict lên — gửi kèm cũng bị bỏ qua.
  */
 
 /** Phát ngôn chính trị phản động — chặn thẳng bằng quy tắc (không chờ AI) */
@@ -41,6 +41,23 @@ function includesAny(lower: string, words: string[]): string | null {
   return null;
 }
 
+/**
+ * Từ tục phải khớp NGUYÊN TỪ — so chuỗi con sẽ chặn nhầm từ thường
+ * ("đú" trong "đúng", "lồn" trong "lồng").
+ */
+const escapeRe = (w: string) => w.replace(/[.*+?^$()|[\]{}\\]/g, "\\$&");
+const PROFANITY_RES = PROFANITY.map((w) => ({
+  word: w.trim(),
+  re: new RegExp("(?<![\\p{L}\\p{N}])" + escapeRe(w.trim()) + "(?![\\p{L}\\p{N}])", "u"),
+}));
+
+function profaneWord(lower: string): string | null {
+  for (const { word, re } of PROFANITY_RES) {
+    if (re.test(lower)) return word;
+  }
+  return null;
+}
+
 /** Bộ quy tắc heuristic thuần (pure) — first-match-wins, reason tiếng Việt */
 export function ruleModerate(text: string): ModerationResult {
   const lower = ` ${text.toLowerCase()} `;
@@ -51,9 +68,9 @@ export function ruleModerate(text: string): ModerationResult {
     return { verdict: "FLAGGED", reason: "Nội dung chính trị nhạy cảm / chống phá (phát hiện từ khóa cấm)", model: "tnth-rule-v1" };
   }
 
-  const profane = includesAny(lower, PROFANITY);
+  const profane = profaneWord(lower);
   if (profane) {
-    return { verdict: "FLAGGED", reason: `Ngôn từ không phù hợp (phát hiện "${profane.trim()}")`, model: "tnth-rule-v1" };
+    return { verdict: "FLAGGED", reason: `Ngôn từ không phù hợp (phát hiện "${profane}")`, model: "tnth-rule-v1" };
   }
 
   const banned = includesAny(lower, BANNED_TOPICS);
@@ -88,30 +105,4 @@ export function ruleModerate(text: string): ModerationResult {
   }
 
   return { verdict: "CLEAN", model: "tnth-rule-v1" };
-}
-
-/**
- * Gọi API kiểm duyệt (máy chủ); lỗi → fallback quy tắc cục bộ.
- * Đảm bảo tối thiểu `minDelay` ms để giao diện không nhấp nháy.
- */
-export async function moderateText(text: string, minDelay = 800): Promise<ModerationResult> {
-  const started = Date.now();
-  let result: ModerationResult;
-  try {
-    const res = await fetch("/api/ai/kiem-duyet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    const data = (await res.json().catch(() => null)) as
-      | { ok?: boolean; verdict?: ModerationResult["verdict"]; reason?: string; model?: string }
-      | null;
-    if (!res.ok || !data?.ok || !data.verdict) throw new Error(data?.reason ?? `HTTP ${res.status}`);
-    result = { verdict: data.verdict, reason: data.reason, model: data.model };
-  } catch {
-    result = ruleModerate(text);
-  }
-  const elapsed = Date.now() - started;
-  if (elapsed < minDelay) await new Promise((r) => setTimeout(r, minDelay - elapsed));
-  return result;
 }

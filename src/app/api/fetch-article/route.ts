@@ -1,63 +1,12 @@
 import { NextResponse } from "next/server";
-import { lookup } from "node:dns/promises";
-import { BlockList, isIP } from "node:net";
+import { BROWSER_UA, FACEBOOK_UA, fetchPublic, readBodyLimited } from "@/lib/server/safe-fetch";
+import { guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
 
-/* ============ Chặn SSRF: không cho tải địa chỉ nội bộ ============ */
-
-const PRIVATE_RANGES = new BlockList();
-for (const [prefix, bits] of [
-  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8],
-  ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.168.0.0", 16],
-  ["198.18.0.0", 15], ["224.0.0.0", 3],
-] as const) PRIVATE_RANGES.addSubnet(prefix, bits, "ipv4");
-for (const [prefix, bits] of [
-  ["::", 127], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8], ["64:ff9b::", 96],
-] as const) PRIVATE_RANGES.addSubnet(prefix, bits, "ipv6");
-
-function isPrivateAddress(address: string, family: number): boolean {
-  // IPv4 bọc trong IPv6 (::ffff:10.0.0.1) → kiểm tra theo IPv4
-  const mapped = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)?.[1];
-  if (mapped) return PRIVATE_RANGES.check(mapped, "ipv4");
-  return PRIVATE_RANGES.check(address, family === 6 ? "ipv6" : "ipv4");
-}
-
-/** Ném lỗi nếu host trỏ về localhost / mạng riêng / địa chỉ metadata của cloud. */
-async function assertPublicHost(url: URL): Promise<void> {
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-  const family = isIP(host);
-  const addresses = family
-    ? [{ address: host, family }]
-    : await lookup(host, { all: true });
-  if (!addresses.length || addresses.some((a) => isPrivateAddress(a.address, a.family))) {
-    throw new Error("địa chỉ nội bộ không được phép");
-  }
-}
-
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-const FACEBOOK_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
-
-/** fetch tự đi theo chuyển hướng (≤5 lần) và kiểm tra lại host ở từng bước.
- * Facebook trả trang rất chậm (thường >20s) nên cần timeout riêng dài hơn web thường. */
-async function fetchPublic(start: URL, userAgent = BROWSER_UA, timeoutMs = 12000): Promise<Response> {
-  const signal = AbortSignal.timeout(timeoutMs);
-  const headers = {
-    "User-Agent": userAgent,
-    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-  };
-  let current = start;
-  for (let hop = 0; hop <= 5; hop++) {
-    if (current.protocol !== "http:" && current.protocol !== "https:") throw new Error("protocol");
-    await assertPublicHost(current);
-    const res = await fetch(current.href, { headers, redirect: "manual", signal });
-    const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
-    if (!location) return res;
-    current = new URL(location, current.href);
-  }
-  throw new Error("chuyển hướng quá nhiều lần");
-}
+/* Chỉ cán bộ dùng (nhập bài / hoạt động từ link) — không cho khách dùng máy chủ làm proxy tải trang */
+const FETCH_WINDOW_MS = 10 * 60_000;
+const FETCH_PER_WINDOW = 30;
 
 /* ============ Helper parse HTML & Entities ============ */
 
@@ -226,8 +175,19 @@ function extractRichContent(html: string, baseUrl: string): string[] {
 
 /** POST /api/fetch-article — trích xuất tiêu đề/mô tả/ảnh/nội dung từ đường link báo hoặc Facebook */
 export async function POST(request: Request) {
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "fetch-article",
+    windowMs: FETCH_WINDOW_MS,
+    perAccount: FETCH_PER_WINDOW,
+  });
+  if (!gate.ok) return gate.response;
+
   const payload = (await request.json().catch(() => null)) as { url?: string } | null;
   const rawUrl = payload?.url?.trim() ?? "";
+  if (rawUrl.length > 2048) {
+    return NextResponse.json({ ok: false, error: "Đường dẫn quá dài." }, { status: 400 });
+  }
 
   let target: URL;
   try {
@@ -243,7 +203,8 @@ export async function POST(request: Request) {
     target.hostname.includes("fb.watch");
 
   try {
-    const res = await fetchPublic(target, isFacebook ? FACEBOOK_UA : BROWSER_UA, isFacebook ? 25000 : 12000);
+    // Facebook trả trang rất chậm (thường >20s) nên cần timeout riêng dài hơn web thường
+    const res = await fetchPublic(target, isFacebook ? FACEBOOK_UA : BROWSER_UA, undefined, isFacebook ? 25000 : 12000);
     if (!res.ok && !isFacebook) {
       return NextResponse.json({ ok: false, error: `Trang trả về lỗi HTTP ${res.status}` }, { status: 502 });
     }
@@ -324,16 +285,17 @@ export async function POST(request: Request) {
     if (imageUrl) {
       try {
         const imgTarget = new URL(imageUrl);
-        const imgRes = await fetchPublic(imgTarget, isFacebook ? FACEBOOK_UA : BROWSER_UA, 15000);
+        const imgRes = await fetchPublic(imgTarget, isFacebook ? FACEBOOK_UA : BROWSER_UA, "image/*", 15000);
         if (imgRes.ok) {
           const rawContentType = imgRes.headers.get("content-type") || "";
           const contentType = rawContentType.split(";")[0].trim().toLowerCase();
-          const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
-          if (validTypes.includes(contentType) || contentType.startsWith("image/")) {
-            const arrayBuf = await imgRes.arrayBuffer();
-            if (arrayBuf.byteLength > 0 && arrayBuf.byteLength <= 3 * 1024 * 1024) {
-              const b64 = Buffer.from(arrayBuf).toString("base64");
-              imageDataUrl = `data:${contentType || "image/jpeg"};base64,${b64}`;
+          // Không nhận SVG — kho tệp tải lên chỉ nhận ảnh raster (lib/server/media.ts)
+          const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+          if (validTypes.includes(contentType)) {
+            // Đọc có giới hạn 3MB — không tin Content-Length của trang ngoài
+            const buf = await readBodyLimited(imgRes, 3 * 1024 * 1024);
+            if (buf.byteLength > 0) {
+              imageDataUrl = `data:${contentType};base64,${buf.toString("base64")}`;
             }
           }
         }

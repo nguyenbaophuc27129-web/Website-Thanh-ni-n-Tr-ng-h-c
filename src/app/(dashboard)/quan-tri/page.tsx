@@ -15,7 +15,7 @@ import { DeadlineBadge } from "@/components/dashboard/status-badge";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { ActivitiesBarChart, TaskProgressPie, PostViewsAreaChart, ScoresHorizontalBar } from "@/components/charts/charts";
-import { postViewDaily } from "@/data/published-posts";
+import { usePostViewDaily } from "@/lib/use-post-view-daily";
 import { formatPercent, relTime } from "@/lib/utils";
 import { collectReminders } from "@/lib/use-assignment-reminders";
 
@@ -34,6 +34,7 @@ export default function TongQuanPage() {
   const store = useStore();
   const { toast } = useToast();
   const [today, setToday] = useState("");
+  const postViews = usePostViewDaily(30);
 
   useEffect(() => {
     setToday(
@@ -338,7 +339,7 @@ export default function TongQuanPage() {
         {[
           { title: "Hoạt động theo tháng", sub: "Nguồn: hoạt động đã cập nhật trong phạm vi của bạn", chart: <ActivitiesBarChart data={byMonth} /> },
           { title: "Tiến độ nhiệm vụ thi đua", sub: "Theo trạng thái của các lượt giao trong phạm vi", chart: <TaskProgressPie data={progressPie} /> },
-          { title: "Lượt xem tin bài (tháng 9/2026)", sub: "post_view_daily — tổng hợp theo ngày", chart: <PostViewsAreaChart data={postViewDaily.map((d) => ({ name: d.date, value: d.views }))} /> },
+          { title: "Lượt xem tin bài (30 ngày gần đây)", sub: "Tổng hợp theo ngày từ lượt xem thật trên cổng", chart: <PostViewsAreaChart data={postViews} /> },
           { title: "Điểm thi đua đơn vị cấp trường", sub: `Bộ tiêu chí ${store.activeCriteriaSet()?.name ?? ""}`, chart: <ScoresHorizontalBar data={topUnits} /> },
         ].map((c) => (
           <motion.div key={c.title} variants={itemVariants}>

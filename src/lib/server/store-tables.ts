@@ -1,4 +1,5 @@
 import { query } from "../db.ts";
+import { asPostDoc, docToPlainText } from "../editor/doc-utils.ts";
 
 /**
  * Lớp truy cập dữ liệu store ↔ PostgreSQL (bước chuyển localStorage → DB).
@@ -36,6 +37,11 @@ export interface EntitySpec {
   noIdentity?: boolean;
   /** Cột phái sinh NOT NULL không có phía client */
   derive?: (obj: Record<string, unknown>, ctx: DeriveCtx) => Record<string, unknown>;
+  /**
+   * Cột (DB) chỉ ghi khi INSERT — UPSERT trúng dòng đã có thì GIỮ giá trị trong DB
+   * (người tạo, token truy cập…). Thường là cột do `derive` điền.
+   */
+  insertOnlyCols?: string[];
   /** PK để ORDER BY khi đọc (mặc định id) */
   orderBy?: string;
 }
@@ -43,6 +49,11 @@ export interface EntitySpec {
 /** Ngữ cảnh điền cột phái sinh — dựng 1 lần cho mỗi request sync */
 export interface DeriveCtx {
   accountIdByOrg: Map<number, number>;
+  /**
+   * Người đang ghi (tài khoản + đơn vị của phiên) — cột "người tạo" điền theo đây.
+   * Không có (script nạp dữ liệu) → dùng giá trị mặc định của derive.
+   */
+  actor?: { accountId: number; orgUnitId: number };
 }
 
 const f = (col: string, type: FieldType, get?: FieldSpec["get"]): FieldSpec => ({ col, type, get });
@@ -68,10 +79,9 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       dueDate: f("due_date", "date"), displayOrder: f("display_order", "int"),
       status: f("status", "str"),
     },
-    derive: () => ({
-      // tasks.created_by_org_unit_id NOT NULL — prototype không lưu, mặc định TW (đơn vị 1)
-      created_by_org_unit_id: 1,
-    }),
+    // tasks.created_by_org_unit_id NOT NULL — đơn vị của người tạo; không có người ghi → TW (đơn vị 1)
+    derive: (_o, ctx) => ({ created_by_org_unit_id: ctx.actor?.orgUnitId ?? 1 }),
+    insertOnlyCols: ["created_by_org_unit_id"],
   },
   taskMetrics: {
     table: "task_metrics",
@@ -166,8 +176,9 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       updatedAt: f("updated_at", "ts"),
     },
     derive: (o, ctx) => ({
-      created_by_account_id: ctx.accountIdByOrg.get(Number(o.orgUnitId)) ?? 1,
+      created_by_account_id: ctx.actor?.accountId ?? ctx.accountIdByOrg.get(Number(o.orgUnitId)) ?? 1,
     }),
+    insertOnlyCols: ["created_by_account_id"],
   },
   // Join activity ↔ chuyên mục (client Activity.categoryIds)
   activityCategories: {
@@ -187,7 +198,14 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
     table: "published_posts",
     fields: {
       id: f("id", "int"), activityId: f("activity_id", "int"), slug: f("slug", "str"),
-      title: f("title", "str"), excerpt: f("excerpt", "str"), content: f("content", "str"),
+      title: f("title", "str"), excerpt: f("excerpt", "str"),
+      // Có nội dung định dạng → cột content luôn là văn bản thuần rút từ đó (tìm kiếm, đoạn trích),
+      // không tin bản client gửi kèm
+      content: f("content", "str", (o) => {
+        const doc = asPostDoc(o.contentDoc);
+        return doc ? docToPlainText(doc) : o.content;
+      }),
+      contentDoc: f("content_doc", "json"),
       coverSeed: f("cover_seed", "int"), coverDataUrl: f("cover_data_url", "str"),
       status: f("status", "str"), isFeatured: f("is_featured", "bool"),
       // published_at bắt buộc khi status PUBLISHED (CHECK của DB) — neo vào now() nếu thiếu
@@ -200,7 +218,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       contributorAccountId: f("contributor_account_id", "int"),
       categoryNames: f("category_names", "strarr"),
       sourceUrl: f("source_url", "str"),
-      metaDescription: f("meta_description", "str"), subtitle: f("subtitle", "str"), seoTitle: f("seo_title", "str"), seoKeywords: f("seo_keywords", "str"), imageCaption: f("image_caption", "str"), coverUrl: f("cover_url", "str"), postAttributes: f("post_attributes", "strarr"), relatedPosts: f("related_posts", "strarr"), relatedTopics: f("related_topics", "strarr"), internalNotes: f("internal_notes", "str"), royaltyAmount: f("royalty_amount", "num"), royaltyNotes: f("royalty_notes", "str"), createdAt: f("created_at", "ts"),
+      metaDescription: f("meta_description", "str"), subtitle: f("subtitle", "str"), seoTitle: f("seo_title", "str"), seoKeywords: f("seo_keywords", "str"), imageCaption: f("image_caption", "str"), coverUrl: f("cover_url", "str"), postAttributes: f("post_attributes", "strarr"), relatedPosts: f("related_posts", "strarr"), relatedTopics: f("related_topics", "strarr"), internalNotes: f("internal_notes", "str"), createdAt: f("created_at", "ts"),
     },
   },
   reports: {
@@ -214,7 +232,8 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       aiGeneratedAt: f("ai_generated_at", "ts"), status: f("status", "str"),
       createdAt: f("created_at", "ts"),
     },
-    derive: () => ({ created_by_account_id: 1, finalized_at: null }),
+    derive: (_o, ctx) => ({ created_by_account_id: ctx.actor?.accountId ?? 1, finalized_at: null }),
+    insertOnlyCols: ["created_by_account_id", "finalized_at"],
   },
   documents: {
     table: "documents",
@@ -226,7 +245,8 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       status: f("status", "str"), createdAt: f("created_at", "ts"),
       fileName: f("file_name", "str"), fileDataUrl: f("file_data_url", "str"),
     },
-    derive: () => ({ created_by_account_id: 1 }),
+    derive: (_o, ctx) => ({ created_by_account_id: ctx.actor?.accountId ?? 1 }),
+    insertOnlyCols: ["created_by_account_id"],
   },
   documentRecipients: {
     table: "document_recipients",
@@ -266,6 +286,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       access_token: `seed-${Number(o.id)}-${o.trackingCode ?? ""}`,
       is_spam: false,
     }),
+    insertOnlyCols: ["access_token", "is_spam"],
   },
   feedbackMessages: {
     table: "feedback_messages",
@@ -314,6 +335,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       publishedAt: f("published_at", "ts"),
       submittedByAccountId: f("submitted_by_account_id", "int"),
       videoUrl: f("video_url", "str"), fileDataUrl: f("file_data_url", "str"),
+      attachments: f("attachments", "json"), contributorName: f("contributor_name", "str"),
       status: f("status", "str"),
     },
     derive: () => ({ file_id: null }),
@@ -490,32 +512,35 @@ export const ENTITY_ORDER: string[] = [
   "volunteerProjects", "orgDirectories", "memberContributions", "contributions",
 ];
 
-/** Entity khách vãng lai (chưa đăng nhập) được phép ghi qua sync */
-export const PUBLIC_WRITE_ENTITIES = new Set([
-  "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
-]);
+/**
+ * Entity khách vãng lai (chưa đăng nhập) được phép ghi qua sync — RỖNG: khách không
+ * còn ghi qua /api/store, mọi thao tác (phản ánh, điểm danh, thi…) đi qua API riêng.
+ */
+export const PUBLIC_WRITE_ENTITIES = new Set<string>();
 
-/** Entity đoàn viên (DOAN_VIEN) được phép đọc thêm (ngoài public) */
-export const MEMBER_READ_ENTITIES = new Set([
-  "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
-  "hs3tUnitStandards", "notifications", "quizAttempts",
-]);
+/**
+ * Entity đoàn viên (DOAN_VIEN) được phép ghi qua sync — RỖNG: đoàn viên thao tác
+ * (diễn đàn, HS3T, đóng góp…) qua API riêng, server tự kiểm duyệt & cộng điểm.
+ */
+export const MEMBER_ALLOWED_WRITE_ENTITIES = new Set<string>();
 
-/** Entity đoàn viên (DOAN_VIEN) được phép ghi qua sync */
-export const MEMBER_ALLOWED_WRITE_ENTITIES = new Set([
-  "feedbacks", "feedbackMessages", "attendances", "liveEvents", "quizAttempts",
-  "contributions", "memberContributions", "hs3tProfiles", "hs3tAchievements",
-  "forumThreads", "forumComments", "volunteerProjects", "resources",
-]);
-
-/** Entity khách vãng lai được đọc — còn lại chỉ khi có phiên đăng nhập */
+/**
+ * Entity khách vãng lai được đọc — điều kiện lọc dòng / che cột của từng entity
+ * nằm ở src/lib/server/store-read-policy.ts (tập này chỉ là cổng ngoài cùng).
+ */
 export const PUBLIC_READ_ENTITIES = new Set([
-  "orgUnits", "publishedPosts", "activities", "activityCategories", "activityLinks",
-  "documents", "documentRecipients", "resources", "settings",
-  "forumThreads", "forumComments", "orgDirectories", "volunteerProjects",
-  "quizQuestions", "quizExams", "liveEvents", "hs3tUnitStandards",
-  "criteriaSets", "tasks", "taskMetrics", "taskAssignments", "assignmentTargets",
-  "taskResults", "assignmentReviews", "scores", "rankingSnapshots", "rankingEntries",
+  "rankingSnapshots", "rankingEntries",
+  "activities", "activityCategories", "activityLinks", "publishedPosts",
+  "documents", "resources", "settings", "forumThreads", "forumComments",
+  "hs3tUnitStandards", "quizQuestions", "quizExams", "volunteerProjects",
+]);
+
+/** Entity đoàn viên (DOAN_VIEN) được đọc = nhóm công khai + dữ liệu của chính mình */
+export const MEMBER_READ_ENTITIES = new Set([
+  ...PUBLIC_READ_ENTITIES,
+  "notifications", "feedbacks", "feedbackMessages", "emailLogs",
+  "hs3tProfiles", "hs3tAchievements", "quizAttempts",
+  "memberContributions", "contributions",
 ]);
 
 function coerceIn(value: unknown, type: FieldType): unknown {
@@ -559,20 +584,28 @@ function coerceOut(value: unknown, type: FieldType): unknown {
   }
 }
 
-/** Object client → mảng giá trị theo cột (kèm cột phái sinh) */
+/**
+ * Object client → mảng giá trị theo cột (kèm cột phái sinh).
+ * `nullCols`: cột client GỬI RÕ null (người dùng xoá giá trị) — khi UPDATE sẽ đặt
+ * NULL nếu cột cho phép; khi INSERT vẫn bỏ qua để DEFAULT phía DB hoạt động.
+ */
 export function toRow(
   entity: string,
   obj: Record<string, unknown>,
   ctx: DeriveCtx,
-): { cols: string[]; values: unknown[] } {
+): { cols: string[]; values: unknown[]; nullCols: string[] } {
   const spec = ENTITY_SPECS[entity];
   const cols: string[] = [];
   const values: unknown[] = [];
+  const nullCols: string[] = [];
   for (const [field, fs] of Object.entries(spec.fields)) {
     const raw = fs.get ? fs.get(obj) : obj[field];
     const value = coerceIn(raw, fs.type);
     // Bỏ qua cột giá trị rỗng — DEFAULT phía DB lo các cột NOT NULL (updated_at, evidence_names…)
-    if (value === null) continue;
+    if (value === null) {
+      if (!fs.get && raw === null) nullCols.push(fs.col);
+      continue;
+    }
     cols.push(fs.col);
     values.push(value);
   }
@@ -582,7 +615,26 @@ export function toRow(
       values.push(value);
     }
   }
-  return { cols, values };
+  return { cols, values, nullCols: nullCols.filter((c) => !cols.includes(c)) };
+}
+
+/** Cột cho phép NULL của từng bảng (đọc information_schema 1 lần mỗi tiến trình) */
+let nullableColsCache: Map<string, Set<string>> | null = null;
+async function nullableColsOf(
+  client: { query: (text: string, params?: unknown[]) => Promise<unknown> },
+  table: string,
+): Promise<Set<string>> {
+  if (!nullableColsCache) {
+    const r = (await client.query(
+      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND is_nullable = 'YES'",
+    )) as { rows: { table_name: string; column_name: string }[] };
+    nullableColsCache = new Map();
+    for (const row of r.rows) {
+      if (!nullableColsCache.has(row.table_name)) nullableColsCache.set(row.table_name, new Set());
+      nullableColsCache.get(row.table_name)!.add(row.column_name);
+    }
+  }
+  return nullableColsCache.get(table) ?? new Set();
 }
 
 /** Dòng DB → object client */
@@ -611,12 +663,26 @@ export async function readEntity(
 }
 
 
-/** Điền account đại diện theo đơn vị (cho cột created_by NOT NULL) */
-export async function buildDeriveCtx(): Promise<DeriveCtx> {
+/**
+ * Điền account đại diện theo đơn vị (cho cột created_by NOT NULL) + người đang ghi.
+ * `actor` = tài khoản/đơn vị của phiên: cột "người tạo" của dòng MỚI điền theo người này.
+ */
+export async function buildDeriveCtx(actor?: DeriveCtx["actor"]): Promise<DeriveCtx> {
   const rows = await query<{ org_unit_id: number; id: number }>(
     "SELECT DISTINCT ON (org_unit_id) org_unit_id, id FROM accounts WHERE deleted_at IS NULL ORDER BY org_unit_id, id",
   );
-  return { accountIdByOrg: new Map(rows.map((r) => [Number(r.org_unit_id), Number(r.id)])) };
+  return { accountIdByOrg: new Map(rows.map((r) => [Number(r.org_unit_id), Number(r.id)])), actor };
+}
+
+/** Tuỳ chọn ghi của writeEntity */
+export interface WriteOptions {
+  /** Cột chỉ ghi khi INSERT (cộng với `insertOnlyCols` của spec) — UPSERT trúng dòng đã có thì giữ giá trị DB */
+  insertOnlyCols?: string[];
+  /**
+   * Giá trị server quyết định cho từng object (khoá = chính object truyền vào, theo tên cột DB):
+   * ghi đè giá trị client gửi khi INSERT (vd. người tạo = tài khoản của phiên).
+   */
+  colOverrides?: Map<Record<string, unknown>, Record<string, unknown>>;
 }
 
 /**
@@ -628,20 +694,33 @@ export async function writeEntity(
   entity: string,
   objs: Record<string, unknown>[],
   ctx: DeriveCtx,
+  opts: WriteOptions = {},
 ): Promise<number> {
   const spec = ENTITY_SPECS[entity];
   if (!spec || objs.length === 0) return 0;
 
   const overriding = spec.noIdentity ? "" : " OVERRIDING SYSTEM VALUE";
+  const nullable = await nullableColsOf(client, spec.table);
+  // Cột chỉ ghi lúc INSERT: không nằm trong vế DO UPDATE SET → dòng đã có giữ nguyên giá trị
+  const insertOnly = new Set([...(spec.insertOnlyCols ?? []), ...(opts.insertOnlyCols ?? [])]);
   for (const obj of objs) {
-    const { cols, values } = toRow(entity, obj, ctx);
+    const { cols, values, nullCols } = toRow(entity, obj, ctx);
+    for (const [col, v] of Object.entries(opts.colOverrides?.get(obj) ?? {})) {
+      const at = cols.indexOf(col);
+      if (at >= 0) values[at] = v;
+      else {
+        cols.push(col);
+        values.push(v);
+      }
+    }
     if (cols.length === 0) continue;
+    const clearCols = nullCols.filter((c) => nullable.has(c) && !insertOnly.has(c));
     const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
     const colList = cols.map((c) => `"${c}"`).join(", ");
 
     let conflictClause = "";
     if (entity === "settings") {
-      const updateCols = cols.filter((c) => c !== "setting_key");
+      const updateCols = cols.filter((c) => c !== "setting_key" && !insertOnly.has(c));
       conflictClause = updateCols.length > 0
         ? ` ON CONFLICT (setting_key) DO UPDATE SET ${updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")}`
         : " ON CONFLICT (setting_key) DO NOTHING";
@@ -650,9 +729,12 @@ export async function writeEntity(
     } else if (entity === "documentRecipients") {
       conflictClause = " ON CONFLICT (document_id, org_unit_id) DO NOTHING";
     } else if (cols.includes("id")) {
-      const updateCols = cols.filter((c) => c !== "id");
-      conflictClause = updateCols.length > 0
-        ? ` ON CONFLICT (id) DO UPDATE SET ${updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")}`
+      const sets = [
+        ...cols.filter((c) => c !== "id" && !insertOnly.has(c)).map((c) => `"${c}" = EXCLUDED."${c}"`),
+        ...clearCols.map((c) => `"${c}" = NULL`),
+      ];
+      conflictClause = sets.length > 0
+        ? ` ON CONFLICT (id) DO UPDATE SET ${sets.join(", ")}`
         : " ON CONFLICT (id) DO NOTHING";
     }
 
@@ -687,4 +769,156 @@ export async function deleteEntityIds(
     rowCount?: number;
   };
   return r.rowCount ?? 0;
+}
+
+/* =====================================================================
+ * Đọc dòng hiện có — phục vụ kiểm quyền ghi của POST /api/store
+ * (so dòng client gửi với bản trong DB: bỏ dòng không đổi, kiểm cả dòng cũ lẫn mới)
+ * ===================================================================== */
+
+type Queryable = { query: (text: string, params?: unknown[]) => Promise<unknown> };
+
+/** Bảng khoá tự nhiên 2 cột (không có id): [field 1, field 2, cột 1, cột 2] */
+const PAIR_KEYS: Record<string, [string, string, string, string]> = {
+  documentRecipients: ["documentId", "orgUnitId", "document_id", "org_unit_id"],
+  activityCategories: ["activityId", "categoryId", "activity_id", "content_category_id"],
+};
+
+/** Khoá của 1 object client — khớp syncRowKey phía client. null = không có khoá hợp lệ */
+export function rowKeyOf(entity: string, obj: Record<string, unknown>): string | null {
+  if (entity === "settings") return obj.settingKey == null || obj.settingKey === "" ? null : String(obj.settingKey);
+  const pair = PAIR_KEYS[entity];
+  if (pair) {
+    const a = Number(obj[pair[0]]);
+    const b = Number(obj[pair[1]]);
+    return obj[pair[0]] == null || obj[pair[1]] == null || !Number.isFinite(a) || !Number.isFinite(b) ? null : `${a}:${b}`;
+  }
+  const id = Number(obj.id);
+  return obj.id == null || obj.id === "" || !Number.isFinite(id) ? null : String(id);
+}
+
+/** Khoá của 1 dòng DB (theo tên cột) */
+export function dbRowKey(entity: string, row: Record<string, unknown>): string {
+  if (entity === "settings") return String(row.setting_key);
+  const pair = PAIR_KEYS[entity];
+  if (pair) return `${Number(row[pair[2]])}:${Number(row[pair[3]])}`;
+  return String(Number(row.id));
+}
+
+/** JSON có thứ tự khoá cố định — jsonb của PostgreSQL tự sắp lại khoá */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .filter((k) => obj[k] !== undefined)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`)
+    .join(",")}}`;
+}
+
+/** Đưa giá trị (dạng toRow sinh ra) về dạng so sánh được bằng === */
+function comparable(value: unknown, type: FieldType): unknown {
+  if (value === null || value === undefined) return null;
+  if (type === "json") {
+    let v = value;
+    if (typeof v === "string") {
+      try { v = JSON.parse(v); } catch { /* giữ chuỗi gốc */ }
+    }
+    return stableStringify(v);
+  }
+  if (Array.isArray(value)) {
+    return JSON.stringify(type === "intarr" || type === "bigintarr" ? value.map(Number) : value);
+  }
+  return value;
+}
+
+/** Dòng DB → cùng dạng giá trị toRow sinh ra (số, chuỗi ISO, ngày YYYY-MM-DD…); cột ngoài spec giữ nguyên */
+export function normalizeDbRow(entity: string, row: Record<string, unknown>): Record<string, unknown> {
+  const spec = ENTITY_SPECS[entity];
+  const out: Record<string, unknown> = { ...row };
+  for (const fs of Object.values(spec.fields)) {
+    if (fs.col in row) out[fs.col] = coerceIn(coerceOut(row[fs.col], fs.type), fs.type);
+  }
+  return out;
+}
+
+/** Đọc các dòng DB ứng với danh sách khoá (dạng rowKeyOf) → Map khoá → dòng đã chuẩn hoá */
+export async function loadRowsByKeys(
+  client: Queryable,
+  entity: string,
+  keys: string[],
+): Promise<Map<string, Record<string, unknown>>> {
+  const spec = ENTITY_SPECS[entity];
+  const out = new Map<string, Record<string, unknown>>();
+  const uniq = Array.from(new Set(keys));
+  if (!spec || uniq.length === 0) return out;
+  let sql: string;
+  let params: unknown[];
+  const pair = PAIR_KEYS[entity];
+  if (entity === "settings") {
+    sql = `SELECT * FROM ${spec.table} WHERE setting_key = ANY($1::text[])`;
+    params = [uniq];
+  } else if (pair) {
+    const parts = uniq.map((k) => k.split(":").map(Number));
+    sql = `SELECT * FROM ${spec.table} WHERE (${pair[2]}, ${pair[3]}) IN (SELECT * FROM unnest($1::bigint[], $2::bigint[]))`;
+    params = [parts.map((p) => p[0]), parts.map((p) => p[1])];
+  } else {
+    sql = `SELECT * FROM ${spec.table} WHERE id = ANY($1::bigint[])`;
+    params = [uniq.map(Number)];
+  }
+  const r = (await client.query(sql, params)) as { rows: Record<string, unknown>[] };
+  for (const row of r.rows) out.set(dbRowKey(entity, row), normalizeDbRow(entity, row));
+  return out;
+}
+
+/** Đọc dòng DB theo 1 cột khoá ngoại (vd. bảng con của hoạt động theo activity_id) */
+export async function loadRowsWhere(
+  client: Queryable,
+  entity: string,
+  col: string,
+  values: number[],
+): Promise<Record<string, unknown>[]> {
+  const spec = ENTITY_SPECS[entity];
+  if (!spec || values.length === 0 || !Object.values(spec.fields).some((fs) => fs.col === col)) return [];
+  const r = (await client.query(`SELECT * FROM ${spec.table} WHERE ${col} = ANY($1::bigint[])`, [values])) as {
+    rows: Record<string, unknown>[];
+  };
+  return r.rows.map((row) => normalizeDbRow(entity, row));
+}
+
+/**
+ * Dự tính kết quả ghi 1 object client lên dòng DB hiện có (null = dòng mới):
+ * - next: dòng sau khi UPSERT (cột client gửi đè lên bản cũ, cột gửi rõ null thì xoá)
+ * - changed: cột có giá trị khác bản DB (cột phái sinh derive không tính)
+ * Không có cột nào đổi → client chỉ gửi lại y hệt, bỏ qua được.
+ */
+export async function planRowWrite(
+  client: Queryable,
+  entity: string,
+  obj: Record<string, unknown>,
+  ctx: DeriveCtx,
+  existing: Record<string, unknown> | null,
+): Promise<{ next: Record<string, unknown>; changed: string[] }> {
+  const spec = ENTITY_SPECS[entity];
+  const nullable = await nullableColsOf(client, spec.table);
+  const typeOf = new Map(Object.values(spec.fields).map((fs) => [fs.col, fs.type]));
+  const { cols, values, nullCols } = toRow(entity, obj, ctx);
+  const next: Record<string, unknown> = { ...(existing ?? {}) };
+  const changed: string[] = [];
+  cols.forEach((col, i) => {
+    next[col] = values[i];
+    const type = typeOf.get(col);
+    if (!type) return; // cột phái sinh — server tự điền
+    if (!existing || comparable(values[i], type) !== comparable(existing[col], type)) changed.push(col);
+  });
+  // UPSERT của settings không xoá cột theo null gửi kèm
+  if (entity !== "settings") {
+    for (const col of nullCols) {
+      if (!nullable.has(col)) continue;
+      next[col] = null;
+      if (existing && existing[col] != null) changed.push(col);
+    }
+  }
+  return { next, changed };
 }

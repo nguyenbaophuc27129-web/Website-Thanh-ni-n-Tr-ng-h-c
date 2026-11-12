@@ -429,6 +429,12 @@ export default function DonViPage() {
     );
   };
 
+  const roots = useMemo(() => {
+    if (isTW) return units.filter((u) => u.parentId === null);
+    const provinceRoots = units.filter((u) => u.id === session?.orgUnitId);
+    return provinceRoots.length > 0 ? provinceRoots : units.filter((u) => u.parentId === null);
+  }, [units, isTW, session]);
+
   if (session && !canManage) {
     return (
       <Card>
@@ -439,12 +445,6 @@ export default function DonViPage() {
       </Card>
     );
   }
-
-  const roots = useMemo(() => {
-    if (isTW) return units.filter((u) => u.parentId === null);
-    const provinceRoots = units.filter((u) => u.id === session?.orgUnitId);
-    return provinceRoots.length > 0 ? provinceRoots : units.filter((u) => u.parentId === null);
-  }, [units, isTW, session]);
 
   return (
     <div className="space-y-5">

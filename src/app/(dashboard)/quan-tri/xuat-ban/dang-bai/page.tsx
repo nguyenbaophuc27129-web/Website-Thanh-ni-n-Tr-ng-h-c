@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -10,17 +10,14 @@ import {
   Eye,
   Trash2,
   ImagePlus,
-  Link2,
   X,
   Plus,
   Sparkles,
   Calendar,
-  DollarSign,
   Tag,
   FileText,
   Bookmark,
   Check,
-  Globe,
   Upload,
   AlertCircle,
   HelpCircle,
@@ -28,6 +25,7 @@ import {
   ShieldCheck,
   Layers,
   Search,
+  Loader2,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
@@ -36,7 +34,14 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { EVENT_KEYWORDS, SECTION_TAGS, contentCategories, DEFAULT_POST_CATEGORY } from "@/data/categories";
 import type { PublishedPost } from "@/types";
-import { slugify, formatDateTime, formatNumber } from "@/lib/utils";
+import { slugify, formatDateTime } from "@/lib/utils";
+import { PostContent } from "@/components/public/post-content";
+import { RichEditor } from "@/components/editor";
+import { docToPlainText, emptyDoc, isDocEmpty, type PostDoc } from "@/lib/editor/doc-utils";
+import { postDocOf } from "@/lib/editor/legacy-markdown";
+import { isExternalUrl, uploadFile, uploadFromUrl } from "@/lib/upload-client";
+import { CoverFocusEditor } from "@/components/dashboard/cover-focus-editor";
+import { parseCover, withCoverFocus } from "@/lib/cover";
 
 /** Chuyên mục chuẩn — khớp contentCategories DB (migration 0026) */
 const STANDARD_CATEGORIES = contentCategories.map((c) => c.name);
@@ -59,16 +64,17 @@ function DangBaiInner() {
   const { toast } = useToast();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const contentImageInputRef = useRef<HTMLInputElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Form State
   const [postId, setPostId] = useState<number | null>(editId);
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
-  const [content, setContent] = useState("");
-  const [coverUrl, setCoverUrl] = useState("");
+  // Nội dung bài (tài liệu của trình soạn thảo); docKey đổi → trình soạn thảo nạp lại nội dung
+  const [contentDoc, setContentDoc] = useState<PostDoc>(emptyDoc);
+  const [docKey, setDocKey] = useState<string>("new");
+  // Ảnh đại diện: đường dẫn /uploads/... trên máy chủ (bài cũ có thể còn link ngoài)
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
+  const [coverUrlInput, setCoverUrlInput] = useState("");
   const [imageCaption, setImageCaption] = useState("");
   const [status, setStatus] = useState<PublishedPost["status"]>("DRAFT");
   const [isFeatured, setIsFeatured] = useState(false);
@@ -81,8 +87,6 @@ function DangBaiInner() {
   const [relatedTopics, setRelatedTopics] = useState<string[]>([]);
   const [customTopicInput, setCustomTopicInput] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
-  const [royaltyAmount, setRoyaltyAmount] = useState<number>(0);
-  const [royaltyNotes, setRoyaltyNotes] = useState("");
 
   // SEO State
   const [seoTitle, setSeoTitle] = useState("");
@@ -94,18 +98,35 @@ function DangBaiInner() {
   const [relatedPostModalOpen, setRelatedPostModalOpen] = useState(false);
   const [relatedSearch, setRelatedSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  // Số tệp đang tải lên máy chủ (ảnh đại diện / ảnh trong bài) — chặn lưu bài khi còn ảnh dở dang
+  const [coverUploading, setUploading] = useState(0);
+  const [editorUploading, setEditorUploading] = useState(0);
+  const uploading = coverUploading + editorUploading;
 
-  // Load existing post if editing
+  // Mở bài đang có: nạp form MỘT lần cho mỗi bài — dữ liệu đồng bộ định kỳ không ghi đè phần đang sửa
+  const loadedIdRef = useRef<number | null>(null);
+
+  // Chiều cao thanh tiêu đề dính (đổi theo bề rộng màn hình) — thanh công cụ soạn thảo dính ngay dưới
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [headerH, setHeaderH] = useState(64);
   useEffect(() => {
-    if (editId) {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeaderH(Math.ceil(el.getBoundingClientRect().height)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => {
+    if (editId && loadedIdRef.current !== editId) {
       const existing = publishedPosts.find((p) => p.id === editId);
       if (existing) {
+        loadedIdRef.current = editId;
         setPostId(existing.id);
         setTitle(existing.title || "");
         setSubtitle(existing.subtitle || existing.excerpt || "");
-        setContent(existing.content || "");
-        setCoverUrl(existing.coverUrl || "");
-        setCoverDataUrl(existing.coverDataUrl || null);
+        setContentDoc(postDocOf(existing));
+        setDocKey(`post-${existing.id}`);
+        setCoverDataUrl(existing.coverDataUrl || existing.coverUrl || null);
         setImageCaption(existing.imageCaption || "");
         setStatus(existing.status);
         setIsFeatured(existing.isFeatured);
@@ -115,8 +136,6 @@ function DangBaiInner() {
         setRelatedPosts(existing.relatedPosts || []);
         setRelatedTopics(existing.relatedTopics || []);
         setInternalNotes(existing.internalNotes || "");
-        setRoyaltyAmount(existing.royaltyAmount || 0);
-        setRoyaltyNotes(existing.royaltyNotes || "");
         setSeoTitle(existing.seoTitle || existing.title || "");
         setSeoDescription(existing.metaDescription || existing.excerpt || "");
         setSeoKeywords(existing.seoKeywords || "");
@@ -124,9 +143,23 @@ function DangBaiInner() {
     }
   }, [editId, publishedPosts]);
 
-  // Handle Cover File Upload
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /** Chạy 1 thao tác tải lên, đếm số tệp đang tải để khoá nút lưu */
+  const trackUpload = async <T,>(job: () => Promise<T>): Promise<T | null> => {
+    setUploading((n) => n + 1);
+    try {
+      return await job();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Tải tệp lên máy chủ thất bại.", "warning");
+      return null;
+    } finally {
+      setUploading((n) => n - 1);
+    }
+  };
+
+  // Ảnh đại diện: tải thẳng lên máy chủ, lưu đường dẫn /uploads/...
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast("Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, WebP).", "warning");
@@ -136,98 +169,27 @@ function DangBaiInner() {
       toast("Dung lượng ảnh tối đa là 10MB.", "warning");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCoverDataUrl(reader.result as string);
-      toast("Đã tải ảnh đại diện bài viết thành công!", "success");
-    };
-    reader.readAsDataURL(file);
+    const uploaded = await trackUpload(() => uploadFile(file, "bai-viet"));
+    if (uploaded) {
+      setCoverDataUrl(uploaded.url);
+      toast("Đã tải ảnh đại diện lên máy chủ!", "success");
+    }
   };
 
-  // Tải ảnh trực tiếp từ máy tính lên chèn vào nội dung bài viết
-  const handleContentImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast("Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, WebP, GIF).", "warning");
+  // Ảnh đại diện từ link: máy chủ tự tải ảnh về lưu trữ riêng
+  const handleCoverFromUrl = async () => {
+    const url = coverUrlInput.trim();
+    if (!isExternalUrl(url)) {
+      toast("Nhập đường dẫn ảnh bắt đầu bằng http:// hoặc https://", "warning");
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      toast("Dung lượng ảnh tối đa là 15MB.", "warning");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const defaultCaption = file.name.replace(/\.[^/.]+$/, "");
-      const caption = window.prompt("Nhập chú thích ảnh minh họa (tùy chọn):", defaultCaption) || "";
-      insertText(`\n\n![${caption || "Ảnh minh họa"}](${dataUrl})` + (caption ? `\n*${caption}*\n\n` : "\n\n"));
-      toast(`Đã tải ảnh "${file.name}" trực tiếp từ máy tính lên thành công!`, "success");
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  // Cho phép dán ảnh (Ctrl+V) trực tiếp từ bộ nhớ tạm máy tính vào nội dung
-  const handleContentPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith("image/")) {
-        const file = items[i].getAsFile();
-        if (file) {
-          e.preventDefault();
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            insertText(`\n\n![Ảnh dán từ clipboard](${dataUrl})\n\n`);
-            toast("Đã dán ảnh trực tiếp từ máy tính vào bài viết thành công!", "success");
-          };
-          reader.readAsDataURL(file);
-          break;
-        }
-      }
+    const uploaded = await trackUpload(() => uploadFromUrl(url, "bai-viet"));
+    if (uploaded) {
+      setCoverDataUrl(uploaded.url);
+      setCoverUrlInput("");
+      toast("Đã lấy ảnh về máy chủ!", "success");
     }
   };
-
-  // Editor toolbar helper
-  const insertText = (before: string, after: string = "", placeholder: string = "") => {
-    const el = textareaRef.current;
-    if (!el) {
-      setContent((prev) => prev + before + placeholder + after);
-      return;
-    }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = content.slice(start, end) || placeholder;
-    const next = content.slice(0, start) + before + selected + after + content.slice(end);
-    setContent(next);
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + before.length, start + before.length + selected.length);
-    }, 40);
-  };
-
-  const insertImage = () => {
-    const url = window.prompt("Nhập đường dẫn hình ảnh chèn vào bài (URL https://):", "https://");
-    if (!url || url === "https://") return;
-    const caption = window.prompt("Nhập chú thích ảnh (tùy chọn):", "") || "";
-    insertText(`\n\n![${caption}](${url})` + (caption ? `\n*${caption}*\n\n` : "\n\n"));
-  };
-
-  const insertLink = () => {
-    const url = window.prompt("Nhập địa chỉ liên kết (URL):", "https://");
-    if (!url || url === "https://") return;
-    const label = window.prompt("Nhập tên hiển thị cho liên kết:", "Xem thêm thông tin") || "Liên kết";
-    insertText(`[${label}](${url})`);
-  };
-
-  // Character and word counts
-  const wordCount = useMemo(() => {
-    return content.trim() ? content.trim().split(/\s+/).length : 0;
-  }, [content]);
-
-  const charCount = useMemo(() => content.length, [content]);
 
   // Toggle category
   const toggleCategory = (cat: string) => {
@@ -285,13 +247,32 @@ function DangBaiInner() {
       toast("Vui lòng nhập tiêu đề chính của bài viết!", "warning");
       return;
     }
-    if (!content.trim()) {
+    if (isDocEmpty(contentDoc)) {
       toast("Nội dung bài viết không được để trống!", "warning");
+      return;
+    }
+
+    if (uploading > 0) {
+      toast("Ảnh đang được tải lên máy chủ — vui lòng đợi xong rồi lưu.", "warning");
       return;
     }
 
     setSaving(true);
     try {
+      // Ảnh trong bài đã được trình soạn thảo lấy về máy chủ; ảnh đại diện còn link ngoài (bài cũ) → lấy về
+      let finalCover = coverDataUrl || "";
+      if (isExternalUrl(finalCover)) {
+        try {
+          // Giữ vị trí căn ảnh (#focus) qua bước tải về máy chủ
+          const { src, focus } = parseCover(finalCover);
+          finalCover = withCoverFocus((await uploadFromUrl(src, "bai-viet")).url, focus);
+        } catch {
+          toast("Ảnh đại diện từ link ngoài không tải về được — ảnh vẫn dùng link gốc.", "warning");
+        }
+      }
+      if (finalCover !== (coverDataUrl || "")) setCoverDataUrl(finalCover || null);
+      const plainText = docToPlainText(contentDoc);
+
       const finalStatus = targetStatus ?? status;
       const id = postId ?? Date.now();
       const generatedSlug = slugify(title) || `bai-viet-${id}`;
@@ -302,11 +283,14 @@ function DangBaiInner() {
         slug: generatedSlug,
         title: title.trim(),
         subtitle: subtitle.trim(),
-        excerpt: subtitle.trim() || content.trim().slice(0, 200),
-        content: content.trim(),
+        excerpt: subtitle.trim() || plainText.slice(0, 200),
+        // Máy chủ tự rút văn bản thuần từ contentDoc; gửi kèm để danh sách/tìm kiếm cập nhật ngay
+        content: plainText,
+        contentDoc,
         coverSeed: (id % 9) + 1,
-        coverDataUrl: coverDataUrl || undefined,
-        coverUrl: coverUrl.trim() || undefined,
+        // Chuỗi rỗng (không phải undefined) để bỏ ảnh thì DB cũng xoá theo
+        coverDataUrl: finalCover,
+        coverUrl: "",
         imageCaption: imageCaption.trim() || undefined,
         status: finalStatus,
         isFeatured: postAttributes.includes("TIEU_DIEM") || isFeatured,
@@ -322,8 +306,6 @@ function DangBaiInner() {
         relatedPosts,
         relatedTopics,
         internalNotes: internalNotes.trim() || undefined,
-        royaltyAmount: Number(royaltyAmount) || 0,
-        royaltyNotes: royaltyNotes.trim() || undefined,
         seoTitle: seoTitle.trim() || title.trim(),
         metaDescription: seoDescription.trim() || subtitle.trim(),
         seoKeywords: seoKeywords.trim() || undefined,
@@ -331,6 +313,7 @@ function DangBaiInner() {
       };
 
       savePost(postToSave);
+      loadedIdRef.current = id;
       setPostId(id);
       setStatus(finalStatus);
 
@@ -351,12 +334,12 @@ function DangBaiInner() {
     }
   };
 
-  const effectiveCover = coverDataUrl || coverUrl.trim() || "";
+  const effectiveCover = coverDataUrl || "";
 
   return (
     <div className="min-h-screen bg-slate-50/60 pb-20">
       {/* Top Header sticky */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
+      <header ref={headerRef} className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
@@ -393,15 +376,15 @@ function DangBaiInner() {
             <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye className="h-4 w-4" /> Xem trước
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => handleSave("DRAFT")} disabled={saving}>
+            <Button variant="secondary" size="sm" onClick={() => handleSave("DRAFT")} disabled={saving || uploading > 0}>
               <Save className="h-4 w-4" /> Lưu nháp
             </Button>
             {status === "PUBLISHED" ? (
-              <Button variant="danger" size="sm" onClick={() => handleSave("UNPUBLISHED")} disabled={saving}>
+              <Button variant="danger" size="sm" onClick={() => handleSave("UNPUBLISHED")} disabled={saving || uploading > 0}>
                 <Trash2 className="h-4 w-4" /> Gỡ bài
               </Button>
             ) : null}
-            <Button size="sm" onClick={() => handleSave("PUBLISHED")} disabled={saving}>
+            <Button size="sm" onClick={() => handleSave("PUBLISHED")} disabled={saving || uploading > 0}>
               <Send className="h-4 w-4" /> {status === "PUBLISHED" ? "Cập nhật bài" : "Xuất bản ngay"}
             </Button>
           </div>
@@ -451,150 +434,17 @@ function DangBaiInner() {
 
               {/* Trình soạn thảo văn bản phong phú */}
               <div className="mt-6 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Nội dung bài viết <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="flex items-center gap-3 text-xs text-slate-500">
-                    <span>
-                      Số từ: <strong className="text-slate-800">{wordCount}</strong>
-                    </span>
-                    <span>·</span>
-                    <span>
-                      Ký tự: <strong className="text-slate-800">{charCount}</strong>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  {/* Toolbar */}
-                  <div className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => insertText("**", "**", "chữ in đậm")}
-                        title="In đậm (Bold)"
-                        className="flex h-7 w-7 items-center justify-center rounded font-bold text-slate-700 hover:bg-slate-200"
-                      >
-                        B
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertText("*", "*", "chữ in nghiêng")}
-                        title="In nghiêng (Italic)"
-                        className="flex h-7 w-7 items-center justify-center rounded font-serif italic text-slate-700 hover:bg-slate-200"
-                      >
-                        I
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertText("<u>", "</u>", "chữ gạch chân")}
-                        title="Gạch chân (Underline)"
-                        className="flex h-7 w-7 items-center justify-center rounded underline text-slate-700 hover:bg-slate-200"
-                      >
-                        U
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertText("~~", "~~", "chữ gạch ngang")}
-                        title="Gạch ngang (Strikethrough)"
-                        className="flex h-7 w-7 items-center justify-center rounded line-through text-slate-700 hover:bg-slate-200"
-                      >
-                        S
-                      </button>
-
-                      <span className="mx-1 h-4 w-px bg-slate-300" />
-
-                      <button
-                        type="button"
-                        onClick={() => insertText("\n## ", "\n", "Tiêu đề đoạn chính")}
-                        title="Tiêu đề mục lớn (Heading 2)"
-                        className="rounded px-2 py-1 font-bold text-slate-700 hover:bg-slate-200 text-[11px]"
-                      >
-                        H2
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertText("\n### ", "\n", "Tiêu đề mục nhỏ")}
-                        title="Tiêu đề đoạn nhỏ (Heading 3)"
-                        className="rounded px-2 py-1 font-bold text-slate-700 hover:bg-slate-200 text-[11px]"
-                      >
-                        H3
-                      </button>
-
-                      <span className="mx-1 h-4 w-px bg-slate-300" />
-
-                      <button
-                        type="button"
-                        onClick={() => insertText("\n- ", "\n", "Nội dung danh sách")}
-                        title="Danh sách gạch đầu dòng"
-                        className="rounded px-2 py-1 text-slate-700 hover:bg-slate-200 text-[11px]"
-                      >
-                        • Danh sách
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertText("\n1. ", "\n", "Nội dung bước 1")}
-                        title="Danh sách đánh số"
-                        className="rounded px-2 py-1 text-slate-700 hover:bg-slate-200 text-[11px]"
-                      >
-                        1. Số thứ tự
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertText("\n> ", "\n", "Nội dung câu trích dẫn")}
-                        title="Khối trích dẫn (Blockquote)"
-                        className="rounded px-2 py-1 font-mono text-slate-700 hover:bg-slate-200 text-[11px]"
-                      >
-                        “ ” Trích dẫn
-                      </button>
-
-                      <span className="mx-1 h-4 w-px bg-slate-300" />
-
-                      <input
-                        ref={contentImageInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleContentImageUpload}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => contentImageInputRef.current?.click()}
-                        title="Tải ảnh trực tiếp từ máy tính lên bài viết"
-                        className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-                      >
-                        <Upload className="h-3.5 w-3.5" /> Đăng ảnh từ máy tính
-                      </button>
-                      <button
-                        type="button"
-                        onClick={insertImage}
-                        title="Chèn ảnh qua đường dẫn link URL"
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-200 transition-colors"
-                      >
-                        <ImagePlus className="h-3.5 w-3.5" /> Link ảnh
-                      </button>
-                      <button
-                        type="button"
-                        onClick={insertLink}
-                        title="Chèn liên kết đường dẫn"
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
-                      >
-                        <Link2 className="h-3.5 w-3.5" /> Chèn link
-                      </button>
-                    </div>
-                  </div>
-
-                  <textarea
-                    ref={textareaRef}
-                    rows={16}
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    onPaste={handleContentPaste}
-                    placeholder="Viết hoặc dán nội dung chi tiết của bài viết tại đây. Hỗ trợ định dạng in đậm, in nghiêng, tiêu đề đoạn H2/H3, danh sách và hình ảnh minh họa..."
-                    className="w-full bg-white p-4 text-sm leading-relaxed text-slate-800 outline-none transition focus:bg-slate-50/30"
-                  />
-                </div>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Nội dung bài viết <span className="text-rose-500">*</span>
+                </label>
+                <RichEditor
+                  initialDoc={contentDoc}
+                  resetKey={docKey}
+                  onChange={setContentDoc}
+                  onPendingUploadsChange={setEditorUploading}
+                  stickyTop={headerH}
+                  minHeight={420}
+                />
               </div>
             </div>
 
@@ -654,21 +504,21 @@ function DangBaiInner() {
 
               <div className="flex items-center gap-2">
                 {status === "PUBLISHED" ? (
-                  <Button variant="danger" size="sm" onClick={() => handleSave("UNPUBLISHED")} disabled={saving}>
+                  <Button variant="danger" size="sm" onClick={() => handleSave("UNPUBLISHED")} disabled={saving || uploading > 0}>
                     Gỡ tin
                   </Button>
                 ) : null}
-                <Button variant="secondary" size="sm" onClick={() => handleSave("DRAFT")} disabled={saving}>
+                <Button variant="secondary" size="sm" onClick={() => handleSave("DRAFT")} disabled={saving || uploading > 0}>
                   <Save className="h-4 w-4" /> Lưu tin nháp
                 </Button>
-                <Button size="sm" onClick={() => handleSave("PUBLISHED")} disabled={saving}>
+                <Button size="sm" onClick={() => handleSave("PUBLISHED")} disabled={saving || uploading > 0}>
                   <Send className="h-4 w-4" /> {status === "PUBLISHED" ? "Cập nhật" : "Xuất bản"}
                 </Button>
               </div>
             </div>
           </div>
 
-          {/* CỘT PHẢI: Thuộc tính, Ảnh đại diện, Chuyên mục, Tin liên quan, Nhuận bút (4 cột) */}
+          {/* CỘT PHẢI: Thuộc tính, Ảnh đại diện, Chuyên mục, Tin liên quan, Ghi chú, Ngày đăng (4 cột) */}
           <div className="space-y-6 lg:col-span-4">
             {/* 1. Thuộc tính bài viết */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -754,36 +604,27 @@ function DangBaiInner() {
               </div>
 
               <div className="mt-3.5 space-y-3">
-                {/* Khung preview */}
-                <div className="relative aspect-[470/250] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                  {effectiveCover ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={effectiveCover}
-                        alt="Ảnh đại diện bài viết"
-                        className="h-full w-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCoverDataUrl(null);
-                          setCoverUrl("");
-                        }}
-                        className="absolute right-2 top-2 rounded-lg bg-black/60 p-1 text-white hover:bg-black/80"
-                        title="Bỏ ảnh"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </>
-                  ) : (
+                {/* Khung preview — kéo để chỉnh vị trí ảnh */}
+                {effectiveCover ? (
+                  <CoverFocusEditor value={effectiveCover} onChange={setCoverDataUrl}>
+                    <button
+                      type="button"
+                      onClick={() => setCoverDataUrl(null)}
+                      className="absolute right-2 top-2 rounded-lg bg-black/60 p-1 text-white hover:bg-black/80"
+                      title="Bỏ ảnh"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </CoverFocusEditor>
+                ) : (
+                  <div className="relative aspect-[470/250] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                     <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center text-slate-400">
                       <ImagePlus className="h-8 w-8 text-slate-300" />
                       <p className="mt-1 text-xs">Chưa có ảnh đại diện</p>
                       <p className="text-[10px] text-slate-400">Kích thước chuẩn: 470 × 250 px</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Nút upload hoặc URL */}
                 <div className="flex items-center gap-2">
@@ -800,20 +641,37 @@ function DangBaiInner() {
                     size="sm"
                     className="w-full text-xs"
                     onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading > 0}
                   >
-                    <Upload className="h-3.5 w-3.5" /> Tải ảnh từ máy
+                    {uploading > 0 ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Tải ảnh từ máy
                   </Button>
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-medium text-slate-600">Hoặc nhập URL ảnh:</label>
-                  <input
-                    type="text"
-                    value={coverUrl}
-                    onChange={(e) => setCoverUrl(e.target.value)}
-                    placeholder="https://... ảnh trực tiếp"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-400"
-                  />
+                  <label className="text-[11px] font-medium text-slate-600">Hoặc lấy ảnh từ link (máy chủ tự tải về):</label>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={coverUrlInput}
+                      onChange={(e) => setCoverUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleCoverFromUrl();
+                        }
+                      }}
+                      placeholder="https://... ảnh trực tiếp"
+                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleCoverFromUrl()}
+                      disabled={uploading > 0}
+                      className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-blue-100 hover:text-blue-700 disabled:opacity-50"
+                    >
+                      Lấy về
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -1122,9 +980,9 @@ function DangBaiInner() {
             <figure className="space-y-1.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={effectiveCover}
+                src={parseCover(effectiveCover).src}
                 alt={title}
-                className="aspect-[470/250] w-full rounded-2xl object-cover shadow-sm"
+                className="h-auto max-h-[75vh] w-full rounded-2xl bg-slate-100 object-contain shadow-sm"
               />
               {imageCaption ? (
                 <figcaption className="text-center font-serif text-xs italic text-slate-500">
@@ -1134,8 +992,8 @@ function DangBaiInner() {
             </figure>
           ) : null}
 
-          <div className="whitespace-pre-line text-sm leading-relaxed text-slate-800">
-            {content || "Nội dung bài viết sẽ xuất hiện tại đây..."}
+          <div className="space-y-4 text-sm leading-relaxed text-slate-800">
+            {isDocEmpty(contentDoc) ? "Nội dung bài viết sẽ xuất hiện tại đây..." : <PostContent doc={contentDoc} />}
           </div>
 
           {relatedPosts.length > 0 ? (

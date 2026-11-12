@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { moderateText } from "@/lib/ai-moderation";
 import { relTime } from "@/lib/utils";
 import { FIELD_META, PHASE_META } from "@/lib/volunteer-meta";
 import type { VolunteerProject, VolunteerProjectField, VolunteerProjectPhase, VolunteerProjectPhaseEntry } from "@/types";
@@ -124,38 +123,37 @@ export default function DuAnTinhNguyenPage() {
       toast("Nhập xã / phường nơi thực hiện dự án.", "warning");
       return;
     }
+    // Máy chủ tự kiểm duyệt AI; đơn vị / tên trường lấy theo tài khoản đăng nhập
     setBusy(true);
-    const mod = await moderateText(`${pName}\n${pSummary}`);
-    submitVolunteerProject(
-      session,
-      {
-        orgUnitId: session.orgUnitId,
-        schoolName: orgName(session.orgUnitId),
-        province: pProvince,
-        ward: pWard,
-        projectName: pName,
-        summary: pSummary,
-        objectives: pObjectives,
-        timeframe: pTimeframe,
-        beneficiaries: pBeneficiaries || "Cộng đồng địa phương",
-        participants: Number(pParticipants) || 1,
-        field: pField,
-        phase: pPhase,
-        initialResults: pInitialResults,
-        direction: pDirection,
-        phases: pPhases,
-      },
-      mod
-    );
+    const res = await submitVolunteerProject({
+      province: pProvince,
+      ward: pWard,
+      projectName: pName,
+      summary: pSummary,
+      objectives: pObjectives,
+      timeframe: pTimeframe,
+      beneficiaries: pBeneficiaries || "Cộng đồng địa phương",
+      participants: Number(pParticipants) || 1,
+      field: pField,
+      phase: pPhase,
+      initialResults: pInitialResults,
+      direction: pDirection,
+      phases: pPhases,
+    });
     setBusy(false);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setOpenSubmit(false);
     setPName(""); setPWard(""); setPSummary(""); setPObjectives(""); setPTimeframe("");
     setPBeneficiaries(""); setPParticipants("50"); setPInitialResults(""); setPDirection(""); setPPhases([]);
+    const clean = res.mod?.verdict !== "FLAGGED";
     toast(
-      mod.verdict === "CLEAN"
+      clean
         ? "Đã tiếp nhận dự án — chờ cấp trên duyệt, được duyệt sẽ đăng vào ngân hàng dự án (+20 điểm)."
-        : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — dự án chờ kiểm duyệt thủ công.`,
-      mod.verdict === "CLEAN" ? "success" : "warning"
+        : `AI gắn cờ nội dung (${res.mod?.reason ?? "đáng ngờ"}) — dự án chờ kiểm duyệt thủ công.`,
+      clean ? "success" : "warning"
     );
   };
 

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { useStore } from "@/lib/store-context";
+import { usePublicStats } from "@/lib/public-stats";
 import { HeroBanner, Hs3tBanner } from "@/components/public/hero-banner";
 import { BinhChonBand } from "@/components/public/binh-chon/band";
 import { DoanTruongBand } from "@/components/public/binh-chon/doan-truong-band";
@@ -52,7 +53,8 @@ function FbIcon({ className }: { className?: string }) {
 }
 
 export default function HomePage() {
-  const { publishedPosts, rankingSnapshots, rankingEntries, orgName, activities } = useStore();
+  const { publishedPosts, rankingSnapshots, rankingEntries, orgName } = useStore();
+  const stats = usePublicStats();
 
   const published = useMemo(
     () =>
@@ -109,8 +111,9 @@ export default function HomePage() {
       .slice(0, 5);
   }, [rankingEntries, publishedSnapshot]);
 
-  const totalActivities = activities.filter((a) => a.confirmStatus === "CONFIRMED").length;
-  const totalParticipants = activities.reduce((s, a) => s + (a.participantCount ?? 0), 0);
+  // Đếm phía máy chủ — snapshot khách không còn chứa danh sách hoạt động
+  const totalActivities = stats.activitiesConfirmed;
+  const totalParticipants = stats.participants;
 
   return (
     <>

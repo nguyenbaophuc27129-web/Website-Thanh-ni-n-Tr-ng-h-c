@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Image } from "lucide-react";
+import { coverPosition, parseCover } from "@/lib/cover";
 
 /** Ảnh giả lập bằng gradient + icon (prototype không có ảnh thật) */
 const gradients = [
@@ -26,16 +27,23 @@ export function PhotoPlaceholder({
   src?: string;
 }) {
   const g = gradients[Math.abs(seed) % gradients.length];
+  /* src có thể kèm #focus=x,y — tách ra để lấy đường dẫn sạch + object-position */
+  const { src: clean, focus } = parseCover(src);
   return (
     <div
       className={cn(
         "flex items-center justify-center overflow-hidden",
-        src ? "bg-stone-100" : cn("bg-gradient-to-br", g),
+        clean ? "bg-stone-100" : cn("bg-gradient-to-br", g),
         className
       )}
     >
-      {src ? (
-        <img src={src} alt={label ?? ""} className="h-full w-full object-cover" />
+      {clean ? (
+        <img
+          src={clean}
+          alt={label ?? ""}
+          className="h-full w-full object-cover"
+          style={{ objectPosition: coverPosition(focus) }}
+        />
       ) : (
         <>
           {icon ? <Image className="h-6 w-6 text-white/60" /> : null}

@@ -8,13 +8,14 @@ import { StoreProvider } from "@/lib/store-context";
 const notoSerif = Noto_Serif({
   variable: "--font-noto-serif",
   subsets: ["vietnamese", "latin"],
-  weight: ["400", "600", "700", "900"],
+  // Phông biến thiên: 1 tệp / bộ ký tự cho mọi độ đậm (thay vì 1 tệp / độ đậm)
 });
 
 const beVietnam = Be_Vietnam_Pro({
   variable: "--font-be-vietnam",
   subsets: ["vietnamese", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  // Chỉ các độ đậm đang dùng nhiều (font-light/extrabold hiển thị bằng 400/700) — mỗi độ đậm là thêm tệp phải tải
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {

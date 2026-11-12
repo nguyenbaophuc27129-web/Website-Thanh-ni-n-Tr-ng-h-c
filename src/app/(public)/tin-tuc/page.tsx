@@ -28,12 +28,13 @@ import {
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { moderateText } from "@/lib/ai-moderation";
 import { SPECIAL_CATEGORIES, SECTION_TAGS, contentCategories, DEFAULT_POST_CATEGORY } from "@/data/categories";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
+import { postCoverRaw } from "@/lib/cover";
 import { Modal } from "@/components/ui/modal";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { formatDateTime, formatNumber } from "@/lib/utils";
+import { uploadFile } from "@/lib/upload-client";
 import type { PublishedPost } from "@/types";
 
 type Cat = "all" | string;
@@ -61,6 +62,7 @@ export default function TinTucPage() {
   const [cContent, setCContent] = useState("");
   const [cCover, setCCover] = useState<string | undefined>(undefined);
   const [cCoverName, setCCoverName] = useState("");
+  const [cCoverUploading, setCCoverUploading] = useState(false);
   const [cBusy, setCBusy] = useState(false);
 
   const openContribute = () => {
@@ -77,35 +79,45 @@ export default function TinTucPage() {
       toast("Ảnh bìa vượt quá 10MB — hãy chọn ảnh nhỏ hơn.", "warning");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCCover(String(reader.result));
-      setCCoverName(file.name);
-    };
-    reader.readAsDataURL(file);
+    // Ảnh bìa lưu trên máy chủ — chỉ giữ đường dẫn /uploads/...
+    setCCoverUploading(true);
+    uploadFile(file, "dong-gop")
+      .then((uploaded) => {
+        setCCover(uploaded.url);
+        setCCoverName(file.name);
+      })
+      .catch((e: unknown) => toast(e instanceof Error ? e.message : "Không tải được ảnh bìa lên máy chủ.", "warning"))
+      .finally(() => setCCoverUploading(false));
   };
 
   const submitContribution = async () => {
     if (!session) return;
+    if (cCoverUploading) {
+      toast("Ảnh bìa đang được tải lên máy chủ — vui lòng đợi trong giây lát.", "warning");
+      return;
+    }
     if (cTitle.trim().length < 8 || cContent.trim().length < 40) {
       toast("Cần tiêu đề tối thiểu 8 ký tự và nội dung tối thiểu 40 ký tự.", "warning");
       return;
     }
+    // Máy chủ tự kiểm duyệt AI rồi lưu bài ở trạng thái chờ duyệt
     setCBusy(true);
-    const mod = await moderateText(`${cTitle}\n${cContent}`);
-    createMemberContribution(
-      session,
-      { categoryTag: cTag, title: cTitle, excerpt: cExcerpt || cContent.slice(0, 150), content: cContent, coverDataUrl: cCover },
-      mod
-    );
+    const res = await createMemberContribution({
+      categoryTag: cTag, title: cTitle, excerpt: cExcerpt || cContent.slice(0, 150), content: cContent, coverDataUrl: cCover,
+    });
     setCBusy(false);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setContribOpen(false);
     setCTitle(""); setCExcerpt(""); setCContent(""); setCCover(undefined); setCCoverName("");
+    const clean = res.mod?.verdict !== "FLAGGED";
     toast(
-      mod.verdict === "CLEAN"
+      clean
         ? "Đã gửi bài đóng góp — nội dung đạt kiểm duyệt AI, chờ Ban Biên tập duyệt đăng."
-        : `AI gắn cờ nội dung (${mod.reason ?? "đáng ngờ"}) — bài ở trạng thái chờ kiểm duyệt thủ công.`,
-      mod.verdict === "CLEAN" ? "success" : "warning"
+        : `AI gắn cờ nội dung (${res.mod?.reason ?? "đáng ngờ"}) — bài ở trạng thái chờ kiểm duyệt thủ công.`,
+      clean ? "success" : "warning"
     );
   };
 
@@ -276,7 +288,7 @@ export default function TinTucPage() {
                   <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
                     <PhotoPlaceholder
                       seed={heroLead.coverSeed}
-                      src={heroLead.coverDataUrl || heroLead.coverUrl}
+                      src={postCoverRaw(heroLead)}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
                     <div className="absolute left-3 top-3 flex items-center gap-2">
@@ -331,7 +343,7 @@ export default function TinTucPage() {
                     <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-slate-100">
                       <PhotoPlaceholder
                         seed={p.coverSeed}
-                        src={p.coverDataUrl || p.coverUrl}
+                        src={postCoverRaw(p)}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       />
                       <span className="absolute left-2 top-2 rounded bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white">
@@ -434,7 +446,7 @@ export default function TinTucPage() {
                     <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
                       <PhotoPlaceholder
                         seed={p.coverSeed}
-                        src={p.coverDataUrl || p.coverUrl}
+                        src={postCoverRaw(p)}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       />
                     </div>
@@ -488,7 +500,7 @@ export default function TinTucPage() {
                     <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
                       <PhotoPlaceholder
                         seed={p.coverSeed}
-                        src={p.coverDataUrl || p.coverUrl}
+                        src={postCoverRaw(p)}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       />
                     </div>
@@ -532,7 +544,7 @@ export default function TinTucPage() {
                   <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                     <PhotoPlaceholder
                       seed={p.coverSeed}
-                      src={p.coverDataUrl || p.coverUrl}
+                      src={postCoverRaw(p)}
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                     />
                   </div>

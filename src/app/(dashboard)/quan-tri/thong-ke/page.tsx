@@ -10,13 +10,14 @@ import { SectionTitle } from "@/components/dashboard/stat-card";
 import {
   ActivitiesBarChart, TaskProgressPie, PostViewsAreaChart, ScoresHorizontalBar, TrendLineChart,
 } from "@/components/charts/charts";
-import { postViewDaily } from "@/data/published-posts";
+import { usePostViewDaily } from "@/lib/use-post-view-daily";
 
 const MONTHS = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"];
 
 export default function ThongKePage() {
   const { session } = useAuth();
   const store = useStore();
+  const postViews = usePostViewDaily(30);
   const scope = useMemo(() => (session ? store.scopeIds(session) : []), [session, store]);
   const [year, setYear] = useState("2026");
   const [quarter, setQuarter] = useState("all");
@@ -165,9 +166,9 @@ export default function ThongKePage() {
       </div>
 
       <Card>
-        <CardHeader title="Lượt xem tin bài (tháng 9/2026)" />
+        <CardHeader title="Lượt xem tin bài (30 ngày gần đây)" />
         <CardBody>
-          <PostViewsAreaChart data={postViewDaily.map((d) => ({ name: d.date, value: d.views }))} />
+          <PostViewsAreaChart data={postViews} />
         </CardBody>
       </Card>
 

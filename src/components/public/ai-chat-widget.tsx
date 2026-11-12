@@ -6,6 +6,9 @@ import { Bot, Send, X, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ruleReply } from "@/lib/ai-chat";
 
+/** Khớp giới hạn của /api/ai/chat */
+const MAX_QUESTION_CHARS = 500;
+
 interface ChatMessage {
   from: "bot" | "user";
   text: string;
@@ -33,6 +36,8 @@ export function AiChatWidget() {
     setTyping(true);
     const started = Date.now();
     let reply: ChatMessage;
+    /** Ghi chú thêm khi máy chủ từ chối (quá hạn mức / câu quá dài) */
+    let notice: string | null = null;
     try {
       // Gọi API trợ lý ảo — mặc định là quy tắc từ khoá trên máy chủ,
       // nối AI thật bằng cách sửa 1 hàm trong src/app/api/ai/chat/route.ts
@@ -44,6 +49,7 @@ export function AiChatWidget() {
       const data = (await res.json().catch(() => null)) as
         | { ok?: boolean; reply?: string; error?: string }
         | null;
+      if ((res.status === 429 || res.status === 413) && data?.error) notice = data.error;
       if (!res.ok || !data?.ok || !data.reply) throw new Error(data?.error ?? `HTTP ${res.status}`);
       // API có thể trả đường dẫn "/..." gắn cuối câu → tách thành nút bấm
       const linkMatch = data.reply.match(/(?:^|\s)(\/[a-z0-9\-/]+)\s*\.?\s*$/i);
@@ -51,14 +57,18 @@ export function AiChatWidget() {
         ? { from: "bot", text: data.reply.replace(linkMatch[1], "").trim(), link: { href: linkMatch[1], label: "Mở trang liên quan" } }
         : { from: "bot", text: data.reply };
     } catch {
-      // API không gọi được → fallback quy tắc cục bộ để chat không gãy
+      // API không gọi được / bị giới hạn → fallback quy tắc cục bộ để chat không gãy
       reply = { from: "bot", ...ruleReply(text) };
     }
     // Giữ cảm giác "đang gõ" tối thiểu 600ms (AI thật sẽ chậm hơn sẵn)
     const elapsed = Date.now() - started;
     if (elapsed < 600) await new Promise((r) => setTimeout(r, 600 - elapsed));
     setTyping(false);
-    setMessages((m) => [...m, reply]);
+    setMessages((m) =>
+      notice
+        ? [...m, { from: "bot", text: `${notice} Trong lúc chờ, đây là gợi ý tự động:` }, reply]
+        : [...m, reply],
+    );
   };
 
   return (
@@ -127,6 +137,7 @@ export function AiChatWidget() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
+              maxLength={MAX_QUESTION_CHARS}
               placeholder="Nhập câu hỏi của bạn…"
               className="h-9 flex-1 rounded-lg border border-stone-300 px-3 text-xs focus:border-doan-500 focus:outline-none focus:ring-2 focus:ring-doan-100"
             />

@@ -35,9 +35,11 @@ export default function DangNhapPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Modal tự đặt lại mật khẩu mới
+  // Modal đặt lại mật khẩu qua mã xác nhận gửi email: bước 1 gửi mã, bước 2 nhập mã + mật khẩu mới
   const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetStep, setResetStep] = useState<"request" | "confirm">("request");
   const [resetIdentifier, setResetIdentifier] = useState("");
+  const [resetCode, setResetCode] = useState("");
   const [resetNewPassword, setResetNewPassword] = useState("");
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetSubmitting, setResetSubmitting] = useState(false);
@@ -66,6 +68,37 @@ export default function DangNhapPage() {
     }
   };
 
+  const openResetModal = () => {
+    setResetIdentifier(username);
+    setResetStep("request");
+    setResetCode("");
+    setResetError("");
+    setResetSuccess("");
+    setResetModalOpen(true);
+  };
+
+  const handleRequestCode = async () => {
+    setResetSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request", identifier: resetIdentifier.trim() }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        setResetSuccess(data.message || "Đã gửi mã xác nhận tới email đăng ký.");
+        setResetStep("confirm");
+      } else {
+        setResetError(data?.error || "Không thể gửi mã xác nhận. Vui lòng thử lại sau.");
+      }
+    } catch {
+      setResetError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setResetError("");
@@ -73,6 +106,14 @@ export default function DangNhapPage() {
 
     if (!resetIdentifier.trim()) {
       setResetError("Vui lòng nhập tên đăng nhập hoặc email tài khoản.");
+      return;
+    }
+    if (resetStep === "request") {
+      await handleRequestCode();
+      return;
+    }
+    if (!/^\d{6}$/.test(resetCode.trim())) {
+      setResetError("Vui lòng nhập mã xác nhận 6 chữ số đã gửi tới email.");
       return;
     }
     if (!resetNewPassword || resetNewPassword.length < 6) {
@@ -90,7 +131,9 @@ export default function DangNhapPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "confirm",
           identifier: resetIdentifier.trim(),
+          code: resetCode.trim(),
           newPassword: resetNewPassword,
         }),
       });
@@ -102,6 +145,7 @@ export default function DangNhapPage() {
         setSuccessMsg("Mật khẩu đã được cập nhật thành công. Bạn có thể nhấn Đăng nhập ngay!");
         setTimeout(() => {
           setResetModalOpen(false);
+          setResetCode("");
           setResetNewPassword("");
           setResetConfirmPassword("");
           setResetSuccess("");
@@ -247,12 +291,7 @@ export default function DangNhapPage() {
                 <label className="text-sm font-medium text-slate-600">Mật khẩu</label>
                 <button
                   type="button"
-                  onClick={() => {
-                    setResetIdentifier(username);
-                    setResetError("");
-                    setResetSuccess("");
-                    setResetModalOpen(true);
-                  }}
+                  onClick={openResetModal}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
                 >
                   Quên mật khẩu?
@@ -296,22 +335,17 @@ export default function DangNhapPage() {
             </Link>
           </p>
 
-          {/* Khối tự đặt lại mật khẩu mới tự phục vụ */}
+          {/* Khối tự đặt lại mật khẩu qua mã xác nhận gửi email */}
           <div className="mt-8 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-sky-50/60 p-4 text-center">
             <p className="text-xs font-semibold text-slate-700">
               Quên mật khẩu hoặc cần khởi tạo lại mật khẩu quản trị đơn vị?
             </p>
             <p className="mt-1 text-[11px] text-slate-500">
-              Hệ thống hỗ trợ tự động đặt lại mật khẩu ngay lập tức không cần gửi email hỗ trợ.
+              Nhận mã xác nhận qua email đăng ký của tài khoản để tự đặt mật khẩu mới.
             </p>
             <button
               type="button"
-              onClick={() => {
-                setResetIdentifier(username);
-                setResetError("");
-                setResetSuccess("");
-                setResetModalOpen(true);
-              }}
+              onClick={openResetModal}
               className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-blue-700 shadow-sm ring-1 ring-blue-200 transition-all hover:bg-blue-600 hover:text-white"
             >
               <KeyRound className="h-3.5 w-3.5" /> Tự đặt lại mật khẩu mới ngay
@@ -344,7 +378,11 @@ export default function DangNhapPage() {
                   </span>
                   <div>
                     <h3 className="text-base font-bold text-slate-900">Đặt lại mật khẩu mới</h3>
-                    <p className="text-xs text-slate-500">Tự cập nhật mật khẩu trực tiếp vào hệ thống</p>
+                    <p className="text-xs text-slate-500">
+                      {resetStep === "request"
+                        ? "Bước 1/2: nhận mã xác nhận qua email"
+                        : "Bước 2/2: nhập mã xác nhận và mật khẩu mới"}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -365,7 +403,38 @@ export default function DangNhapPage() {
                     onChange={(e) => setResetIdentifier(e.target.value)}
                     placeholder="Ví dụ: tuoitrenghean hoặc email đơn vị"
                     required
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    readOnly={resetStep === "confirm"}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition read-only:bg-slate-50 read-only:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                {resetStep === "confirm" ? (
+                <>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-600">Mã xác nhận (6 số trong email)</label>
+                    <button
+                      type="button"
+                      disabled={resetSubmitting}
+                      onClick={() => {
+                        setResetError("");
+                        setResetSuccess("");
+                        void handleRequestCode();
+                      }}
+                      className="text-[11px] font-semibold text-blue-600 hover:underline disabled:opacity-60"
+                    >
+                      Gửi lại mã
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="______"
+                    required
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-center text-lg font-bold tracking-[0.5em] text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
@@ -394,6 +463,8 @@ export default function DangNhapPage() {
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
+                </>
+                ) : null}
 
                 {resetError ? (
                   <div className="flex items-start gap-2 rounded-xl bg-rose-50 p-2.5 text-xs text-rose-600 ring-1 ring-rose-200">
@@ -425,7 +496,11 @@ export default function DangNhapPage() {
                   >
                     {resetSubmitting ? (
                       <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang cập nhật...
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang xử lý...
+                      </>
+                    ) : resetStep === "request" ? (
+                      <>
+                        <KeyRound className="h-3.5 w-3.5" /> Gửi mã xác nhận
                       </>
                     ) : (
                       <>

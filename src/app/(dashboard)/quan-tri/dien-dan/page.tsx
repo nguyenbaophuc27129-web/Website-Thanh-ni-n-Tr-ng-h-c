@@ -49,6 +49,8 @@ export default function DienDanAdminPage() {
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  /** Mục đang gửi lên máy chủ — khoá nút để không bấm đúp */
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const items = useMemo<ModItem[]>(() => {
     const threads: ModItem[] = store.forumThreads.map((t) => ({
@@ -114,8 +116,18 @@ export default function DienDanAdminPage() {
 
   const keyOf = (it: ModItem) => `${it.kind}-${it.id}`;
 
-  const act = (it: ModItem, action: "APPROVE" | "REJECT" | "HIDE") => {
-    store.moderateForumItem(session, it.kind, it.id, action, action === "REJECT" ? note.trim() || undefined : undefined);
+  const act = async (it: ModItem, action: "APPROVE" | "REJECT" | "HIDE") => {
+    if (busyKey) return;
+    setBusyKey(keyOf(it));
+    // Máy chủ kiểm quyền forum.manage, ghi nhật ký rồi trả dòng đã cập nhật
+    const res = await store.moderateForumItem(
+      it.kind, it.id, action, action === "REJECT" ? note.trim() || undefined : undefined,
+    );
+    setBusyKey(null);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     const label =
       action === "APPROVE"
         ? it.kind === "THREAD" && it.state === "APPROVED"
@@ -235,14 +247,14 @@ export default function DienDanAdminPage() {
                       />
                       <div className="flex flex-wrap justify-end gap-2">
                         {it.kind === "THREAD" && it.state === "APPROVED" && it.threadPublished ? (
-                          <Button size="sm" variant="outline" onClick={() => act(it, "HIDE")}>
+                          <Button size="sm" variant="outline" disabled={!!busyKey} onClick={() => void act(it, "HIDE")}>
                             <EyeOff className="h-3.5 w-3.5" /> Ẩn bài
                           </Button>
                         ) : null}
-                        <Button size="sm" variant="secondary" onClick={() => act(it, "REJECT")}>
+                        <Button size="sm" variant="secondary" disabled={!!busyKey} onClick={() => void act(it, "REJECT")}>
                           <X className="h-3.5 w-3.5" /> Từ chối
                         </Button>
-                        <Button size="sm" onClick={() => act(it, "APPROVE")}>
+                        <Button size="sm" disabled={!!busyKey} onClick={() => void act(it, "APPROVE")}>
                           <Check className="h-3.5 w-3.5" /> {it.kind === "THREAD" && it.state === "APPROVED" ? "Mở lại" : "Duyệt"}
                         </Button>
                       </div>

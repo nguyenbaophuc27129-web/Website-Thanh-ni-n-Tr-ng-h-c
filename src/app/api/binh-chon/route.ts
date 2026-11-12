@@ -10,6 +10,7 @@ import {
   toStoryDto,
 } from "@/lib/server/binh-chon";
 import { verifyGoogleCredential } from "@/lib/server/google-verify";
+import { readVoteEmail, setVoteEmail } from "@/lib/server/vote-cookie";
 import { FULL_PHOTO_MAX_BYTES, PAGE_SIZE, THUMB_PHOTO_MAX_BYTES } from "@/lib/binh-chon";
 
 export const runtime = "nodejs";
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
     let myVotedStoryIds: number[] = [];
     let myStory = null as ReturnType<typeof toStoryDto> | null;
     // Định danh phiếu của tôi: tài khoản hệ thống HOẶC Gmail đã xác thực (cookie sau khi bình chọn)
-    const voteEmailCookie = request.cookies.get("tnth_vote_email")?.value ?? "";
+    const voteEmailCookie = readVoteEmail(request);
     const voteIdentity: { accountId?: number; email?: string } = {};
     if (session) voteIdentity.accountId = session.accountId;
     else if (voteEmailCookie) voteIdentity.email = voteEmailCookie;
@@ -168,7 +169,7 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
   const session = await sessionOf(request);
-  const voteEmailCookie = request.cookies.get("tnth_vote_email")?.value ?? "";
+  const voteEmailCookie = readVoteEmail(request);
   if (!session && !voteEmailCookie) {
     return NextResponse.json({ ok: false, error: "Chưa xác định được bài của bạn." }, { status: 401 });
   }
@@ -323,13 +324,8 @@ export async function POST(request: NextRequest) {
     );
     const res = NextResponse.json({ ok: true, id: Number(inserted[0].id) });
     if (submitterEmail) {
-      // Ghi nhận Gmail đã xác thực — GET biết "bài của tôi" + tái dùng cho bình chọn
-      res.cookies.set("tnth_vote_email", submitterEmail, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 90,
-      });
+      // Ghi nhận Gmail đã xác thực (cookie có chữ ký) — GET biết "bài của tôi" + "phiếu của tôi"
+      setVoteEmail(res, submitterEmail, 60 * 60 * 24 * 90);
     }
     return res;
   } catch (err) {

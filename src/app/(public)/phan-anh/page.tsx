@@ -42,6 +42,7 @@ export default function PhanAnhPage() {
   const [evidence, setEvidence] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [agree, setAgree] = useState(false);
+  const [sending, setSending] = useState(false);
 
   // Đăng nhập → tự điền thông tin người gửi và gắn phản ánh vào tài khoản
   useEffect(() => {
@@ -79,18 +80,30 @@ export default function PhanAnhPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sending) return;
     if (!form.senderName.trim() || !form.senderEmail.trim() || !form.title.trim() || !form.content.trim()) {
       toast("Vui lòng điền đầy đủ các trường bắt buộc.", "warning");
       return;
     }
-    const code = submitFeedback({
+    if (form.content.trim().length < 20) {
+      toast("Nội dung chi tiết cần ít nhất 20 ký tự.", "warning");
+      return;
+    }
+    // Máy chủ sinh mã tra cứu + gắn tài khoản theo phiên đăng nhập (nếu có)
+    setSending(true);
+    const r = await submitFeedback({
       ...form,
       feedbackTopicId: Number(form.feedbackTopicId),
       evidenceNames: evidence.length > 0 ? evidence : undefined,
-      senderAccountId: session?.accountId,
     });
+    setSending(false);
+    if (!r.ok) {
+      toast(r.error, "warning");
+      return;
+    }
+    const code = r.code;
     toast(
       session
         ? `Gửi phản ánh thành công! Mã tra cứu: ${code} — theo dõi trong trang Tài khoản của tôi.`
@@ -259,10 +272,10 @@ export default function PhanAnhPage() {
               </label>
               <button
                 type="submit"
-                disabled={!agree}
+                disabled={!agree || sending}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-40 disabled:shadow-none sm:w-auto"
               >
-                <Send className="h-4 w-4" /> Gửi phản ánh
+                <Send className="h-4 w-4" /> {sending ? "Đang gửi…" : "Gửi phản ánh"}
               </button>
             </div>
           </div>

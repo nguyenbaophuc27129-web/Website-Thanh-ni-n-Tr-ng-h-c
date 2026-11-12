@@ -9,12 +9,16 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
 import { useToast } from "@/lib/toast-context";
+import { callPublicApi } from "@/lib/public-api-client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { CountUp } from "@/components/public/reveal";
 import { formatDate, relTime } from "@/lib/utils";
 import { CONTRIBUTION_POINTS } from "@/types";
-import type { ContributionKind } from "@/types";
+import type { ContributionKind, Feedback } from "@/types";
+
+/** Phản ánh của tôi — tóm tắt do GET /api/phan-anh trả (không nằm trong store của đoàn viên) */
+type MyFeedback = Pick<Feedback, "id" | "trackingCode" | "title" | "status" | "submittedAt">;
 
 const KIND_META: Record<ContributionKind, { label: string; icon: typeof FileEdit; tone: string }> = {
   POST: { label: "Bài viết", icon: FileEdit, tone: "bg-sky-50 text-sky-600" },
@@ -30,6 +34,18 @@ export default function TaiKhoanPage() {
   const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const [myFeedbacks, setMyFeedbacks] = useState<MyFeedback[]>([]);
+  const accountId = session?.accountId;
+  useEffect(() => {
+    if (!accountId) return;
+    let alive = true;
+    void callPublicApi<{ feedbacks: MyFeedback[] }>("/api/phan-anh").then((r) => {
+      if (alive && r.ok) setMyFeedbacks(r.feedbacks);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [accountId]);
 
   if (!session) {
     return (
@@ -58,7 +74,6 @@ export default function TaiKhoanPage() {
     myPoints.filter((c) => c.kind === kind).reduce((s, c) => s + c.points, 0);
 
   const myContributions = store.memberContributions.filter((c) => c.contributorAccountId === session.accountId);
-  const myFeedbacks = store.feedbacks.filter((f) => f.senderAccountId === session.accountId);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
@@ -197,7 +212,9 @@ export default function TaiKhoanPage() {
                         <MessageSquareQuote className="h-4 w-4" />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-stone-800">{f.title}</p>
+                        <Link href={`/phan-anh/${f.trackingCode}`} className="block truncate text-sm font-medium text-stone-800 hover:text-doan-600 hover:underline">
+                          {f.title}
+                        </Link>
                         <p className="mt-0.5 font-mono text-[11px] text-stone-400">
                           {f.trackingCode} · {mounted ? relTime(f.submittedAt) : formatDate(f.submittedAt)}
                         </p>

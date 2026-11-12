@@ -26,17 +26,6 @@ export default function DuAnAdminPage() {
 
   const scope = useMemo(() => (session ? new Set(store.scopeIds(session)) : new Set<number>()), [store, session]);
 
-  if (!session) {
-    return (
-      <Card>
-        <CardBody className="flex flex-col items-center py-16 text-center">
-          <ShieldAlert className="h-10 w-10 text-stone-300" />
-          <p className="mt-3 text-sm font-semibold text-stone-700">Vui lòng đăng nhập</p>
-        </CardBody>
-      </Card>
-    );
-  }
-
   const all = useMemo(
     () => store.volunteerProjects.filter((p) => scope.has(p.orgUnitId)),
     [store, scope]
@@ -50,6 +39,18 @@ export default function DuAnAdminPage() {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [all, tab]
   );
+
+  // Chặn truy cập đặt SAU mọi hook (không được return sớm trước hook)
+  if (!session) {
+    return (
+      <Card>
+        <CardBody className="flex flex-col items-center py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-stone-300" />
+          <p className="mt-3 text-sm font-semibold text-stone-700">Vui lòng đăng nhập</p>
+        </CardBody>
+      </Card>
+    );
+  }
 
   const moderate = (id: number, action: "APPROVE" | "REJECT") => {
     store.moderateVolunteerProject(session, id, action, action === "REJECT" ? note.trim() || undefined : undefined);

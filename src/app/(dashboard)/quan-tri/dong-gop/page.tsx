@@ -14,6 +14,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/utils";
+import { formatSizeKb, resourceFiles } from "@/lib/resource-files";
 
 type Tab = "POST" | "RESOURCE";
 
@@ -213,7 +214,9 @@ export default function DongGopAdminPage() {
               <CardBody className="py-12 text-center text-sm text-stone-400">Chưa có tài nguyên đóng góp nào.</CardBody>
             </Card>
           ) : null}
-          {resources.map((r) => (
+          {resources.map((r) => {
+            const files = resourceFiles(r);
+            return (
             <Card key={r.id}>
               <CardBody className="flex flex-wrap items-center gap-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600">
@@ -222,9 +225,21 @@ export default function DongGopAdminPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-stone-800">{r.title}</p>
                   <p className="text-[11px] text-stone-400">
-                    {r.fileName} · {(r.fileSizeKb / 1024).toFixed(1)} MB · {accountsName(r.submittedByAccountId)} · {r.publishedAt ? formatDateTime(r.publishedAt) : "—"}
+                    {files.length > 1 ? `${files.length} tệp` : r.fileName} · {formatSizeKb(r.fileSizeKb) || "—"} · {r.contributorName || accountsName(r.submittedByAccountId)} · {r.publishedAt ? formatDateTime(r.publishedAt) : "—"}
                   </p>
+                  {files.length > 1 && (
+                    <ul className="mt-1 space-y-0.5 text-[11px] text-stone-500">
+                      {files.map((f) => (
+                        <li key={f.url} className="truncate">
+                          • {f.name}{f.sizeKb > 0 ? ` (${formatSizeKb(f.sizeKb)})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <p className="mt-0.5 line-clamp-1 text-xs text-stone-500">{r.description}</p>
+                  <Link href={`/tai-nguyen/${r.id}`} className="mt-0.5 inline-block text-[11px] font-medium text-doan-600 hover:underline">
+                    Xem trước nội dung
+                  </Link>
                 </div>
                 {r.status === "DRAFT" ? (
                   <>
@@ -243,7 +258,8 @@ export default function DongGopAdminPage() {
                 )}
               </CardBody>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

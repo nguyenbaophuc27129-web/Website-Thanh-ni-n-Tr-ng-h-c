@@ -54,10 +54,11 @@ export default function HocSinh3TotPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Khởi tạo hồ sơ 1 lần khi đăng nhập (side-effect trong useEffect, KHÔNG trong render)
+  // Khởi tạo hồ sơ 1 lần khi đoàn viên đăng nhập — máy chủ lấy/tạo hồ sơ của chính
+  // tài khoản (side-effect trong useEffect, KHÔNG trong render)
   useEffect(() => {
-    if (!session) return;
-    store.ensureHs3tProfile(session);
+    if (!session || session.role !== "DOAN_VIEN") return;
+    void store.ensureHs3tProfile(session);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.accountId]);
 
@@ -66,6 +67,7 @@ export default function HocSinh3TotPage() {
   const [sub, setSub] = useState("");
   const [achievedAt, setAchievedAt] = useState(new Date().toISOString().slice(0, 10));
   const [evidence, setEvidence] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
   if (!session) {
     return (
@@ -145,18 +147,25 @@ export default function HocSinh3TotPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const submitAchievement = () => {
+  const submitAchievement = async () => {
     if (title.trim().length < 5) {
       toast("Tên thành tích tối thiểu 5 ký tự.", "warning");
       return;
     }
-    store.addHs3tAchievement(session, profile.id, {
+    if (saving) return;
+    setSaving(true);
+    const res = await store.addHs3tAchievement(session, profile.id, {
       title,
       category,
       sub: sub || undefined,
       evidenceNames: evidence.length > 0 ? evidence : undefined,
       achievedAt,
     });
+    setSaving(false);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setTitle(""); setSub(""); setEvidence([]);
     toast("Đã thêm thành tích vào hồ sơ 3 tốt — hồ sơ chỉ cộng thêm, không xóa được.");
   };

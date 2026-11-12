@@ -88,14 +88,15 @@ type StoryRow = {
 };
 
 /** DTO — pg trả bigint dạng string → Number() MỌI id/count */
-export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean }): BinhChonStory {
+export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?: boolean }): BinhChonStory {
   return {
     id: Number(r.id),
     campaignId: Number(r.campaign_id),
     studentName: r.student_name,
     schoolOrgUnitId: Number(r.school_org_unit_id) || 0,
     schoolName: r.school_name ?? "",
-    submitterEmail: r.submitter_email ?? undefined,
+    // Gmail người gửi: chỉ trả cho trang quản trị (withEmail) — KHÔNG trả ra API công khai
+    submitterEmail: opts?.withEmail ? (r.submitter_email ?? undefined) : undefined,
     provinceName: r.province_name ?? undefined,
     wardName: r.ward_name ?? undefined,
     className: r.class_name ?? undefined,
@@ -171,7 +172,7 @@ export type UnitStoryRow = {
   account_username?: string | null;
 };
 
-export function toUnitStoryDto(r: UnitStoryRow, opts?: { withPhoto?: boolean }): UnitStory {
+export function toUnitStoryDto(r: UnitStoryRow, opts?: { withPhoto?: boolean; withEmail?: boolean }): UnitStory {
   return {
     id: Number(r.id),
     campaignId: Number(r.campaign_id),

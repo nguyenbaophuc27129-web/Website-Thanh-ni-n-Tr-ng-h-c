@@ -15,7 +15,7 @@ SSH tunnel (cổng 24700) ──────────────────
 | Thư mục mã nguồn | `/root/Website-Thanh-ni-n-Tr-ng-h-c` |
 | `web` | Image `tnth-web:current`, build từ `Dockerfile` (Next.js `output: "standalone"`), chạy bằng user `node`, hệ thống file chỉ đọc |
 | `proxy` | `caddy:2-alpine`, cấu hình tại `deploy/Caddyfile`, là dịch vụ duy nhất mở cổng ra ngoài |
-| `db` | `postgres:16-alpine`, chỉ nghe ở `127.0.0.1:5432`. **Web hiện chưa dùng database**: bản demo vẫn lưu dữ liệu trên trình duyệt người dùng |
+| `db` | `postgres:16-alpine`, chỉ nghe ở `127.0.0.1:5432` (cho SSH tunnel của nhóm dev). Web thật dùng DB `tnth_dev` qua `.env.production` |
 
 Cả hai container có `restart: unless-stopped` và Docker tự bật cùng máy, nên web tự lên lại sau khi máy khởi động lại hoặc tiến trình bị lỗi.
 
@@ -59,6 +59,7 @@ Người dùng ──HTTPS──► OneShield ──HTTPS, cổng 443──► p
 - Bản ghi A của `@` và `www` trỏ về `103.216.116.242`, cột "Bảo vệ" đang bật. Vì vậy tra DNS từ ngoài sẽ thấy IP của OneShield chứ không thấy IP máy chủ; đó là bình thường.
 - Chứng chỉ công khai (Let's Encrypt) do OneShield cấp và gia hạn. OneShield cũng tự chuyển HTTP sang HTTPS.
 - Caddy dùng chứng chỉ tự ký (`tls internal`) cho chặng OneShield → máy chủ. Tên miền đặt bằng `DOMAIN=` trong file `.env`.
+- **IP thật của người dùng:** OneShield ghi IP người dùng vào `X-Real-Ip`, nhưng Caddy ghi đè `X-Forwarded-For` bằng IP kết nối trực tiếp (tức IP của OneShield). `deploy/Caddyfile` đặt header `X-Client-Ip` cho web: lấy từ `X-Real-Ip` **chỉ khi** kết nối đến từ máy chủ OneShield đã liệt kê ở `@oneshield` (hiện `103.216.118.10`, `103.56.163.10`, `103.166.183.10` — lấy từ log truy cập), còn lại dùng địa chỉ kết nối thật (khách vào thẳng IP máy chủ không giả được). Web chỉ tin `X-Client-Ip` (`src/lib/server/client-ip.ts`) để giới hạn tần suất theo IP và ghi `audit_logs`. OneShield thêm máy chủ mới → bổ sung địa chỉ vào `@oneshield` rồi `docker compose restart proxy` (trước đó người dùng qua máy mới bị gộp chung theo IP của máy OneShield — giới hạn chặt hơn chứ không lỏng hơn).
 - **Không dùng NGINX, Sites, SSL trên OneDash cho website này.** NGINX đòi cổng 80/443 mà Caddy đang giữ.
 
 Nếu tắt "Bảo vệ" ở bản ghi DNS, trình duyệt sẽ gặp chứng chỉ tự ký và báo không an toàn. Khi đó sửa `tls internal` trong `deploy/Caddyfile` thành `tls <email>` để Caddy tự xin Let's Encrypt.
@@ -98,20 +99,68 @@ Mật khẩu nằm trong `secrets/db.env`; bảng tổng hợp để gửi cho c
 
 Sao lưu:
 - Cron `/etc/cron.d/tnth-db` chạy `deploy/db-backup.sh` lúc 02:30 mỗi đêm, giữ 14 ngày tại `/var/backups/tnth/`, log ở `/var/log/tnth-db-backup.log`.
+- Cùng script chụp thư mục tệp tải lên thành `/var/backups/tnth/uploads-<ngày giờ>/` (rsync `--link-dest`: tệp không đổi dùng chung hard link nên chỉ tốn chỗ cho tệp mới), giữ 14 bản.
 - Cùng lúc đó tạo trước phân vùng tháng cho `post_views` và `audit_logs`.
 - **Bản sao lưu đang nằm cùng máy với database.** Hỏng đĩa hoặc mất máy là mất cả hai. Trước khi có dữ liệu thật cần chép thêm ra nơi khác (object storage hoặc máy thứ hai).
 
 Schema: `db/schema_v1.sql` (43 bảng), kiểm thử `db/test_schema.sql`. Hướng dẫn cho lập trình viên: `docs/huong-dan-ket-noi-db.md`.
 
-Khi web bắt đầu dùng database: thêm `DATABASE_URL=postgresql://tnth_app:<mật khẩu>@db:5432/tnth_prod` vào `.env.production` (trong mạng Compose, host là `db`).
+Web đọc `DATABASE_URL` trong `.env.production` (trong mạng Compose, host là `db`); hiện trỏ tới `tnth_dev`. Muốn chuyển sang `tnth_prod`: xem `db/DEPLOY-PROD.md`.
+
+Cài mới từ đầu: `db/schema_hien_tai.sql` là cấu trúc hiện tại (đã gồm migration tới `0029`), nạp bằng `psql -f` rồi ghi các migration đã áp vào `schema_migrations`; các tệp `db/migrations/` giữ làm lịch sử, không sửa.
+
+## Tệp tải lên (ảnh, video, văn bản)
+
+Ảnh bài viết, ảnh/video diễn đàn, tệp văn bản, tài nguyên, báo cáo dự án **lưu trên ổ đĩa máy chủ**, không lưu base64 trong database.
+
+| Thành phần | Chi tiết |
+|---|---|
+| Thư mục trên máy chủ | `/srv/tnth/uploads` (chủ sở hữu `1000:1000` = user `node` trong container) |
+| Trong container `web` | `/app/uploads` (đọc ghi) — `src/lib/server/media.ts` ghi tệp |
+| Trong container `proxy` | `/srv/uploads` (chỉ đọc) — Caddy phục vụ thẳng `https://<tên miền>/uploads/...` |
+| Cấu trúc | `/uploads/<phân hệ>/<năm>/<tháng>/<sha256>.<đuôi>`; phân hệ: `bai-viet`, `dong-gop`, `dien-dan`, `van-ban`, `tai-nguyen`, `du-an` |
+| Nhật ký | Bảng `media_files` (migration 0026): đường dẫn, mã băm, người tải, dung lượng |
+| API | `POST /api/uploads` — bắt buộc đăng nhập; `bai-viet`, `van-ban` chỉ cho cán bộ quản trị |
+
+- Ảnh luôn chuyển sang WebP, xoá EXIF/GPS, cạnh dài tối đa 2000px; không nhận SVG.
+- Video/văn bản giữ nguyên tệp, chỉ nhận định dạng trong danh sách và kiểm tra chữ ký tệp. Tệp Office/nén/txt luôn tải xuống (`Content-Disposition: attachment`).
+- Dung lượng tối đa theo phân hệ/loại tệp (`KIND_RULES` trong `src/lib/server/media.ts`, kiểm trên tệp GỐC trước khi chuyển WebP): ảnh bài viết/đóng góp 10MB; diễn đàn ảnh 2MB, video 15MB; văn bản/tài nguyên/dự án 25MB (Caddy giới hạn thân request 30MB).
+- `POST /api/store` gặp chuỗi base64 trong cột tệp (tab cũ chưa tải lại) sẽ tự chuyển thành tệp trên đĩa.
+- Chuyển dữ liệu cũ: `scripts/migrate-media.mts` (hướng dẫn chạy ở đầu file).
+- **Dọn tệp mồ côi** (tệp/dòng `media_files` không còn cột nào trong DB nhắc tới, cũ hơn 7 ngày): `scripts/clean-orphan-media.mts`. Chạy tay, chưa đặt lịch. `DATABASE_URL` phải trỏ đúng DB đang dùng thư mục `/srv/tnth/uploads` (hiện là `tnth_dev`); nên sao lưu DB + thư mục tệp trước khi xoá.
+  ```bash
+  docker build --target builder -t tnth-builder:media .
+  # chạy thử: chỉ in danh sách, không xoá
+  docker run --rm --network tnth_internal --env-file .env.production \
+    -v /srv/tnth/uploads:/app/uploads -v "$PWD/scripts:/app/scripts:ro" \
+    tnth-builder:media node scripts/clean-orphan-media.mts
+  # xoá thật: thêm --delete (tự dừng nếu sắp xoá > 50% tệp/dòng; chắc chắn đúng thì thêm --force)
+  ```
+- **Kho tài nguyên nhiều tệp** (migration 0028): mỗi tài nguyên ≤ 10 tệp (`resources.attachments`), `GET /api/tai-nguyen/<id>/zip` đọc thẳng từ thư mục tải lên và phát gói `.zip` dạng stream; `POST /api/tai-nguyen/<id>/luot-tai` đếm lượt tải (chống trùng 30 phút theo IP + User-Agent, bộ đếm nằm trong bộ nhớ).
+- **Lượt xem bài viết:** `POST /api/tin-tuc/<id>/luot-xem` (gọi khi mở `/tin-tuc/<slug>`) tăng `published_posts.view_count`, ghi `post_views` và cộng `post_view_daily` trong một câu SQL; cùng người xem + cùng bài chỉ tính 1 lần / 30 phút (bộ đếm trong bộ nhớ), bỏ qua bot/curl, trần chung 5000 lượt / 10 phút. Cột `view_count` bị khoá khỏi `/api/store` (`keepOnUpdate`). Biểu đồ quản trị đọc `GET /api/thong-ke/luot-xem` (chỉ cán bộ). Lưu ý: mỗi lượt xem cũng làm `published_posts.updated_at` đổi (trigger `set_updated_at`) — chưa cột nào dùng `updated_at` để hiển thị.
+- **Ảnh trong bài viết** (migration 0029): nội dung bài lưu ở `published_posts.content_doc` (tài liệu JSON của trình soạn thảo Tiptap, `src/lib/editor/`); ảnh trong bài luôn là tệp `/uploads/bai-viet/…` (trình soạn thảo tự tải lên / lấy ảnh link ngoài về, luật ghi từ chối ảnh khác). Script dọn tệp mồ côi đã quét cả cột `jsonb` nên ảnh trong `content_doc` được giữ.
+- Chạy `next dev` trên máy lập trình viên: tệp ghi vào `./uploads` và được phục vụ qua `src/app/uploads/[...path]/route.ts`.
+- **Chuyển máy:** chép cả thư mục `/srv/tnth/uploads` (giữ quyền `1000:1000`), không chỉ database.
 
 ## Bảo mật đã thiết lập
 
-- `ufw`: chỉ mở `24700/tcp`, `80/tcp`, `443/tcp`, `443/udp`.
+- `ufw`: chỉ mở `24700/tcp`, `80/tcp`, `443/tcp` (đã bỏ `443/udp`/HTTP3: OneShield vào bằng TCP, log Caddy không có request HTTP/3).
 - `fail2ban`: khoá IP 1 giờ sau 5 lần đăng nhập SSH sai trong 10 phút.
 - Cập nhật bảo mật Ubuntu tự động (`unattended-upgrades`).
 - Container `web`: không phải root, hệ thống file chỉ đọc, bỏ toàn bộ capability.
-- `/api/fetch-article`: từ chối địa chỉ nội bộ, localhost và địa chỉ metadata của cloud.
+- `/api/fetch-article`: chỉ tài khoản cán bộ (khác `DOAN_VIEN`), 30 lượt / 10 phút / tài khoản; từ chối địa chỉ nội bộ, localhost và địa chỉ metadata của cloud.
+- `/api/ai/*` (chốt chung `src/lib/server/require-session.ts`, đếm trong bộ nhớ theo tài khoản — khởi động lại web là về 0):
+
+  | Route | Ai được gọi | Giới hạn / 10 phút |
+  |---|---|---|
+  | `chat` (widget Trợ lý ảo) | cả khách | 20 / tài khoản; khách **10 / IP thật** (header `X-Client-Ip` do Caddy ghi đè) + **trần chung 150 cho mọi khách**; câu hỏi ≤ 500 ký tự |
+  | `kiem-duyet` | đã đăng nhập | đoàn viên 30, cán bộ 120 / tài khoản |
+  | `nhap-bao-cao` | cán bộ | 20 / tài khoản; ngữ cảnh ≤ 20.000 ký tự |
+  | `phan-tich-cong-van` | cán bộ | 20 / tài khoản; công văn ≤ 30.000 ký tự |
+  | `xet-hs3t` | cán bộ | 60 / tài khoản; ≤ 200 thành tích |
+  | Tất cả route AI cộng lại | — | 300 lượt toàn hệ thống (giữ hạn mức key AI) |
+
+  Bị chặn trả 401 (chưa đăng nhập), 403 (không phải cán bộ), 429 (quá lượt, kèm `Retry-After`); giao diện báo tiếng Việt và tự dùng bộ quy tắc cục bộ.
 - Log container giới hạn 10 MB × 5 file.
 
 Chưa làm, nên cân nhắc:

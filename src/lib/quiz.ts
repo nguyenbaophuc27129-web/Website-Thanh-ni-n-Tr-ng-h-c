@@ -5,6 +5,8 @@ import type {
 /**
  * Tiện ích thi trực tuyến — tất cả hàm thuần (pure), KHÔNG gọi ở lúc render
  * để tránh lệch hydration; chỉ gọi bên trong event handler.
+ * Dùng chung trình duyệt + máy chủ: chấm điểm (isAnswerCorrect / autoScoreAnswer) và
+ * chọn câu thích ứng chạy ở máy chủ (src/lib/server/public-quiz.ts) vì cần đáp án đúng.
  */
 
 /** PRNG mulberry32 — sinh chuỗi số giả ngẫu nhiên tái lập được từ seed */
@@ -59,13 +61,21 @@ export function pickExamQuestions(
 
 export interface PaperItem {
   q: QuizQuestion;
-  /** Đáp án đã trộn (nếu exam.shuffleOptions) — correctIndexes trỏ vào mảng này */
-  options?: string[];
+  /**
+   * Thứ tự hiển thị đáp án khi đề trộn đáp án: `perm[i]` = chỉ số GỐC của đáp án
+   * đứng ở vị trí i. Câu trả lời luôn lưu theo chỉ số gốc (máy chủ chấm theo chỉ số gốc).
+   * Không trộn → undefined.
+   */
+  perm?: number[];
 }
+
+const isChoiceType = (q: QuizQuestion) =>
+  q.type === "MCQ_SINGLE" || q.type === "MCQ_MULTI" || q.type === "TRUE_FALSE";
 
 /**
  * Dựng đề làm bài cho 1 thí sinh: đảo câu hỏi và/hoặc đảo đáp án theo seed.
  * Seed dùng `attempt.id * 1000 + exam.id` để mỗi lượt thi một đề khác nhau.
+ * Không cần đáp án đúng (khách / đoàn viên không nhận correctIndexes) — chỉ đảo vị trí hiển thị.
  */
 export function buildPaper(
   exam: QuizExam,
@@ -76,35 +86,38 @@ export function buildPaper(
   let questions = exam.questionIds.map((id) => byId.get(id)).filter((q): q is QuizQuestion => !!q);
   if (exam.shuffleQuestions) questions = shuffleWithSeed(questions, seed);
   return questions.map((q) => {
-    if (exam.shuffleOptions && q.options && q.correctIndexes?.length) {
-      const perm = shuffleWithSeed(q.options.map((_, i) => i), seed + q.id);
-      const options = perm.map((i) => q.options![i]);
-      const correctIndexes = q.correctIndexes.map((ci) => perm.indexOf(ci));
-      return { q: { ...q, options, correctIndexes } };
+    if (exam.shuffleOptions && isChoiceType(q) && q.options && q.options.length > 1) {
+      return { q, perm: shuffleWithSeed(q.options.map((_, i) => i), seed + q.id) };
     }
     return { q };
   });
 }
 
-/** Chấm tự động 1 câu — tự luận/file trả 0, chờ giám khảo */
-export function autoScoreAnswer(q: QuizQuestion, a?: QuizAnswer): number {
-  const isChoice = q.type === "MCQ_SINGLE" || q.type === "MCQ_MULTI" || q.type === "TRUE_FALSE";
-  if (isChoice) {
-    const correct = [...(q.correctIndexes ?? [])].sort().join(",");
-    const chosen = [...(a?.selected ?? [])].sort().join(",");
-    return chosen !== "" && correct !== "" && chosen === correct ? q.points : 0;
+/**
+ * Đúng/sai của 1 câu (chấm ở máy chủ — cần đáp án đúng trong DB).
+ * Tự luận / tải tệp → null (chờ giám khảo chấm tay).
+ */
+export function isAnswerCorrect(q: QuizQuestion, a?: QuizAnswer): boolean | null {
+  if (isChoiceType(q)) {
+    const correct = [...new Set(q.correctIndexes ?? [])].sort((x, y) => x - y).join(",");
+    const chosen = [...new Set(a?.selected ?? [])].sort((x, y) => x - y).join(",");
+    return chosen !== "" && correct !== "" && chosen === correct;
   }
   if (q.type === "FILL") {
     const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
-    return a?.text && q.correctText && norm(a.text) === norm(q.correctText) ? q.points : 0;
+    return !!(a?.text && q.correctText && norm(a.text) === norm(q.correctText));
   }
-  return 0;
+  return null;
+}
+
+/** Chấm tự động 1 câu — tự luận/file trả 0, chờ giám khảo */
+export function autoScoreAnswer(q: QuizQuestion, a?: QuizAnswer): number {
+  return isAnswerCorrect(q, a) === true ? q.points : 0;
 }
 
 /** Ngưỡng "đã trả lời câu này" để hiện trạng thái trên lưới số câu */
 export function isAnswered(q: QuizQuestion, a?: QuizAnswer): boolean {
-  const isChoice = q.type === "MCQ_SINGLE" || q.type === "MCQ_MULTI" || q.type === "TRUE_FALSE";
-  if (isChoice) return (a?.selected?.length ?? 0) > 0;
+  if (isChoiceType(q)) return (a?.selected?.length ?? 0) > 0;
   if (q.type === "FILE_UPLOAD") return !!a?.fileName;
   return !!a?.text?.trim();
 }

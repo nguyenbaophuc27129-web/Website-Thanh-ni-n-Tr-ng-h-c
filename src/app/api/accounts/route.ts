@@ -6,6 +6,7 @@ import {
   sessionFromToken,
   type RoleCode,
 } from "@/lib/server/auth";
+import { ACCOUNT_ADMIN_ROLES, ACCOUNT_VIEW_ROLES } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -18,14 +19,7 @@ const VALID_ROLES: RoleCode[] = [
   "DOAN_VIEN",
 ];
 
-const ALLOWED_ADMIN_ROLES: RoleCode[] = [
-  "QUAN_TRI_TW",
-  "QUAN_TRI_TINH",
-  "QUAN_TRI_CAP3",
-];
-
-/** GET cho phép thêm DON_VI — TK trường duyệt hồ sơ Đoàn viên đăng ký (R5) */
-const VIEW_ACCOUNT_ROLES: RoleCode[] = [...ALLOWED_ADMIN_ROLES, "DON_VI"];
+const ALLOWED_ADMIN_ROLES = ACCOUNT_ADMIN_ROLES;
 
 /** GET /api/accounts — danh sách tài khoản cho trang Phân quyền (kèm số quyền gán riêng). */
 export async function GET(request: NextRequest) {
@@ -37,7 +31,7 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ ok: false, error: "YÊU CẦU ĐĂNG NHẬP" }, { status: 401 });
   }
-  if (!VIEW_ACCOUNT_ROLES.includes(session.role as RoleCode)) {
+  if (!ACCOUNT_VIEW_ROLES.includes(session.role)) {
     return NextResponse.json({ ok: false, error: "KHÔNG CÓ QUYỀN XEM TÀI KHOẢN" }, { status: 403 });
   }
 

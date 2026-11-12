@@ -3,6 +3,7 @@ import { dbEnabled, query, withTransaction } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
 import { campaignOpenNow, getActiveCampaign } from "@/lib/server/binh-chon";
 import { verifyGoogleCredential } from "@/lib/server/google-verify";
+import { setVoteEmail } from "@/lib/server/vote-cookie";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * - Một định danh bình chọn cho MỘT người chỉ MỘT lần — lần 2 bị hệ thống lọc thành
  *   phiếu KHÔNG HỢP LỆ (ghi nhận is_valid=false, reason TRUNG_LAP, không cộng điểm).
  * - withTransaction + index riêng biệt chống tranh chấp đồng thời.
- * - Sau bình chọn bằng Gmail: đặt cookie tnth_vote_email để GET biết phiếu của mình.
+ * - Sau bình chọn bằng Gmail: đặt cookie tnth_vote_email (có chữ ký, lib/server/vote-cookie.ts) để GET biết phiếu của mình.
  */
 export async function POST(request: NextRequest) {
   if (!dbEnabled()) return NextResponse.json({ ok: false, error: "DB_UNAVAILABLE" }, { status: 503 });
@@ -109,12 +110,7 @@ export async function POST(request: NextRequest) {
         : "Bình chọn thành công!",
     });
     if (viaGoogle && voterEmail) {
-      res.cookies.set("tnth_vote_email", voterEmail, {
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30,
-        path: "/",
-      });
+      setVoteEmail(res, voterEmail, 60 * 60 * 24 * 30);
     }
     return res;
   } catch (err) {

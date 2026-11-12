@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import type { PublishedPost } from "@/types";
 import { CountUp } from "@/components/public/reveal";
-import { useStore } from "@/lib/store-context";
+import { usePublicStats } from "@/lib/public-stats";
+import { coverPosition, parseCover, postCoverRaw } from "@/lib/cover";
 
 /**
  * 🌌 STORY FLOW — Dòng Chảy Câu Chuyện Bất Tận (Horizontal Storytelling Flow)
@@ -58,7 +59,7 @@ type DataNode = {
   href: string;
 };
 
-/* Khung 7 ấn phẩm — số liệu TÍNH TỪ DỮ LIỆU THẬT trong store (0 khi chưa có dữ liệu) */
+/* Khung 7 ấn phẩm — số liệu TÍNH TỪ DỮ LIỆU THẬT (GET /api/thong-ke, 0 khi chưa có dữ liệu) */
 const NODE_META: Array<Omit<DataNode, "code" | "value">> = [
   { icon: Rocket, grad: "from-blue-500 to-cyan-400", suffix: "", label: "Bài viết đã xuất bản trên Cổng Thanh niên Trường học", href: "/tin-tuc" },
   { icon: Trophy, grad: "from-amber-400 to-orange-500", suffix: "", label: "Hoạt động Đoàn - Hội đã đăng tải trên Cổng", href: "/tin-tuc" },
@@ -286,7 +287,11 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
   }
   const featured = posts[0];
   const satellites = posts.slice(1, 4);
-  const featuredSrc = featured.coverDataUrl ?? FALLBACKS[0];
+  /* Ảnh bìa có thể kèm #focus=x,y — tách ra để lấy src sạch + object-position; rỗng thì dùng ảnh mẫu */
+  const featuredCover = parseCover(postCoverRaw(featured));
+  const featuredSrc = featuredCover.src || FALLBACKS[0];
+  const featuredPos = coverPosition(featuredCover.focus);
+  const satCovers = satellites.map((p) => parseCover(postCoverRaw(p)));
   const featuredDate = (featured.publishedAt ?? featured.createdAt).slice(0, 10).split("-").reverse().join(".");
   const satShape = ["aspect-square w-56 sm:w-64", "aspect-[4/5] w-48 sm:w-56", "aspect-square w-52 sm:w-60"];
   const satOffset = ["-translate-y-10 sm:-translate-y-16", "translate-y-2", "-translate-y-5 sm:-translate-y-9"];
@@ -387,7 +392,12 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
               className="relative block w-full cursor-zoom-in overflow-hidden rounded-[2rem] border border-white/25 shadow-2xl shadow-black/50"
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- ảnh data URL bài đăng + ảnh mẫu ngoài */}
-              <img src={featuredSrc} alt={featured.title} className="aspect-[16/10] w-full object-cover" />
+              <img
+                src={featuredSrc}
+                alt={featured.title}
+                className="aspect-[16/10] w-full object-cover"
+                style={{ objectPosition: featuredPos }}
+              />
               <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-slate-950/10" />
               <span className="pointer-events-none absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 scale-75 items-center justify-center rounded-full border border-white/30 bg-slate-950/50 opacity-0 backdrop-blur-md transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
                 <ZoomIn className="h-6 w-6 text-cyan-200" strokeWidth={1.5} />
@@ -430,9 +440,10 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- ảnh data URL bài đăng + ảnh mẫu ngoài */}
                 <img
-                  src={p.coverDataUrl ?? FALLBACKS[(i + 1) % FALLBACKS.length]}
+                  src={satCovers[i].src || FALLBACKS[(i + 1) % FALLBACKS.length]}
                   alt={p.title}
                   className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                  style={{ objectPosition: coverPosition(satCovers[i].focus) }}
                 />
                 <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
                 <span className="absolute inset-x-3 bottom-3 rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 backdrop-blur-md">
@@ -505,23 +516,24 @@ function ResearchFlow({ posts }: { posts: PublishedPost[] }) {
    SECTION CHÍNH — một cuộc hành trình thị giác kéo dài theo ngang
    ================================================================ */
 export function StoryFlow({ posts }: { posts: PublishedPost[] }) {
-  const store = useStore();
+  const stats = usePublicStats();
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   const open = zoomIdx !== null;
 
-  /* Số liệu thật từ store — khung ấn phẩm giữ nguyên, đếm = 0 khi chưa có dữ liệu */
+  /* Số liệu thật đếm phía máy chủ (/api/thong-ke) — snapshot khách không chứa dữ liệu
+     nội bộ (hoạt động, hồ sơ HS3T…) nên không đếm trên store. 0 khi chưa có dữ liệu. */
   const dataNodes = useMemo<DataNode[]>(() => {
     const counts = [
-      store.publishedPosts.filter((p) => p.status === "PUBLISHED").length,
-      store.activities.length,
-      store.forumThreads.filter((t) => t.status === "PUBLISHED").length,
-      store.volunteerProjects.filter((v) => v.status === "APPROVED").length,
-      store.resources.filter((r) => r.isPublic).length,
-      store.hs3tProfiles.filter((h) => h.awardedLevel != null).length,
-      store.orgUnits.filter((u) => u.isActive).length,
+      stats.posts,
+      stats.activities,
+      stats.forumThreads,
+      stats.volunteerProjects,
+      stats.resources,
+      stats.hs3tAwarded,
+      stats.orgUnits,
     ];
     return NODE_META.map((m, i) => ({ ...m, code: `#DATA.${pad2(i + 1)}`, value: counts[i] ?? 0 }));
-  }, [store.publishedPosts, store.activities, store.forumThreads, store.volunteerProjects, store.resources, store.hs3tProfiles, store.orgUnits]);
+  }, [stats]);
 
   const close = useCallback(() => setZoomIdx(null), []);
   const step = useCallback(

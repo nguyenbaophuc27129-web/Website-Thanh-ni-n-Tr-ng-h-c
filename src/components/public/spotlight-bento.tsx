@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Eye } from "lucide-react";
 import { formatNumber, cn } from "@/lib/utils";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
+import { postCoverRaw } from "@/lib/cover";
 import type { PublishedPost } from "@/types";
 
 /**
@@ -55,7 +56,7 @@ function SpotlightHero({
       <div className="absolute inset-0 transition-transform duration-700 ease-out group-hover:scale-105">
         <PhotoPlaceholder
           seed={post.coverSeed}
-          src={post.coverDataUrl}
+          src={postCoverRaw(post)}
           className="h-full w-full"
           icon={false}
         />
@@ -142,7 +143,7 @@ function SpotlightRow({ post, index }: { post: PublishedPost; index: number }) {
           >
             <PhotoPlaceholder
               seed={post.coverSeed}
-              src={post.coverDataUrl}
+              src={postCoverRaw(post)}
               className="h-full w-full"
               icon={false}
             />

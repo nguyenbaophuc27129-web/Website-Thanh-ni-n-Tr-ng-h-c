@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Flame, Sparkles, Star } from "lucide-react";
 import type { PublishedPost } from "@/types";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
+import { postCoverRaw } from "@/lib/cover";
 import { formatDate, formatNumber } from "@/lib/utils";
 
 /**
@@ -122,7 +123,7 @@ export function HeroBanner({
             >
               <PhotoPlaceholder
                 seed={p.coverSeed}
-                src={p.coverDataUrl}
+                src={postCoverRaw(p)}
                 className="aspect-[4/3] w-full transition-transform duration-700 ease-out group-hover:scale-[1.05]"
                 icon={false}
               />

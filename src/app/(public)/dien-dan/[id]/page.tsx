@@ -10,7 +10,6 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
 import { useToast } from "@/lib/toast-context";
-import { moderateText } from "@/lib/ai-moderation";
 import { readForumMediaFiles } from "@/lib/forum-media";
 import { avatarInitials, avatarTone } from "@/lib/forum-alias";
 import { formatDateTime, relTime } from "@/lib/utils";
@@ -68,15 +67,20 @@ export default function ForumThreadPage() {
       toast("Bình luận cần tối thiểu 2 ký tự.", "warning");
       return;
     }
+    // Máy chủ tự kiểm duyệt AI + sinh bí danh — trình duyệt chỉ gửi nội dung
     setChecking(true);
-    const mod = await moderateText(c);
+    const res = await store.createForumComment({ threadId: thread.id, content: c, media: media.length ? media : undefined });
     setChecking(false);
-    store.createForumComment(session, { threadId: thread.id, content: c, media: media.length ? media : undefined }, mod);
+    if (!res.ok) {
+      toast(res.error, "warning");
+      return;
+    }
     setComment("");
     setMedia([]);
+    const clean = res.mod?.verdict !== "FLAGGED";
     toast(
-      mod.verdict === "CLEAN" ? "Đã đăng bình luận ẩn danh." : `Bình luận của bạn đang chờ kiểm duyệt: ${mod.reason ?? "nội dung đáng ngờ"}.`,
-      mod.verdict === "CLEAN" ? "success" : "warning"
+      clean ? "Đã đăng bình luận ẩn danh." : `Bình luận của bạn đang chờ kiểm duyệt: ${res.mod?.reason ?? "nội dung đáng ngờ"}.`,
+      clean ? "success" : "warning"
     );
   };
 
@@ -127,13 +131,13 @@ export default function ForumThreadPage() {
         <MediaGrid media={thread.media} />
         <div className="mt-5 border-t border-slate-100 pt-4">
           <button
-            onClick={() => (session ? store.toggleForumLike(session, "THREAD", thread.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}
+            onClick={() => (session ? void like(store, toast, "THREAD", thread.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               threadLiked ? "bg-rose-50 text-rose-600" : "text-slate-400 hover:bg-slate-50 hover:text-rose-500"
             }`}
           >
             <Heart className={`h-4 w-4 ${threadLiked ? "fill-rose-500 text-rose-500" : ""}`} />
-            {thread.likedByAccountIds.length} cảm xúc
+            {thread.likeCount ?? thread.likedByAccountIds.length} cảm xúc
           </button>
         </div>
       </motion.article>
@@ -256,6 +260,17 @@ export default function ForumThreadPage() {
   );
 }
 
+/** Bật/tắt thích qua máy chủ — lỗi (bài vừa bị ẩn, mất mạng…) thì báo người dùng */
+async function like(
+  store: ReturnType<typeof useStore>,
+  toast: ReturnType<typeof useToast>["toast"],
+  kind: "THREAD" | "COMMENT",
+  id: number
+) {
+  const res = await store.toggleForumLike(kind, id);
+  if (!res.ok && !res.busy) toast(res.error, "warning");
+}
+
 /** Lưới ảnh + video đính kèm (thread & comment dùng chung) */
 function MediaGrid({ media }: { media?: ForumMedia[] }) {
   if (!media?.length) return null;
@@ -314,13 +329,13 @@ function CommentRow({ c, mounted }: { c: ForumComment; mounted: boolean }) {
       <MediaGrid media={c.media} />
       <div className="mt-3">
         <button
-          onClick={() => (session ? store.toggleForumLike(session, "COMMENT", c.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}
+          onClick={() => (session ? void like(store, toast, "COMMENT", c.id) : toast("Đăng nhập để thả cảm xúc.", "warning"))}
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
             liked ? "bg-rose-50 text-rose-600" : "text-slate-400 hover:bg-slate-50 hover:text-rose-500"
           }`}
         >
           <Heart className={`h-3.5 w-3.5 ${liked ? "fill-rose-500 text-rose-500" : ""}`} />
-          {c.likedByAccountIds.length}
+          {c.likeCount ?? c.likedByAccountIds.length}
         </button>
       </div>
     </div>

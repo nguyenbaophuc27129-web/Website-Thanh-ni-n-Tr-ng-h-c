@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PublishedPost } from "@/types";
 import { PhotoPlaceholder } from "@/components/ui/photo-placeholder";
+import { postCoverRaw } from "@/lib/cover";
 import { formatNumber } from "@/lib/utils";
 
 /**
@@ -76,7 +77,7 @@ export function TechNewsCard({ post, featured = false }: { post: PublishedPost; 
         {/* Ảnh bên trái — full chiều cao */}
         <div className="relative min-h-56 overflow-hidden">
           <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-105">
-            <PhotoPlaceholder seed={post.coverSeed} src={post.coverDataUrl} className="h-full w-full" icon={false} />
+            <PhotoPlaceholder seed={post.coverSeed} src={postCoverRaw(post)} className="h-full w-full" icon={false} />
           </div>
           <div className={`pointer-events-none absolute inset-0 ${TECH_GRID}`} />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-900/25 via-transparent to-transparent" />
@@ -107,7 +108,7 @@ export function TechNewsCard({ post, featured = false }: { post: PublishedPost; 
     <Link href={`/tin-tuc/${post.slug}`} className={`${SURFACE} flex h-full flex-col`}>
       <div className="relative aspect-video overflow-hidden">
         <div className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105">
-          <PhotoPlaceholder seed={post.coverSeed} src={post.coverDataUrl} className="h-full w-full" icon={false} />
+          <PhotoPlaceholder seed={post.coverSeed} src={postCoverRaw(post)} className="h-full w-full" icon={false} />
         </div>
         <div className={`pointer-events-none absolute inset-0 ${TECH_GRID}`} />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />

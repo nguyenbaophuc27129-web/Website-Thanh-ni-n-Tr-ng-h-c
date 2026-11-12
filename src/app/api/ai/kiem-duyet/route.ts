@@ -1,18 +1,33 @@
 import { NextResponse } from "next/server";
-import { moderateWithAI } from "@/lib/server/moderation-prompt";
+import { moderateWithAI } from "@/lib/server/moderation";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 
 export const runtime = "nodejs";
 
 /* ════════════════════════════════════════════════════════════════════
-   AI THẬT CHO "KIỂM DUYỆT DIỄN ĐÀN" — prompt dùng chung tại
-   lib/server/moderation-prompt.ts (dùng chung với bình chọn HS3T /
-   Đoàn trường). Key AI nằm 100% phía BE (env), không xuống client.
-   Chưa có key → route trả 502 → CLIENT tự fallback ruleModerate cục bộ
-   (lib/ai-moderation.ts) nên demo không bao giờ gãy.
+   AI THẬT CHO "KIỂM DUYỆT DIỄN ĐÀN" — ĐÃ GẮN qua lib/ai-client.ts
+   ════════════════════════════════════════════════════════════════════
+   Kích hoạt: .env.local thêm key (Gemini free hoặc Claude trả phí) —
+   xem hướng dẫn đầy đủ trong src/lib/ai-client.ts. Key AI nằm 100% phía BE.
+   Chưa có key → route trả 502. Lời nhắc AI dùng chung một bản duy nhất ở
+   lib/server/moderation-prompt.ts (diễn đàn, đóng góp, dự án, bình chọn);
+   các API ghi của đoàn viên (lib/server/moderation.ts) tự rơi về luật
+   dự phòng ruleModerate khi AI lỗi.
    ════════════════════════════════════════════════════════════════════ */
 
 /** POST /api/ai/kiem-duyet — { text } → { ok, verdict, reason, model } */
 export async function POST(request: Request) {
+  // Bắt buộc đăng nhập (đoàn viên trở lên) + giới hạn lượt theo tài khoản
+  const gate = await guardRequest(request, {
+    access: "member",
+    bucket: "ai-kiem-duyet",
+    windowMs: 10 * 60_000,
+    perAccount: 120,
+    perMember: 30,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
+
   const payload = (await request.json().catch(() => null)) as { text?: string } | null;
   const text = payload?.text?.trim() ?? "";
   if (text.length < 2) {

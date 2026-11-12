@@ -8,7 +8,8 @@ import type { AdaptiveStep, QuizAnswer, QuizDifficulty, QuizExam, QuizQuestion }
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
-import { autoScoreAnswer, buildPaper, isAnswered, pickNextAdaptive, type PaperItem } from "@/lib/quiz";
+import { buildPaper, isAnswered, type PaperItem } from "@/lib/quiz";
+import { callPublicApi } from "@/lib/public-api-client";
 import { cn } from "@/lib/utils";
 
 type Screen = "intro" | "running" | "done";
@@ -29,8 +30,10 @@ const mmss = (sec: number) =>
 
 /**
  * Máy làm bài thi — 3 màn: chào → thi → kết quả.
- * Timer/shuffle/chấm điểm chỉ chạy trong event handler và effect có cleanup,
+ * Timer/shuffle chỉ chạy trong event handler và effect có cleanup,
  * không tính toán ngẫu nhiên lúc render (tránh lệch hydration).
+ * Chấm điểm + chọn câu thích ứng do MÁY CHỦ làm (trình duyệt không có đáp án đúng):
+ * bắt đầu → /api/thi/bat-dau, mỗi câu thích ứng → /api/thi/tra-loi, nộp → /api/thi/nop.
  */
 export function QuizRunner({ exam }: { exam: QuizExam }) {
   const { quizQuestions, startQuizAttempt, submitQuizAttempt } = useStore();
@@ -41,6 +44,9 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
   const [name, setName] = useState("");
   const [orgText, setOrgText] = useState("");
   const [attemptId, setAttemptId] = useState(0);
+  // Mã bí mật của lượt thi do máy chủ cấp — chỉ trình duyệt đã bắt đầu mới nộp được
+  const [accessToken, setAccessToken] = useState("");
+  const [busy, setBusy] = useState(false);
   const [paper, setPaper] = useState<PaperItem[]>([]);
   const [answers, setAnswers] = useState<Record<number, QuizAnswer>>({});
   const [trail, setTrail] = useState<AdaptiveStep[]>([]);
@@ -49,7 +55,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
   const [result, setResult] = useState<{
     autoScore: number;
     maxScore: number;
-    perQuestion: { q: QuizQuestion; pts: number }[];
+    perQuestion: { q: QuizQuestion; pts: number; correct: boolean | null }[];
   } | null>(null);
 
   // Adaptive: câu hiện tại (state — ref không gây re-render)
@@ -74,32 +80,37 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
   /* ===== Hết giờ → tự động nộp (guard 1 lần bằng finishedRef) ===== */
   useEffect(() => {
     if (screen === "running" && remaining === 0 && paper.length + trail.length > 0) {
-      finish();
+      void finish();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, screen]);
 
-  const start = () => {
+  const start = async () => {
     if (name.trim().length < 2) {
       toast("Vui lòng nhập họ tên thí sinh.", "warning");
       return;
     }
-    const id = startQuizAttempt(exam.id, { name, orgText: orgText || "—", accountId: session?.accountId });
+    if (busy) return;
+    setBusy(true);
+    const r = await startQuizAttempt(exam.id, { name, orgText: orgText || "—" });
+    setBusy(false);
+    if (!r.ok) {
+      toast(r.error, "warning");
+      return;
+    }
+    const id = r.attempt.id;
     const seed = id * 1000 + exam.id;
     const built = buildPaper(exam, quizQuestions, seed);
     finishedRef.current = false;
     setAttemptId(id);
+    setAccessToken(r.accessToken);
     setRemaining(exam.durationMinutes * 60);
     setAnswers({});
     setTrail([]);
     setResult(null);
     if (exam.adaptive) {
-      const pools: Record<QuizDifficulty, QuizQuestion[]> = {
-        EASY: quizQuestions.filter((q) => exam.questionIds.includes(q.id) && q.difficulty === "EASY"),
-        MEDIUM: quizQuestions.filter((q) => exam.questionIds.includes(q.id) && q.difficulty === "MEDIUM"),
-        HARD: quizQuestions.filter((q) => exam.questionIds.includes(q.id) && q.difficulty === "HARD"),
-      };
-      const first = pickNextAdaptive(pools, []);
+      // Câu đầu do máy chủ chọn (MEDIUM trước) — trình duyệt chỉ hiển thị
+      const first = quizQuestions.find((q) => q.id === r.firstQuestionId) ?? null;
       setAdaptiveQ(first);
       setPaper(built); // đề gốc (dự phòng hiển thị số câu tối đa)
       if (!first) {
@@ -114,55 +125,54 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
     setScreen("running");
   };
 
-  /** Nộp bài — chấm tự động các câu trắc nghiệm/điền, tự luận chờ giám khảo */
-  const finish = () => {
+  /** Nộp bài — máy chủ chấm các câu trắc nghiệm/điền, tự luận chờ giám khảo */
+  const finish = async () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    let autoScore = 0;
-    let maxScore = 0;
-    const asked: PaperItem[] = exam.adaptive
-      ? trail.map((s) => {
-          const q = quizQuestions.find((x) => x.id === s.questionId);
-          return q ? { q } : null;
-        }).filter((x): x is PaperItem => !!x)
-      : paper;
-    const perQuestion = asked.map(({ q }) => {
-      const pts = autoScoreAnswer(q, answers[q.id]);
-      autoScore += pts;
-      maxScore += q.points;
-      return { q, pts };
-    });
-    submitQuizAttempt(attemptId, answers, autoScore, maxScore, exam.adaptive ? trail : undefined);
-    setResult({ autoScore, maxScore, perQuestion });
+    setBusy(true);
+    const r = await submitQuizAttempt(attemptId, accessToken, answers);
+    setBusy(false);
+    if (!r.ok) {
+      // Lượt đã nộp / sai mã → không thử lại được; lỗi mạng → cho bấm Nộp bài lại
+      if (r.status !== 403 && r.status !== 409) finishedRef.current = false;
+      toast(`Chưa nộp được bài: ${r.error}`, "warning");
+      return;
+    }
+    if (r.late) toast("Bài nộp quá giờ — các câu trả lời gửi muộn không được tính điểm.", "warning");
+    const perQuestion = r.perQuestion
+      .map((pq) => {
+        const q = quizQuestions.find((x) => x.id === pq.questionId);
+        return q ? { q, pts: pq.points, correct: pq.correct } : null;
+      })
+      .filter((x): x is { q: QuizQuestion; pts: number; correct: boolean | null } => !!x);
+    setResult({ autoScore: r.attempt.autoScore, maxScore: r.attempt.maxScore, perQuestion });
     setScreen("done");
   };
 
-  /* ===== Adaptive: trả lời → ghi trail → chọn câu kế tiếp ===== */
-  const nextAdaptive = () => {
+  /* ===== Adaptive: gửi đáp án → máy chủ chấm, ghi trail, chọn câu kế tiếp ===== */
+  const nextAdaptive = async () => {
     const q = adaptiveQ;
-    if (!q) return;
-    const pools: Record<QuizDifficulty, QuizQuestion[]> = {
-      EASY: quizQuestions.filter((x) => exam.questionIds.includes(x.id) && x.difficulty === "EASY"),
-      MEDIUM: quizQuestions.filter((x) => exam.questionIds.includes(x.id) && x.difficulty === "MEDIUM"),
-      HARD: quizQuestions.filter((x) => exam.questionIds.includes(x.id) && x.difficulty === "HARD"),
-    };
-    const step: AdaptiveStep = {
+    if (!q || busy || finishedRef.current) return;
+    setBusy(true);
+    const r = await callPublicApi<{ correct: boolean; nextQuestionId: number | null }>("/api/thi/tra-loi", {
+      attemptId,
+      accessToken,
       questionId: q.id,
-      difficulty: q.difficulty,
-      correct: isChoiceCorrect(q, answers[q.id]),
-    };
-    const nextTrail = [...trail, step];
-    setTrail(nextTrail);
-    const next = pickNextAdaptive(pools, nextTrail);
+      answer: answers[q.id] ?? {},
+    });
+    setBusy(false);
+    if (!r.ok) {
+      toast(r.error, "warning");
+      // Hết giờ / hết câu ở máy chủ → nộp luôn phần đã làm
+      if (r.status === 409) void finish();
+      return;
+    }
+    const step: AdaptiveStep = { questionId: q.id, difficulty: q.difficulty, correct: r.correct };
+    setTrail((prev) => [...prev, step]);
+    const next = r.nextQuestionId ? quizQuestions.find((x) => x.id === r.nextQuestionId) ?? null : null;
     setAdaptiveQ(next);
     setCurrent((c) => c + 1);
-    if (!next) finish();
-  };
-
-  const isChoiceCorrect = (q: QuizQuestion, a?: QuizAnswer): boolean => {
-    const correct = [...(q.correctIndexes ?? [])].sort().join(",");
-    const chosen = [...(a?.selected ?? [])].sort().join(",");
-    return chosen !== "" && chosen === correct;
+    if (!next) void finish();
   };
 
   /* ================= MÀN 1: CHÀO ================= */
@@ -232,10 +242,11 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
             )}
             <button
               type="button"
-              onClick={start}
-              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:-translate-y-0.5 hover:shadow-xl"
+              onClick={() => void start()}
+              disabled={busy}
+              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:translate-y-0 disabled:opacity-60"
             >
-              Vào thi ngay
+              {busy ? "Đang chuẩn bị đề…" : "Vào thi ngay"}
             </button>
             <p className="text-center text-[11px] text-stone-400">
               Bấm &quot;Vào thi ngay&quot; là đồng hồ bắt đầu chạy — hết giờ hệ thống tự nộp bài.
@@ -283,13 +294,13 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
             Kết quả từng câu
           </p>
           <ul className="divide-y divide-stone-100">
-            {result.perQuestion.map(({ q, pts }, i) => {
+            {result.perQuestion.map(({ q, pts, correct }, i) => {
               const isEssay = !["MCQ_SINGLE", "MCQ_MULTI", "TRUE_FALSE", "FILL"].includes(q.type);
               return (
                 <li key={q.id} className="flex items-start gap-3 px-5 py-3">
                   {isEssay ? (
                     <Clock3 className="mt-0.5 h-4.5 w-4.5 shrink-0 text-amber-500" />
-                  ) : pts > 0 ? (
+                  ) : correct ? (
                     <CheckCircle2 className="mt-0.5 h-4.5 w-4.5 shrink-0 text-emerald-500" />
                   ) : (
                     <XCircle className="mt-0.5 h-4.5 w-4.5 shrink-0 text-red-500" />
@@ -305,7 +316,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
                   <span
                     className={cn(
                       "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold",
-                      isEssay ? "bg-amber-50 text-amber-600" : pts > 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                      isEssay ? "bg-amber-50 text-amber-600" : correct ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
                     )}
                   >
                     {isEssay ? "Chờ giám khảo chấm" : `${pts}/${q.points} điểm`}
@@ -336,6 +347,8 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
 
   /* ================= MÀN 2: THI ================= */
   const q = exam.adaptive ? adaptiveQ : paper[current]?.q;
+  // Thứ tự hiển thị đáp án (đề trộn đáp án) — câu trả lời luôn lưu theo chỉ số gốc
+  const perm = exam.adaptive ? undefined : paper[current]?.perm;
   if (!q) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center text-sm text-stone-500">
@@ -347,6 +360,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
   const answer = answers[q.id] ?? {};
   const setAnswer = (patch: Partial<QuizAnswer>) =>
     setAnswers((prev) => ({ ...prev, [q.id]: { ...prev[q.id], ...patch } }));
+  const displayOptions = (q.options ?? []).map((_, i) => perm?.[i] ?? i);
   const toggleChoice = (idx: number, multi: boolean) => {
     const sel = answer.selected ?? [];
     if (multi) {
@@ -378,8 +392,9 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
         </span>
         <button
           type="button"
-          onClick={finish}
-          className="rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-700"
+          onClick={() => void finish()}
+          disabled={busy}
+          className="rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-60"
         >
           Nộp bài
         </button>
@@ -407,7 +422,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
         {/* --- Trắc nghiệm 1 đáp án + Đúng/Sai --- */}
         {(q.type === "MCQ_SINGLE" || q.type === "TRUE_FALSE") && q.options ? (
           <div className="mt-5 space-y-2.5">
-            {q.options.map((opt, idx) => (
+            {displayOptions.map((idx) => (
               <button
                 key={idx}
                 type="button"
@@ -427,7 +442,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
                 >
                   {answer.selected?.includes(idx) ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
                 </span>
-                {opt}
+                {q.options?.[idx]}
               </button>
             ))}
           </div>
@@ -437,7 +452,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
         {q.type === "MCQ_MULTI" && q.options ? (
           <div className="mt-5 space-y-2.5">
             <p className="text-[11px] text-stone-400">Chọn tất cả đáp án đúng.</p>
-            {q.options.map((opt, idx) => (
+            {displayOptions.map((idx) => (
               <button
                 key={idx}
                 type="button"
@@ -457,7 +472,7 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
                 >
                   {answer.selected?.includes(idx) ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
                 </span>
-                {opt}
+                {q.options?.[idx]}
               </button>
             ))}
           </div>
@@ -526,8 +541,9 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
             ) : (
               <button
                 type="button"
-                onClick={finish}
-                className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                onClick={() => void finish()}
+                disabled={busy}
+                className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 Nộp bài
               </button>
@@ -535,8 +551,9 @@ export function QuizRunner({ exam }: { exam: QuizExam }) {
           ) : (
             <button
               type="button"
-              onClick={nextAdaptive}
-              className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              onClick={() => void nextAdaptive()}
+              disabled={busy}
+              className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
             >
               Câu tiếp theo <ChevronRight className="h-4 w-4" />
             </button>
