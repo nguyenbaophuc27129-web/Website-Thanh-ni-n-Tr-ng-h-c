@@ -10,7 +10,6 @@ export const contentCategories: ContentCategory[] = [
   { id: 2, code: "TINH_NGUYEN", name: "Tình nguyện, cộng đồng" },
   { id: 3, code: "LI_CHUNG", name: "Lịch sử, truyền thống, hành trình đỏ" },
   { id: 4, code: "BAO_VE", name: "Bảo vệ môi trường, an toàn giao thông" },
-  { id: 5, code: "AO_DUA", name: "Áo ấm mùa đông, đồng dao vùng cao" },
   { id: 6, code: "THE_DUC", name: "Thể dục thể thao, Đoàn kết sức trẻ" },
   { id: 7, code: "HS_3_TOT", name: "Học sinh 3 tốt", parentId: 1 },
   { id: 8, code: "GUONG_MAT_HS3T_TW", name: "Gương mặt Học sinh 3 tốt cấp Trung ương", description: "Gương mặt tiêu biểu Học sinh 3 tốt cấp Trung ương" },
@@ -20,6 +19,7 @@ export const contentCategories: ContentCategory[] = [
   { id: 12, code: "MOI_TUAN_MOT_CAU_CHUYEN", name: "Mỗi tuần một câu chuyện đẹp", description: "Câu chuyện đẹp mỗi tuần — đồng bộ migration 0026" },
   { id: 13, code: "TIN_TUC_HOAT_DONG_DOAN", name: "Tin tức hoạt động Đoàn", description: "Chuyên mục chuẩn cho tin hoạt động Đoàn - Hội" },
   { id: 14, code: "CHIEN_DICH_TNCL", name: "Chiến dịch tình nguyện chủ lực", description: "Tiếp sức mùa thi · Hoa phượng đỏ · Mùa hè xanh — ba chiến dịch chủ lực khối trường học" },
+  { id: 15, code: "THANH_NIEN_TRUONG_HOC", name: "Thanh niên Trường học", description: "Tin bài do Ban biên tập Cổng Thanh niên Trường học (Trung ương Đoàn) thực hiện và tổng hợp" },
 ];
 
 export const documentCategories: DocumentCategory[] = [
@@ -29,6 +29,7 @@ export const documentCategories: DocumentCategory[] = [
   { id: 4, code: "BAC_CUU", name: "Hướng dẫn thi đua - khen thưởng" },
   { id: 5, code: "TB_KQ", name: "Thông báo kết quả" },
   { id: 6, code: "KHAC", name: "Khác" },
+  { id: 7, code: "VBQPPL", name: "Văn bản quy phạm pháp luật" },
 ];
 
 export const resourceTypes: ResourceType[] = [
@@ -78,7 +79,6 @@ export const EVENT_KEYWORDS: string[] = [
   "Thi đua chào cờ",
   "Bảo vệ môi trường",
   "An toàn giao thông",
-  "Áo ấm mùa đông",
   "Kỹ năng số",
   "Nhật ký trải nghiệm nghề nghiệp",
   "Kỷ niệm 26/3",
@@ -90,6 +90,7 @@ export const EVENT_KEYWORDS: string[] = [
  * - "Bản tin nghiên cứu khoa học" → banner Panorama "Nghiên cứu khoa học".
  */
 export const SECTION_TAGS: string[] = [
+  "Thanh niên Trường học",
   "Mỗi tuần một câu chuyện đẹp",
   "Bản tin nghiên cứu khoa học",
   "Gương mặt Học sinh 3 tốt cấp Trung ương",
@@ -111,5 +112,10 @@ export const SPECIAL_CATEGORIES: { name: string; href: string }[] = [
   { name: "Tin tức hoạt động Đoàn", href: `/tin-tuc?cat=${encodeURIComponent("Tin tức hoạt động Đoàn")}` },
 ];
 
-/** Chuyên mục mặc định khi đăng bài / nhập tin từ hoạt động (id 13) */
-export const DEFAULT_POST_CATEGORY = "Tin tức hoạt động Đoàn";
+/**
+ * Chuyên mục mặc định cho nội dung do Ban biên tập TW tự làm (viết tay / nhập từ link)
+ * — YCCN 12/11/2026: KHÔNG dùng chung "Tin tức hoạt động Đoàn" (đơn vị cơ sở),
+ * nội dung tự làm phải nằm ở chuyên mục riêng "Thanh niên Trường học" (id 15).
+ * Bài tạo TỪ HOẠT ĐỘNG vẫn ưu tiên chuyên mục dẫn xuất từ hoạt động.
+ */
+export const DEFAULT_POST_CATEGORY = "Thanh niên Trường học";

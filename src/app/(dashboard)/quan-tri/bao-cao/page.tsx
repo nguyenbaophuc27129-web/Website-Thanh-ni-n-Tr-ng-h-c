@@ -12,7 +12,16 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { reportTemplates, suggestDocCode, templateById } from "@/data/report-templates";
-import { buildReportWordData, buildTemplateWordData, downloadWordDoc, vnDateStr, type WordDocData } from "@/lib/word-export";
+import { buildReportWordData, downloadDraftWordDoc, downloadWordDoc, vnDateStr, type WordDocData } from "@/lib/word-export";
+import type { ClassifiedRecord, SelfCheckResult } from "@/lib/server/bao-cao-pipeline";
+
+const STATUS_BADGE: Record<string, { tone: "green" | "yellow" | "red" | "orange" | "blue"; label: string }> = {
+  DUA_VAO: { tone: "green", label: "Đưa vào báo cáo" },
+  NGOAI_KY: { tone: "yellow", label: "Ngoài kỳ" },
+  KHONG_PHAI_DOAN: { tone: "red", label: "Không phải Đoàn-Hội-Đội" },
+  CAN_XAC_MINH: { tone: "orange", label: "Cần xác minh" },
+  PHUONG_HUONG: { tone: "blue", label: "Phương hướng kỳ tới" },
+};
 
 const TYPE_LABEL: Record<string, string> = {
   MONTHLY: "Báo cáo tháng", QUARTERLY: "Báo cáo quý", ANNUAL: "Báo cáo năm", CUSTOM: "Báo cáo đột xuất",
@@ -67,6 +76,12 @@ export default function BaoCaoPage() {
   const [jsonExportBusy, setJsonExportBusy] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
   const [aiSendingBusy, setAiSendingBusy] = useState(false);
+
+  // Stage 1 phân loại R1-R10 — nguồn dán tay + bảng kết quả duyệt trước khi viết
+  const [extraText, setExtraText] = useState("");
+  const [classifyBusy, setClassifyBusy] = useState(false);
+  const [classifiedData, setClassifiedData] = useState<{ records: ClassifiedRecord[]; stats: Record<string, number>; model: string } | null>(null);
+  const [reportChecks, setReportChecks] = useState<Record<number, SelfCheckResult>>({});
 
   // Modal nhập số liệu — xuất Word tự động từ kho mẫu
   const [fillTpl, setFillTpl] = useState<string | null>(null);
@@ -127,24 +142,6 @@ export default function BaoCaoPage() {
     downloadWordDoc(`bao-cao-${exportingReport.id}-${tpl.id.toLowerCase()}`, data);
     store.exportReport(exportingReport.id, "DOCX");
     toast(`Đã tải văn bản Word "${data.docCode}" theo mẫu ${tpl.name}.`);
-  };
-
-  const downloadBlank = (tid: string) => {
-    if (!session) return;
-    const tpl = templateById(tid);
-    if (!tpl) return;
-    const data = buildTemplateWordData({
-      orgUnitName: session.orgUnitName,
-      docCode: suggestDocCode(0, tpl.docPrefix),
-      title: tpl.titlePattern("…", session.orgUnitName.replace("Đoàn ", "")),
-      bases: tpl.defaultBases,
-      outline: tpl.outline,
-      signerName: session.contactPerson,
-      signerPosition: session.contactPosition,
-      recipients: tpl.recipients(session.orgUnitName),
-    });
-    downloadWordDoc(`mau-${tid.toLowerCase()}`, data);
-    toast(`Đã tải mẫu trắng "${tpl.name}" (${vnDateStr(new Date())}).`);
   };
 
   const contentHeadingsOf = (tid: string) =>
@@ -239,6 +236,28 @@ export default function BaoCaoPage() {
     toast("Đã tải xuống tệp dữ liệu JSON.");
   };
 
+  /** Stage 1 — phân loại bản ghi theo R1-R10 (+ trích xuất nguồn dán tay) */
+  const handleClassify = async () => {
+    if (!jsonRawData?.contextForAi || !session || classifyBusy) return;
+    setClassifyBusy(true);
+    try {
+      const res = await fetch("/api/ai/phan-loai-bao-cao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ctx: jsonRawData.contextForAi, extraText: extraText.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok || !Array.isArray(data.records)) throw new Error(data.error || `HTTP ${res.status}`);
+      setClassifiedData({ records: data.records, stats: data.stats ?? {}, model: data.model ?? "AI" });
+      const s = data.stats ?? {};
+      toast(`Phân loại xong ${s.total ?? data.records.length} bản ghi: ${s.DUA_VAO ?? 0} đưa vào, ${s.NGOAI_KY ?? 0} ngoài kỳ, ${s.KHONG_PHAI_DOAN ?? 0} không phải Đoàn-Hội-Đội, ${s.CAN_XAC_MINH ?? 0} cần xác minh, ${s.PHUONG_HUONG ?? 0} phương hướng. Kiểm tra rồi bấm viết báo cáo.`, "success");
+    } catch (err) {
+      toast(`Không phân loại được bằng AI: ${err instanceof Error ? err.message : "lỗi không rõ"}`, "warning");
+    } finally {
+      setClassifyBusy(false);
+    }
+  };
+
   const handleSendToAi = async () => {
     if (!jsonRawData?.contextForAi || !session) return;
     setAiSendingBusy(true);
@@ -246,7 +265,10 @@ export default function BaoCaoPage() {
       const res = await fetch("/api/ai/nhap-bao-cao", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ctx: jsonRawData.contextForAi }),
+        body: JSON.stringify({
+          ctx: jsonRawData.contextForAi,
+          classified: classifiedData?.records,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data?.ok || !data.content) throw new Error(data.error || `HTTP ${res.status}`);
@@ -266,7 +288,17 @@ export default function BaoCaoPage() {
         aiModel: data.model || "Gemini AI",
         aiGeneratedAt: new Date().toISOString(),
       });
-      toast("Đã tạo báo cáo mới từ dữ liệu JSON và bản nháp AI thành công!", "success");
+      if (data.checks) setReportChecks((prev) => ({ ...prev, [newId]: data.checks }));
+      const c = data.checks as SelfCheckResult | undefined;
+      const failedCount = c ? c.items.filter((i) => !i.pass).length : 0;
+      toast(
+        data.repaired
+          ? `Đã tạo báo cáo từ phân loại đã kiểm chứng (AI tự sửa 1 lượt sau tự kiểm${failedCount ? `, còn ${failedCount} mục cần xem lại` : " — đạt hết"}).`
+          : c
+            ? `Đã tạo báo cáo. Tự kiểm: ${c.items.length - failedCount}/${c.items.length} đạt.`
+            : "Đã tạo báo cáo mới từ dữ liệu JSON và bản nháp AI thành công!",
+        failedCount ? "warning" : "success"
+      );
       setJsonExportOpen(false);
     } catch (err) {
       toast(`Không gọi được AI: ${err instanceof Error ? err.message : "lỗi không rõ"}`, "warning");
@@ -375,14 +407,28 @@ export default function BaoCaoPage() {
       const exportData = await exportRes.json().catch(() => null);
       const aiCtx = exportData?.ok ? exportData.contextForAi : null;
 
-      // Gom số liệu gửi lên AI agent
+      // Stage 1 — phân loại R1-R10 có kiểm chứng
+      let classified: ClassifiedRecord[] | undefined;
+      try {
+        const plRes = await fetch("/api/ai/phan-loai-bao-cao", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ctx: aiCtx }),
+        });
+        const plData = await plRes.json().catch(() => null);
+        if (plRes.ok && plData?.ok && Array.isArray(plData.records)) classified = plData.records;
+      } catch {
+        classified = undefined; // phân loại lỗi → rơi về luồng 1 lượt
+      }
+
+      // Stage 2 — viết báo cáo từ bản ghi đã kiểm chứng
       const res = await fetch("/api/ai/nhap-bao-cao", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ctx: aiCtx }),
+        body: JSON.stringify({ ctx: aiCtx, classified }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { ok?: boolean; content?: string; model?: string; error?: string }
+        | { ok?: boolean; content?: string; model?: string; error?: string; checks?: SelfCheckResult; repaired?: boolean }
         | null;
       if (!res.ok || !data?.ok || !data.content) throw new Error(data?.error ?? `HTTP ${res.status}`);
       store.updateReport(reportId, {
@@ -390,7 +436,17 @@ export default function BaoCaoPage() {
         aiModel: data.model ?? "AI",
         aiGeneratedAt: new Date().toISOString(),
       });
-      toast("Đã tạo bản nháp AI. Bạn xem, chỉnh sửa rồi chốt báo cáo.");
+      if (data.checks) setReportChecks((prev) => ({ ...prev, [reportId]: data.checks! }));
+      const c = data.checks;
+      const failedCount = c ? c.items.filter((i) => !i.pass).length : 0;
+      toast(
+        failedCount === 0 && c
+          ? `Đã tạo bản nháp AI${data.repaired ? " (đã tự sửa sau tự kiểm)" : ""} — tự kiểm đạt hết. Bạn xem, chỉnh sửa rồi chốt báo cáo.`
+          : c
+            ? `Đã tạo bản nháp AI — tự kiểm ${c.items.length - failedCount}/${c.items.length} đạt, xem phần đánh dấu cần sửa.`
+            : "Đã tạo bản nháp AI (chưa qua phân loại kiểm chứng). Bạn xem, chỉnh sửa rồi chốt báo cáo.",
+        failedCount ? "warning" : "success"
+      );
     } catch {
       toast("Không gọi được API tạo nháp AI — kiểm tra kết nối rồi thử lại.", "warning");
     } finally {
@@ -454,8 +510,8 @@ export default function BaoCaoPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => { setJsonExportOpen(true); setResultJson(null); setJsonRawData(null); }} className="flex items-center gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50">
-            <Code className="h-4 w-4 text-blue-600" /> Xuất JSON cho AI
+          <Button variant="outline" onClick={() => { setJsonExportOpen(true); setResultJson(null); setJsonRawData(null); setClassifiedData(null); setExtraText(""); }} className="flex items-center gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50">
+            <Code className="h-4 w-4 text-blue-600" /> Tạo báo cáo bằng AI
           </Button>
           <Button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5">
             <Plus className="h-4 w-4" /> Tạo báo cáo
@@ -500,10 +556,31 @@ export default function BaoCaoPage() {
                     <span className="ml-1 font-normal text-violet-500">
                       {r.aiModel} · {formatDateTime(r.aiGeneratedAt)}
                     </span>
+                    <button
+                      onClick={() => downloadDraftWordDoc(`nhap-bao-cao-${r.id}`, { draft: r.aiDraftContent ?? "", orgUnitName: session?.orgUnitName ?? "" })}
+                      className="ml-auto flex items-center gap-1 rounded-md border border-violet-300 bg-white px-2 py-1 text-[11px] font-medium text-violet-700 hover:bg-violet-100"
+                    >
+                      <FileDown className="h-3 w-3" /> Xuất Word bản nháp
+                    </button>
                   </p>
                   <div className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-600">
                     {r.aiDraftContent}
                   </div>
+                  {reportChecks[r.id] ? (
+                    <details className="mt-2 rounded-md border border-stone-200 bg-white px-2.5 py-1.5 text-[11px]">
+                      <summary className={`cursor-pointer font-medium ${reportChecks[r.id].pass ? "text-emerald-700" : "text-amber-700"}`}>
+                        Tự kiểm đặc tả: {reportChecks[r.id].items.filter((i) => i.pass).length}/{reportChecks[r.id].items.length} mục đạt
+                        {reportChecks[r.id].pass ? " ✓" : " — mở xem mục cần sửa"}
+                      </summary>
+                      <ul className="mt-1.5 space-y-0.5 text-stone-600">
+                        {reportChecks[r.id].items.map((it) => (
+                          <li key={it.name} className={it.pass ? "text-emerald-700" : "text-amber-700"}>
+                            {it.pass ? "✓" : "✗"} {it.name}{!it.pass && it.detail ? ` — cần bổ sung: ${it.detail}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
                   {aiEditId === r.id ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Input
@@ -629,9 +706,14 @@ export default function BaoCaoPage() {
                   <Button size="sm" onClick={() => openFill(t.id)}>
                     <Database className="h-3.5 w-3.5" /> Nhập số liệu → xuất Word
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => downloadBlank(t.id)}>
-                    <FileDown className="h-3.5 w-3.5" /> Mẫu trắng
-                  </Button>
+                  {/* YCCN 12/11/2026: tải NGUYÊN VĂN file DOCX gốc — không sinh lại từ HTML */}
+                  <a
+                    href={t.sourceDoc}
+                    download
+                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:bg-stone-50"
+                  >
+                    <FileDown className="h-3.5 w-3.5" /> Tải mẫu gốc (DOCX)
+                  </a>
                 </div>
               </li>
             ))}
@@ -889,7 +971,7 @@ export default function BaoCaoPage() {
       <Modal
         open={jsonExportOpen}
         onClose={() => setJsonExportOpen(false)}
-        title="Dữ liệu nguồn cho AI (Xuất JSON & Gửi AI)"
+        title="Tạo báo cáo bằng AI — trích xuất → phân loại → viết"
         wide
         footer={
           <div className="flex flex-wrap items-center justify-between w-full gap-2">
@@ -920,14 +1002,24 @@ export default function BaoCaoPage() {
               <Button variant="secondary" onClick={() => setJsonExportOpen(false)}>
                 Đóng
               </Button>
-              {jsonResult && (
+              {jsonResult && !classifiedData && (
+                <Button
+                  onClick={handleClassify}
+                  disabled={classifyBusy || aiSendingBusy}
+                  className="bg-violet-600 text-white hover:bg-violet-700 flex items-center gap-1.5"
+                >
+                  {classifyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckSquare className="h-4 w-4" />}
+                  {classifyBusy ? "Đang phân loại R1-R10…" : "1. Phân loại bằng AI (kiểm chứng)"}
+                </Button>
+              )}
+              {jsonResult && classifiedData && (
                 <Button
                   onClick={handleSendToAi}
                   disabled={aiSendingBusy}
                   className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5"
                 >
                   {aiSendingBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {aiSendingBusy ? "Đang gửi vào AI…" : "Gửi thẳng vào AI tạo nháp"}
+                  {aiSendingBusy ? "Đang viết báo cáo…" : "2. Viết báo cáo từ phân loại"}
                 </Button>
               )}
             </div>
@@ -936,7 +1028,7 @@ export default function BaoCaoPage() {
       >
         <div className="space-y-4">
           <div className="rounded-xl bg-blue-50/70 p-3.5 border border-blue-200 text-xs text-blue-900 leading-relaxed">
-            Hệ thống tự động lọc toàn bộ hoạt động, số lượt tham gia, tiến độ nhiệm vụ thi đua và tin bài theo kỳ báo cáo hoặc danh sách chọn, chuyển thành cấu trúc JSON chuẩn theo <strong>Đặc tả huấn luyện AI agent báo cáo Đoàn</strong> để nạp thẳng vào AI.
+            Quy trình 2 giai đoạn theo <strong>Đặc tả huấn luyện AI agent báo cáo Đoàn</strong>: (1) AI phân loại từng bản ghi theo quy tắc R1-R10 — hệ thống kiểm chứng lại bằng quy tắc cứng (ngày ngoài kỳ, thiếu ngày/chủ thể, mã mục hợp lệ); (2) AI viết báo cáo đúng khung từ các bản ghi đã duyệt, tự kiểm 10 mục trước khi trả. Bạn được xem bảng phân loại và sửa được trước khi viết.
           </div>
 
           <div className="flex items-center gap-4 border-b border-stone-200 pb-3">
@@ -1105,6 +1197,60 @@ export default function BaoCaoPage() {
               />
             </div>
           )}
+
+          {jsonResult && (
+            <div className="space-y-2 pt-1">
+              <Field label="Dán thêm nguồn tin ngoài hệ thống (tuỳ chọn) — tin báo chí, công văn, trang thông tin đơn vị">
+                <Textarea
+                  value={extraText}
+                  onChange={(e) => setExtraText(e.target.value)}
+                  rows={4}
+                  placeholder="Dán nội dung bài báo / công văn… AI sẽ trích xuất thành bản ghi hoạt động riêng (một bài nhiều nội dung sẽ tách thành nhiều bản ghi theo R7), phân loại và đánh dấu nguồn."
+                />
+              </Field>
+              <p className="text-[10px] text-stone-400">Nguồn dán tay được trích xuất ở giai đoạn phân loại — bấm "1. Phân loại bằng AI" sau khi dán.</p>
+            </div>
+          )}
+
+          {classifiedData ? (
+            <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50/60 p-3 pt-2.5">
+              <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-violet-800">
+                <CheckCircle2 className="h-4 w-4" /> Kết quả phân loại có kiểm chứng (R1-R10)
+                <span className="font-normal text-violet-500">{classifiedData.model}</span>
+                <span className="flex flex-wrap gap-1.5 font-normal">
+                  {Object.entries(STATUS_BADGE).map(([k, v]) =>
+                    classifiedData.stats[k] ? (
+                      <Badge key={k} tone={v.tone}>{v.label}: {classifiedData.stats[k]}</Badge>
+                    ) : null
+                  )}
+                </span>
+              </p>
+              <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                {classifiedData.records.map((rec) => {
+                  const b = STATUS_BADGE[rec.trang_thai] ?? STATUS_BADGE.CAN_XAC_MINH;
+                  return (
+                    <div key={rec.id} className="rounded-md border border-stone-200 bg-white px-2.5 py-2 text-xs">
+                      <p className="flex flex-wrap items-center gap-1.5">
+                        <Badge tone={b.tone}>{b.label}</Badge>
+                        <span className="font-mono text-[10px] text-stone-400">{rec.id}</span>
+                        {rec.muc_chinh ? <span className="font-medium text-doan-700">{rec.muc_chinh}</span> : null}
+                        {rec.muc_phu?.length ? <span className="text-[10px] text-stone-400">phụ: {rec.muc_phu.join(", ")}</span> : null}
+                        {[...(rec.chi_tieu ?? []), ...(rec.dot_pha ?? []), ...(rec.de_an ?? [])].length ? (
+                          <span className="text-[10px] text-stone-500">gắn: {[...(rec.chi_tieu ?? []), ...(rec.dot_pha ?? []), ...(rec.de_an ?? [])].join(", ")}</span>
+                        ) : null}
+                        {rec.mergedFrom?.length ? <span className="text-[10px] text-stone-400">gộp {rec.mergedFrom.join(", ")}</span> : null}
+                      </p>
+                      <p className="mt-1 font-medium text-stone-800">{rec.ten}{rec.ngay ? ` — ${rec.ngay}` : ""}{rec.chu_tri ? ` · ${rec.chu_tri}` : ""}</p>
+                      {rec.ly_do ? <p className="mt-0.5 text-[11px] text-stone-500">{rec.ly_do}</p> : null}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-stone-500">
+                Bản ghi sai ngày/mã đã được hệ thống ép lại theo quy tắc cứng (R1, R3) — trạng thái hiển thị là kết quả kiểm chứng, không phải câu trả lời thô của AI.
+              </p>
+            </div>
+          ) : null}
         </div>
       </Modal>
     </div>

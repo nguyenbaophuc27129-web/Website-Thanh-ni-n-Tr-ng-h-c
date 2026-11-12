@@ -75,6 +75,7 @@ type StoryRow = {
   org_display_name: string | null;
   photo_data_url: string | null;
   photo_thumb_data_url: string | null;
+  gallery: { data_url?: string; caption?: string }[] | null;
   ai_verdict: string | null;
   ai_reason: string | null;
   status: string | null;
@@ -104,6 +105,12 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean }): BinhCho
     orgDisplayName: r.org_display_name ?? undefined,
     photoThumbDataUrl: r.photo_thumb_data_url ?? "",
     photoDataUrl: opts?.withPhoto ? (r.photo_data_url ?? undefined) : undefined,
+    gallery: opts?.withPhoto
+      ? (r.gallery ?? [])
+          .filter((g) => Boolean(g?.data_url))
+          .slice(0, 3)
+          .map((g) => ({ dataUrl: g.data_url!, caption: g.caption || undefined }))
+      : undefined,
     voteCount: Number(r.vote_count),
     approvedAt: r.approved_at ? ISO(r.approved_at) : undefined,
     createdAt: ISO(r.created_at),
@@ -121,7 +128,7 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean }): BinhCho
 export const STORY_SELECT = `
   SELECT s.id, s.campaign_id, s.student_name, s.school_org_unit_id, s.class_name, s.quote, s.story,
          s.achievements, s.org_display_name, s.submitter_email,
-         s.photo_data_url, s.photo_thumb_data_url, s.ai_verdict, s.ai_reason, s.status,
+         s.photo_data_url, s.photo_thumb_data_url, s.gallery, s.ai_verdict, s.ai_reason, s.status,
          s.rejection_reason, s.vote_count, s.approved_at, s.created_at, s.honor_level,
          COALESCE(school.name, s.org_display_name) AS school_name,
          CASE WHEN school.path ~ '^/1/[0-9]+/' THEN split_part(school.path, '/', 3)::bigint END AS province_admin_id,

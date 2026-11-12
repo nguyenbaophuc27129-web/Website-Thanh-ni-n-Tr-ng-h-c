@@ -138,6 +138,322 @@ export function downloadWordDoc(fileName: string, data: WordDocData): void {
   URL.revokeObjectURL(url);
 }
 
+/* ── Xuất Word TRỰC TIẾP TỪ BẢN NHÁP AI (đúng khung đặc tả agent báo cáo) ── */
+
+export interface DraftWordInput {
+  draft: string; // plain text bản nháp AI
+  orgUnitName: string; // tên cơ quan ban hành — ô trái khối thể thức (linh hoạt theo đơn vị)
+  fileName?: string;
+  docSymbol?: string; // ký hiệu sau chỗ trống điền số, mặc định "-BC/TĐTN"
+  draftNote?: string; // ghi chú nghiêng dưới số — mặc định "(Dự thảo)"
+  upperOrgName?: string; // ô phải: tổ chức Đoàn cấp trên trực tiếp (mặc định quốc hiệu "ĐOÀN TNCS HỒ CHÍ MINH")
+  place?: string; // địa danh dòng ngày — mặc định "TP. Hồ Chí Minh"
+  docTitle?: string; // đè tiêu đề bắt từ bản nháp
+  docSubtitles?: string[]; // các dòng phụ đề dưới tiêu đề (bổ sung)
+  noiNhan?: string[]; // đè danh sách nơi nhận (nếu bỏ trống bắt từ bản nháp, fallback theo mẫu)
+  signOrg?: string; // "TM. BAN THƯỜNG VỤ THÀNH ĐOÀN" — suy ra từ tên đơn vị nếu bỏ trống
+  signTitle?: string; // "BÍ THƯ"
+}
+
+const isThucTheLine = (s: string): boolean =>
+  /^ĐOÀN TNCS HỒ CHÍ MINH$/i.test(s.trim()) ||
+  /^BAN (CHẤP HÀNH|THƯỜNG VỤ)/i.test(s.trim()) ||
+  /^CỘNG HÒA XÃ HỘI/i.test(s.trim()) ||
+  /^ĐỘC LẬP\s*-/i.test(s.trim()) ||
+  /^-+\s*o0o\s*-+$/i.test(s.trim());
+
+const isDivider = (s: string): boolean => /^-{3,}$/.test(s.trim());
+const isRomanHeading = (s: string): boolean => /^[IVX]+\.\s+\S/.test(s.trim());
+const isNumHeading = (s: string): boolean => /^\d+\.\s+\S/.test(s.trim()) || /^\d+\.\d+\.\s+\S/.test(s.trim());
+const isSignBlock = (s: string): boolean => /^(TM\.|BÍ THƯ|CHỦ TỊCH|PHÓ BÍ THƯ)/i.test(s.trim());
+const TITLE_RE = /^(báo cáo|chương trình|kế hoạch|nghị quyết|chỉ thị|hướng dẫn|tổng kết)\b/i;
+const isDateLine = (s: string): boolean => /ngày\s+\d+\s+tháng\s+\d+\s+năm/i.test(s.trim());
+const isAllCaps = (s: string): boolean => {
+  const letters = s.replace(/[^\p{L}]/gu, "");
+  return letters.length > 6 && letters === letters.toLocaleUpperCase("vi-VN");
+};
+
+/** escape + chuyển **đậm** markdown thành <b> */
+const mdInline = (s: string): string =>
+  s
+    .split(/\*\*(.+?)\*\*/g)
+    .map((seg, k) => (k % 2 === 1 ? `<b>${esc(seg)}</b>` : esc(seg)))
+    .join("");
+
+const deriveSignOrg = (org: string): string => {
+  if (/TRUNG ƯƠNG ĐOÀN/.test(org)) return "TM. BAN CHẤP HÀNH TRUNG ƯƠNG ĐOÀN";
+  if (/THÀNH ĐOÀN|THANH ĐOÀN/.test(org)) return "TM. BAN THƯỜNG VỤ THÀNH ĐOÀN";
+  const m = org.match(/^BCH\s+ĐOÀN\s+(.+)$/);
+  return m ? `TM. BAN CHẤP HÀNH ĐOÀN ${m[1]}` : `TM. ${org}`;
+};
+
+/** Bảng Word từ các dòng markdown "| a | b |" — tiêu đề đậm căn giữa, cột đầu căn giữa */
+function mdTableHtml(rows: string[][], fontPt: number): string {
+  const cell = (c: string, head: boolean, first: boolean) =>
+    `<td style="border:1pt solid #000;padding:2pt 4pt;${
+      head ? "font-weight:bold;text-align:center;" : first ? "text-align:center;" : "text-align:left;"
+    }">${mdInline(c)}</td>`;
+  return `<table style="border-collapse:collapse;width:100%;font-size:${fontPt}pt;">${rows
+    .map((r, ri) => `<tr>${r.map((c, ci) => cell(c, ri === 0, ci === 0)).join("")}</tr>`)
+    .join("")}</table>`;
+}
+
+/**
+ * Chuyển bản nháp AI thành HTML Word khớp 100% thể thức 2 mẫu gốc:
+ * - Lề 2-2-2-3cm, Times New Roman 11pt (nền), bảng 14pt (12pt ở phụ lục).
+ * - Khối thể thức bảng 2 ô (41/59): trái = tên cơ quan + "***" + "Số: …" + ghi chú nghiêng;
+ *   phải = "ĐOÀN TNCS HỒ CHÍ MINH" đậm + địa danh ngày tháng nghiêng 14pt.
+ * - Tiêu đề + phụ đề in đậm căn giữa, kẻ ngang "-----------".
+ * - Thân bài căn đều, thụt đầu dòng 1cm, lề dưới 3pt; đề mục đậm (mục x.y đậm nghiêng);
+ *   cụm dẫn nhập "Ưu điểm:/Hạn chế:…" in nghiêng; bảng markdown render thành bảng Word.
+ * - Cuối văn bản bảng 2 ô: "Nơi nhận:" + danh sách | "TM. …" + chức vụ ký.
+ * - Bản nháp có "Phần thứ…" → tự chuyển thể thức BCCT Đại hội (thụt 1,25cm,
+ *   tiêu đề 15pt, quốc hiệu 15pt căn phải, "Phần thứ" + dòng chữ hoa căn giữa đậm).
+ */
+export function buildDraftWordHtml(i: DraftWordInput): string {
+  const lines = i.draft.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
+
+  // 1) Bắt khối tiêu đề (BÁO CÁO…/phụ đề/kẻ ngang) ở đầu bản nháp nếu AI tự sinh
+  let title = i.docTitle ? i.docTitle.toUpperCase() : "";
+  const subtitles: string[] = i.docSubtitles ? [...i.docSubtitles] : [];
+  let start = 0;
+  if (!title) {
+    let k = 0;
+    while (k < lines.length && k < 15) {
+      const line = lines[k];
+      if (!line) {
+        k++;
+        continue;
+      }
+      if (TITLE_RE.test(line)) {
+        title = line.toUpperCase();
+        k++;
+        while (k < lines.length) {
+          const s = lines[k];
+          if (!s) break;
+          if (isDivider(s)) {
+            k++;
+            break;
+          }
+          if (isRomanHeading(s) || isNumHeading(s) || /^Phần thứ\s/i.test(s)) break;
+          subtitles.push(s);
+          k++;
+        }
+        break;
+      }
+      if (isThucTheLine(line) || /^Số:/i.test(line) || isDateLine(line)) {
+        k++;
+        continue;
+      }
+      break;
+    }
+    start = k;
+  }
+  if (!title) title = "BÁO CÁO";
+
+  const rest = lines.slice(start);
+  const bcct = /^Phần thứ\s/im.test(rest.join("\n"));
+  const indent = bcct ? "1.25cm" : "1cm";
+  const org = i.orgUnitName.trim().toUpperCase();
+  const place = i.place ?? "TP. Hồ Chí Minh";
+  const paras: string[] = [];
+
+  let noiNhan = i.noiNhan ? [...i.noiNhan] : null;
+  let signOrg = i.signOrg ?? null;
+  let signTitle = i.signTitle ?? null;
+  let collectingNn = false;
+  let afterPhanThu = false;
+  let inPhuLuc = false;
+  let phuLucHead = false;
+  let sawSection = false;
+  let tableBuf: string[][] | null = null;
+  const flushTable = () => {
+    if (tableBuf) {
+      paras.push(mdTableHtml(tableBuf, inPhuLuc ? 12 : 14));
+      tableBuf = null;
+    }
+  };
+
+  for (let idx = 0; idx < rest.length; idx++) {
+    const line = rest[idx];
+    if (!line) {
+      flushTable();
+      collectingNn = false;
+      afterPhanThu = false;
+      continue;
+    }
+    if (/^\|/.test(line)) {
+      if (/^\|[\s:\-|]*\|$/.test(line)) continue; // hàng phân cách |---|---|
+      tableBuf = tableBuf ?? [];
+      tableBuf.push(line.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim()));
+      continue;
+    }
+    flushTable();
+    if (isThucTheLine(line) || /^Số:/i.test(line) || isDateLine(line)) continue;
+    if (/^PHỤ LỤC/i.test(line)) {
+      inPhuLuc = true;
+      phuLucHead = true;
+      sawSection = true;
+      paras.push(`<p style="text-align:center;margin:12pt 0 2pt;font-weight:bold;">${mdInline(line)}</p>`);
+      continue;
+    }
+    if (phuLucHead && /^\(/.test(line)) {
+      paras.push(`<p style="text-align:center;margin:0 0 2pt;font-style:italic;">${mdInline(line)}</p>`);
+      continue;
+    }
+    if (phuLucHead) {
+      paras.push(`<p style="text-align:center;margin:0 0 2pt;font-weight:bold;">${mdInline(line)}</p>`);
+      continue;
+    }
+    if (/^Nơi nhận:/i.test(line)) {
+      collectingNn = true;
+      noiNhan = noiNhan ?? [];
+      continue;
+    }
+    if (collectingNn && /^[-•]\s*/.test(line)) {
+      noiNhan!.push(line.replace(/^[-•]\s*/, ""));
+      continue;
+    }
+    collectingNn = false;
+    if (isSignBlock(line)) {
+      if (/^TM\./i.test(line)) signOrg = signOrg ?? line;
+      else signTitle = signTitle ?? line;
+      continue;
+    }
+    if (/^Phần thứ\s+\S+/i.test(line)) {
+      paras.push(`<p style="text-align:center;margin:3pt 0 3pt;font-weight:bold;">${mdInline(line)}</p>`);
+      afterPhanThu = true;
+      sawSection = true;
+      continue;
+    }
+    if (afterPhanThu && isAllCaps(line)) {
+      paras.push(`<p style="text-align:center;margin:0 0 3pt;font-weight:bold;">${mdInline(line)}</p>`);
+      continue;
+    }
+    afterPhanThu = false;
+    if (isRomanHeading(line) || isNumHeading(line) || /^(Khẩu hiệu hành động|Mục tiêu|Dự báo tình hình)\s*:/i.test(line)) {
+      const sub = /^\d+\.\d+\./.test(line); // mục con x.y. → đậm nghiêng (cả 2 mẫu đều vậy)
+      paras.push(
+        `<p style="text-align:justify;text-indent:${indent};margin:${isNumHeading(line) ? "0pt" : "3pt"} 0 3pt;font-weight:bold;${sub ? "font-style:italic;" : ""}">${mdInline(line)}</p>`
+      );
+      sawSection = true;
+      continue;
+    }
+    if (isDivider(line)) {
+      phuLucHead = false;
+      paras.push(`<p style="text-align:center;margin:0 0 6pt;">-----------</p>`);
+      continue;
+    }
+    // cụm dẫn nhập ngắn kết thúc ":" → in nghiêng (Ưu điểm:/Hạn chế:/Học tập và làm theo…:)
+    const m = !line.startsWith("- ") && !line.startsWith("|") ? line.match(/^([A-ZÀ-ỸĐ][^:.!?]{1,80}):\s*(.*)$/u) : null;
+    if (m) {
+      const [, lead, tail] = m;
+      paras.push(
+        `<p style="text-align:justify;text-indent:${indent};margin:0 0 3pt;"><i>${mdInline(lead)}:</i>${tail ? ` ${mdInline(tail)}` : ""}</p>`
+      );
+      continue;
+    }
+    // khẩu hiệu/câu dẫn ngắn trước đề mục đầu tiên → đậm căn giữa (mẫu BCCT)
+    if (!sawSection && !inPhuLuc && !line.startsWith("- ") && line.length < 150 && !/[.!?…]$/.test(line)) {
+      paras.push(`<p style="text-align:center;margin:0 0 3pt;font-weight:bold;">${mdInline(line)}</p>`);
+      continue;
+    }
+    // đoạn văn thường (gạch đầu dòng "- …" giữ nguyên, thụt đầu dòng như mẫu)
+    paras.push(
+      `<p style="text-align:justify;text-indent:${indent};margin:${bcct ? "3pt 0 1pt" : "0 0 3pt"};">${mdInline(line)}</p>`
+    );
+  }
+  flushTable();
+
+  // Khối thể thức đầu trang — bảng 2 ô theo đúng 2 mẫu gốc
+  const upper = i.upperOrgName ?? "ĐOÀN TNCS HỒ CHÍ MINH";
+  const note = i.draftNote ?? "(Dự thảo)";
+  const headerTable = bcct
+    ? `<table style="width:100%;border:none;border-collapse:collapse;">
+<tr>
+  <td style="width:51%;border:none;text-align:center;">
+    <p style="margin:0;font-size:11pt;font-weight:bold;">${esc(org)}</p>
+    <p style="margin:0;font-size:11pt;">***</p>
+    <p style="margin:0;font-size:11pt;font-weight:bold;font-style:italic;">${esc(note)}</p>
+  </td>
+  <td style="width:49%;border:none;text-align:right;vertical-align:top;">
+    <p style="margin:0;font-size:15pt;font-weight:bold;">${esc(upper)}</p>
+  </td>
+</tr>
+</table>`
+    : `<table style="width:100%;border:none;border-collapse:collapse;">
+<tr>
+  <td style="width:41%;border:none;text-align:center;">
+    <p style="margin:0;font-size:13pt;">${esc(org)}</p>
+    <p style="margin:0;font-size:13pt;">***</p>
+    <p style="margin:0;font-size:13pt;">Số: ${esc(i.docSymbol ?? "-BC/TĐTN")}</p>
+    <p style="margin:0;font-size:12pt;font-style:italic;">${esc(note)}</p>
+  </td>
+  <td style="width:59%;border:none;text-align:center;">
+    <p style="margin:0;font-size:13pt;font-weight:bold;">${esc(upper)}</p>
+    <p style="margin:0;font-size:14pt;font-style:italic;">${esc(place)}, ${esc(vnDateStr(new Date()))}</p>
+  </td>
+</tr>
+</table>`;
+
+  const titlePt = bcct ? 15 : 11;
+  const titleHtml = `<p style="text-align:center;margin:10pt 0 0;font-weight:bold;font-size:${titlePt}pt;">${esc(title)}</p>
+${subtitles.map((s) => `<p style="text-align:center;margin:0;font-weight:bold;">${esc(s)}</p>`).join("\n")}
+<p style="text-align:center;margin:0 0 6pt;">-----------</p>`;
+
+  const nn = noiNhan ?? ["Ban Bí thư Trung ương Đoàn (để báo cáo);", "Thường trực Thành ủy (để báo cáo);", "Lưu VP."];
+  const finalSignOrg = (signOrg ?? deriveSignOrg(org)).toUpperCase();
+  const footer = `<table style="width:100%;border:none;border-collapse:collapse;margin-top:16pt;">
+<tr>
+  <td style="width:41%;border:none;vertical-align:top;">
+    <p style="margin:0 0 2pt;font-size:12pt;font-weight:bold;font-style:italic;">Nơi nhận:</p>
+    ${nn
+      .map((r) => `<p style="margin:0 0 2pt;font-size:11pt;">- ${esc(r.startsWith("-") ? r.slice(1).trim() : r)}</p>`)
+      .join("\n")}
+  </td>
+  <td style="width:59%;border:none;text-align:center;vertical-align:top;">
+    <p style="margin:0;font-size:14pt;font-weight:bold;">${esc(finalSignOrg)}</p>
+    <p style="margin:18pt 0;">&nbsp;</p>
+    <p style="margin:0;font-weight:bold;">${esc((signTitle ?? i.signTitle ?? "BÍ THƯ").toUpperCase())}</p>
+  </td>
+</tr>
+</table>`;
+
+  return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>${esc(title)}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+<style>
+  @page { size: A4; margin: 2cm 2cm 2cm 3cm; }
+  body { font-family: "Times New Roman", serif; font-size: 11pt; color: #000; }
+  p { margin: 0; }
+</style>
+</head>
+<body>
+${headerTable}
+${titleHtml}
+${paras.join("\n")}
+${footer}
+</body>
+</html>`;
+}
+
+/** Tải bản nháp AI thành .doc — cùng cơ chế với downloadWordDoc */
+export function downloadDraftWordDoc(fileName: string, input: DraftWordInput): void {
+  const html = buildDraftWordHtml(input);
+  const blob = new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName.endsWith(".doc") ? fileName : `${fileName}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 /** Ngày tháng dạng văn bản: "ngày 27 tháng 9 năm 2026" */
 export function vnDateStr(d: Date): string {
   return `ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;

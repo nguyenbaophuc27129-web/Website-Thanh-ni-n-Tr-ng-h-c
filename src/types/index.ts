@@ -844,6 +844,8 @@ export interface BinhChonStory {
   photoThumbDataUrl: string;
   /** Chỉ endpoint detail (?storyId=N) mới trả ảnh full */
   photoDataUrl?: string;
+  /** Thư viện tối đa 3 ảnh kèm caption tự do (chỉ trả ở endpoint detail) */
+  gallery?: { dataUrl: string; caption?: string }[];
   voteCount: number;
   approvedAt?: string;
   createdAt: string;

@@ -28,6 +28,35 @@ import type { HonorLevel } from "@/types";
 
 const kb = (dataUrl: string) => Math.round((dataUrl.length * 0.75) / 1024);
 
+/** Nén ảnh thư viện: co về tối đa 1400px cạnh dài, JPEG 0.82 (~150-300KB) */
+async function compressGalleryImage(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("Không đọc được tệp ảnh"));
+    r.readAsDataURL(file);
+  });
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Tệp không phải ảnh hợp lệ"));
+    img.src = dataUrl;
+  });
+  const ratio = Math.min(1, 1400 / Math.max(img.width, img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.width * ratio));
+  canvas.height = Math.max(1, Math.round(img.height * ratio));
+  canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
+  let out = canvas.toDataURL("image/jpeg", 0.82);
+  // Vẫn nặng → hạ chất dần
+  let q = 0.7;
+  while (kb(out) > 1450 && q >= 0.4) {
+    out = canvas.toDataURL("image/jpeg", q);
+    q -= 0.15;
+  }
+  return out;
+}
+
 export const GUIDED_QUESTIONS = [
   {
     num: "1",
@@ -117,6 +146,10 @@ export function SubmitModal({
   const orgTouchedRef = useRef(false);
   const [full, setFull] = useState("");
   const [thumb, setThumb] = useState("");
+  /** Thư viện tối đa 3 ảnh kèm caption tự do theo sở thích HS (YCCN 12/11/2026) */
+  const [galleryItems, setGalleryItems] = useState<{ dataUrl: string; caption: string }[]>([]);
+  const galleryPickRef = useRef<HTMLInputElement>(null);
+  const gallerySlotRef = useRef<number>(0);
   const [studioOpen, setStudioOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -132,6 +165,7 @@ export function SubmitModal({
       setAchievements("");
       setWardName("");
       setProvinceName("");
+      setGalleryItems([]);
       orgTouchedRef.current = false;
     }
   }, [open]);
@@ -170,7 +204,6 @@ export function SubmitModal({
   const valid =
     studentName.trim().length >= 2 &&
     story.trim().length >= 30 &&
-    story.trim().length <= 2000 &&
     Boolean(full) &&
     Boolean(thumb);
 
@@ -190,6 +223,12 @@ export function SubmitModal({
       honorLevel: honor,
       photoDataUrl: full,
       photoThumbDataUrl: thumb,
+      gallery: galleryItems.filter((g) => g.dataUrl).length > 0
+        ? galleryItems
+            .filter((g) => g.dataUrl)
+            .slice(0, 3)
+            .map((g) => ({ dataUrl: g.dataUrl, caption: g.caption.trim() || undefined }))
+        : undefined,
       credential: session ? undefined : credentialRef?.current || undefined,
     });
     setSending(false);
@@ -209,6 +248,7 @@ export function SubmitModal({
     setProvinceName("");
     setFull("");
     setThumb("");
+    setGalleryItems([]);
     orgTouchedRef.current = false;
     onSubmitted();
     onClose();
@@ -252,7 +292,7 @@ export function SubmitModal({
           </Field>
           <Field
             label="Trường / Đơn vị"
-            hint="In trên khối thông tin khung ảnh (Đoàn trường) — có thể sửa theo ý em"
+            hint="In trên khối thông tin khung ảnh (Đoàn trường) — có thể sửa theo ý bạn"
           >
             <Input
               value={orgName}
@@ -439,9 +479,8 @@ export function SubmitModal({
                   ref={textareaRef}
                   value={story}
                   onChange={(e) => setStory(e.target.value)}
-                  placeholder="Kể câu chuyện phấn đấu, thành tích học tập, rèn luyện, tình nguyện của em... Có thể dùng các nút bên trên để tạo tiêu đề in đậm (1., 2., a., b.)."
+                  placeholder="Kể câu chuyện phấn đấu, thành tích học tập, rèn luyện, tình nguyện của bạn... Có thể dùng các nút bên trên để tạo tiêu đề in đậm (1., 2., a., b.)."
                   className="w-full min-h-48 p-3 text-xs sm:text-sm text-stone-800 outline-none leading-relaxed resize-y"
-                  maxLength={2000}
                 />
               </div>
             ) : (
@@ -474,7 +513,7 @@ export function SubmitModal({
             )}
 
             <div className="flex items-center justify-between text-[11px] text-stone-500 px-1">
-              <span>Tối thiểu 30 ký tự (đã nhập: {story.trim().length}/2000 ký tự)</span>
+              <span>Tối thiểu 30 ký tự · đã nhập: {story.trim().length} ký tự (không giới hạn dung lượng)</span>
               <span>Nội dung được AI kiểm duyệt tự động</span>
             </div>
           </div>
@@ -486,7 +525,7 @@ export function SubmitModal({
                 Thành tích nổi bật <span className="text-stone-400 font-normal">(không bắt buộc)</span>
               </label>
               <span className="text-[11px] text-stone-400">
-                {achievements.trim().length}/2000 ký tự
+                {achievements.trim().length} ký tự
               </span>
             </div>
             <div className="rounded-xl border border-stone-200 bg-white overflow-hidden focus-within:border-[#F26522] focus-within:ring-1 focus-within:ring-[#F26522] transition-all">
@@ -495,9 +534,101 @@ export function SubmitModal({
                 onChange={(e) => setAchievements(e.target.value)}
                 placeholder={'Liệt kê từng dòng một thành tích (mỗi dòng sẽ thành 1 ô vàng vinh danh), ví dụ:\n- Giải Nhất Học sinh giỏi Tin học cấp tỉnh (2025)\n- Học sinh Xuất sắc 3 năm liên tiếp\n- Đội trưởng đội bóng đá trường tham gia giải cấp thành phố'}
                 className="w-full min-h-32 p-3 text-xs sm:text-sm text-stone-800 outline-none leading-relaxed resize-y"
-                maxLength={2000}
               />
             </div>
+          </div>
+
+          {/* 3 ẢNH KÈM CAPTION TỰ DO — YCCN 12/11/2026: "kế bên cột thành tích cho nộp câu
+              chuyện HS3T cho đăng thêm 3 tấm hình của HS và ghi caption tuỳ ý theo sở thích" */}
+          <div className="sm:col-span-2 space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-stone-800">
+                Bộ sưu tập ảnh của bạn{" "}
+                <span className="text-stone-400 font-normal">(tối đa 3 tấm · caption viết gì cũng được)</span>
+              </label>
+              {galleryItems.length > 0 ? (
+                <span className="text-[11px] text-stone-400">{galleryItems.filter((g) => g.dataUrl).length}/3 ảnh · {galleryItems.filter((g) => g.dataUrl).reduce((n, g) => n + kb(g.dataUrl), 0)} KB</span>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[0, 1, 2].map((slot) => {
+                const item = galleryItems[slot];
+                if (!item) {
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => {
+                        gallerySlotRef.current = slot;
+                        galleryPickRef.current?.click();
+                      }}
+                      className="flex min-h-28 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-2 py-3 text-center transition-all hover:border-[#F26522]/60 hover:bg-[#FFF6EE]"
+                    >
+                      <ImagePlus className="h-5 w-5 text-stone-400" />
+                      <span className="text-[11px] font-medium text-stone-400">Chọn ảnh {slot + 1}</span>
+                    </button>
+                  );
+                }
+                return (
+                  <div key={slot} className="space-y-1.5 rounded-xl border border-stone-200 bg-white p-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.dataUrl}
+                      alt={`Ảnh ${slot + 1}`}
+                      className="h-24 w-full rounded-lg border border-stone-100 object-cover"
+                    />
+                    <input
+                      value={item.caption}
+                      onChange={(e) =>
+                        setGalleryItems((list) =>
+                          list.map((g, gi) => (gi === slot ? { ...g, caption: e.target.value.slice(0, 300) } : g))
+                        )
+                      }
+                      placeholder="Caption tuỳ ý..."
+                      maxLength={300}
+                      className="w-full rounded-md border border-stone-200 px-2 py-1 text-[11px] text-stone-700 outline-none focus:border-[#F26522]"
+                    />
+                    <div className="flex items-center justify-between px-0.5">
+                      <span className="text-[10px] text-stone-400">{kb(item.dataUrl)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setGalleryItems((list) =>
+                            list.map((g, gi) => (gi === slot ? { dataUrl: "", caption: "" } : g))
+                          )
+                        }
+                        className="text-[10px] font-semibold text-rose-500 hover:text-rose-700"
+                      >
+                        Xoá
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <input
+              ref={galleryPickRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                compressGalleryImage(f)
+                  .then((dataUrl) => {
+                    setGalleryItems((list) => {
+                      if (list.some((g) => g.dataUrl === dataUrl)) return list;
+                      const slot = gallerySlotRef.current;
+                      const next = [...list];
+                      while (next.length <= slot) next.push({ dataUrl: "", caption: "" });
+                      next[slot] = { dataUrl, caption: "" };
+                      return next;
+                    });
+                  })
+                  .catch(() => setError("Không đọc được ảnh — chọn tệp ảnh khác nhé."));
+              }}
+            />
           </div>
 
           <Field

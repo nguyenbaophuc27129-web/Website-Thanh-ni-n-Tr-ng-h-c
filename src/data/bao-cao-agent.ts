@@ -540,6 +540,103 @@ HD17: Tuyên dương Thủ lĩnh thanh niên tiêu biểu TP.HCM (18/10/2026) ->
   },
 ];
 
+/* ══════════════════════════════════════════════════════════════════════
+   STAGE 1 — PHÂN LOẠI BẢN GHI (bước 2-5 quy trình đặc tả mục V)
+   AI trả JSON có cấu trúc (trạng thái R1-R4, mục chính R5-R8, gắn chỉ
+   tiêu R9-R10); route /api/ai/phan-loai-bao-cao kiểm chứng bằng quy tắc
+   deterministic rồi mới gửi stage 2 viết báo cáo.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/** Schema JSON đầu ra stage 1 — type VIẾT HOA đúng chuẩn Gemini responseSchema (OBJECT/STRING/ARRAY/NUMBER) */
+export const PHAN_LOAI_SCHEMA: Record<string, unknown> = {
+  type: "OBJECT",
+  properties: {
+    ban_ghi: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          id: { type: "STRING", description: "Giữ nguyên id bản ghi đầu vào (HD01...); bản ghi tách từ nguồn dán tay đặt EXT1, EXT2..." },
+          ten: { type: "STRING", description: "Tên hoạt động chuẩn hóa" },
+          ngay: { type: "STRING", description: "Ngày diễn ra dd/mm/yyyy; để trống nếu nguồn không nêu" },
+          dia_diem: { type: "STRING" },
+          chu_tri: { type: "STRING" },
+          phoi_hop: { type: "STRING" },
+          doi_tuong: { type: "ARRAY", items: { type: "STRING" } },
+          mo_ta: { type: "STRING", description: "Nội dung chính, không chép nguyên văn" },
+          so_lieu: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                chi_so: { type: "STRING" },
+                gia_tri: { type: "NUMBER" },
+                don_vi: { type: "STRING" },
+                loai: { type: "STRING", enum: ["ket_qua", "muc_tieu", "du_kien"] },
+              },
+              required: ["chi_so", "gia_tri", "don_vi", "loai"],
+            },
+          },
+          nguon: { type: "ARRAY", items: { type: "STRING" } },
+          trang_thai: { type: "STRING", enum: ["DUA_VAO", "NGOAI_KY", "KHONG_PHAI_DOAN", "CAN_XAC_MINH", "PHUONG_HUONG"] },
+          muc_chinh: { type: "STRING", description: "Mã tiểu mục (NV2.1...); để trống khi không đưa vào báo cáo" },
+          muc_phu: { type: "ARRAY", items: { type: "STRING" } },
+          chi_tieu: { type: "ARRAY", items: { type: "STRING" } },
+          dot_pha: { type: "ARRAY", items: { type: "STRING" } },
+          de_an: { type: "ARRAY", items: { type: "STRING" } },
+          ly_do: { type: "STRING", description: "Lý do phân loại hoặc lý do loại" },
+        },
+        required: ["id", "trang_thai", "ly_do"],
+      },
+    },
+  },
+  required: ["ban_ghi"],
+  propertyOrdering: ["ban_ghi"],
+};
+
+/** System prompt stage 1 — compact, bám R1-R10 + bộ mã + few-shot từ bộ mẫu đặc tả */
+export function buildPhanLoaiSystemPrompt(): string {
+  const subs = NV_SUBS.map((s) => `${s.code} ${s.label} — dấu hiệu: ${s.hints}`).join("\n");
+  const ct = CHI_TIEU.map((c) => `${c.code} ${c.text}`).join("\n");
+  const dp = DOT_PHA.map((d) => `${d.code} ${d.text}`).join("\n");
+  const da = DE_AN.map((d) => `${d.code} ${d.text}`).join("\n");
+
+  return [
+    "Bạn là AI agent phân loại hoạt động cho báo cáo công tác Đoàn nhiệm kỳ 2026 - 2031 (đặc tả huấn luyện agent tổng hợp báo cáo). Đầu vào là danh sách bản ghi hoạt động (kèm kỳ báo cáo từ ngày - đến ngày) và có thể kèm NGUỒN DÁN TAY (tin báo chí, công văn, trang thông tin). Nhiệm vụ:",
+    "1) Với NGUỒN DÁN TAY: trích xuất thành các bản ghi riêng (bước Trích xuất) — một bài có nhiều nội dung độc lập thì tách thành nhiều bản ghi (R7), đặt id EXT1, EXT2…; ghi ngày diễn ra, địa điểm, chủ trì, phối hợp, đối tượng, số liệu kèm loại (ket_qua/muc_tieu/du_kien) và nguồn.",
+    "2) Lọc từng bản ghi theo R1-R4 (trạng thái).",
+    "3) Gán đúng 01 mục chính theo R5-R8 (mục phụ khi cần, ghi lý do).",
+    "4) Gắn chỉ tiêu, nhiệm vụ đột phá, đề án theo R9-R10 (không gắn theo suy đoán).",
+    "",
+    "QUY TẮC:",
+    ...R_RULES,
+    "",
+    "BỘ MÃ TIỂU MỤC (mục chính bắt buộc là mã trong danh sách này):",
+    subs,
+    "",
+    "CHỈ TIÊU TRỌNG TÂM:",
+    ct,
+    "",
+    "NHIỆM VỤ ĐỘT PHÁ:",
+    dp,
+    "",
+    "CHƯƠNG TRÌNH, ĐỀ ÁN TRỌNG ĐIỂM:",
+    da,
+    "",
+    "VÍ DỤ PHÂN LOẠI ĐÚNG (kỳ 06/10/2026 - 12/10/2026):",
+    '- Tuần lễ “Sinh viên Vươn mình thời đại số” (10/10/2026, Thành Đoàn - Hội Sinh viên; "100.000 sinh viên tham gia" ghi MỤC TIÊU) → DUA_VAO, muc_chinh NV2.1, muc_phu [NV3.1], chi_tieu [CT7], dot_pha [DP2], de_an [DA2]; số liệu 100.000/10.000 giữ loai muc_tieu, KHÔNG tính kết quả.',
+    '- Hội thi tay nghề làm bánh (10/10/2026, Hội LHTN; trên 500 thí sinh, 30 vào chung kết = ket_qua) → DUA_VAO, NV2.2 (KHÔNG xếp NV3.1), muc_phu [NV4.5].',
+    '- Ra mắt Đội hình hỗ trợ người dân dùng dịch vụ số (11/10/2026, Đoàn phường) → DUA_VAO, NV2.1 (tình nguyện viên số xếp 2.1, KHÔNG xếp NV2.4), muc_phu [NV2.4], chi_tieu [CT7], dot_pha [DP2].',
+    '- Internship Fair 2026 (bài không nêu ngày diễn ra) → CAN_XAC_MINH, muc_chinh NV3.1, muc_phu [NV2.2], ly_do: thiếu ngày diễn ra.',
+    '- Hoạt động ngày 04/10/2026 (trước kỳ 06/10) → NGOAI_KY, căn cứ NGÀY DIỄN RA chứ không phải ngày đăng bài.',
+    '- Trao học bổng Nguyễn Thái Bình (08/10/2026, Báo Thanh Niên + CLB Golf) → KHONG_PHAI_DOAN (không có vai trò tổ chức Đoàn, Hội, Đội).',
+    '- Nhạc hội Thanh niên TP.HCM “Thanh âm Lên đàng” (17-18/10/2026, sau kỳ) → PHUONG_HUONG, muc_chinh NV3.3, muc_phu [NV4.5].',
+    '- Tuyên dương “Thủ lĩnh thanh niên tiêu biểu” (18/10/2026; khoảng 70 gương du_kien) → PHUONG_HUONG, NV4.5.',
+    "",
+    "ĐẦU RA: trả duy nhất JSON theo schema — trường ban_ghi là mảng gồm MỌI bản ghi đã cho (đúng id gốc) cộng thêm bản ghi trích từ nguồn dán tay (id EXT…). Không bỏ sót bản ghi nào.",
+  ].join("\n");
+}
+
 /** 17 hoạt động chuẩn mẫu phục vụ huấn luyện và kiểm thử benchmark AI (Phụ lục 2 Đặc tả) */
 export const TRAINING_BENCHMARK_RECORDS = [
   {

@@ -62,6 +62,8 @@ export interface SubmitStoryInput {
   honorLevel?: "TRUONG" | "TINH" | "TW_DE_CU";
   photoDataUrl: string;
   photoThumbDataUrl: string;
+  /** Tối đa 3 ảnh kèm caption tự do (client nén sẵn, mỗi ảnh ≤ ~1.5MB) */
+  gallery?: { dataUrl: string; caption?: string }[];
   /** Google ID token đã xác thực — bắt buộc khi gửi bài KHÔNG qua tài khoản */
   credential?: string;
 }

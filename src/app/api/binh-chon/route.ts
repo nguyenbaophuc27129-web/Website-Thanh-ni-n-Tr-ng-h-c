@@ -211,6 +211,7 @@ export async function POST(request: NextRequest) {
         honorLevel?: string;
         photoDataUrl?: string;
         photoThumbDataUrl?: string;
+        gallery?: { dataUrl?: string; caption?: string }[];
         credential?: string;
       }
     | null;
@@ -251,14 +252,31 @@ export async function POST(request: NextRequest) {
   if (!studentName || studentName.length > 120) {
     return NextResponse.json({ ok: false, error: "Thiếu hoặc sai họ tên học sinh." }, { status: 400 });
   }
-  if (story.length < 30 || story.length > 2000) {
-    return NextResponse.json({ ok: false, error: "Quá trình phấn đấu phải từ 30 đến 2000 ký tự." }, { status: 400 });
+  // Không giới hạn dung lượng trần (nhiều bạn viết rất tâm huyết) — chỉ chặn dưới 30 ký tự + trần phòng thủ 200.000 ký tự
+  const storySafe = story.slice(0, 200_000);
+  if (storySafe.length < 30) {
+    return NextResponse.json({ ok: false, error: "Quá trình phấn đấu cần tối thiểu 30 ký tự." }, { status: 400 });
   }
   if (!dataUrlGuard(body?.photoDataUrl, FULL_PHOTO_MAX_BYTES)) {
     return NextResponse.json({ ok: false, error: "Ảnh đại diện không hợp lệ hoặc vượt 2MB." }, { status: 400 });
   }
   if (!dataUrlGuard(body?.photoThumbDataUrl, THUMB_PHOTO_MAX_BYTES)) {
     return NextResponse.json({ ok: false, error: "Ảnh thu nhỏ không hợp lệ hoặc vượt 400KB." }, { status: 400 });
+  }
+
+  // Thư viện tối đa 3 ảnh kèm caption tự do — mỗi ảnh ≤ 1.5MB (client đã nén)
+  const GALLERY_MAX = 3;
+  const GALLERY_IMG_BYTES = 1_500_000;
+  const galleryRaw = Array.isArray(body?.gallery) ? body.gallery : [];
+  if (galleryRaw.length > GALLERY_MAX) {
+    return NextResponse.json({ ok: false, error: "Tối đa 3 ảnh kèm câu chuyện." }, { status: 400 });
+  }
+  const gallery: { data_url: string; caption: string | null }[] = [];
+  for (const g of galleryRaw) {
+    if (!dataUrlGuard(g?.dataUrl, GALLERY_IMG_BYTES)) {
+      return NextResponse.json({ ok: false, error: "Một trong các ảnh kèm không hợp lệ hoặc vượt 1.5MB — thử nén lại ảnh." }, { status: 400 });
+    }
+    gallery.push({ data_url: g.dataUrl, caption: String(g?.caption ?? "").trim().slice(0, 300) || null });
   }
 
   if (accountId !== null) {
@@ -271,7 +289,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Kiểm duyệt văn bản
-  const textToModerate = [story, quote, achievements].filter(Boolean).join("\n");
+  const textToModerate = [storySafe, quote, achievements].filter(Boolean).join("\n");
   const moderation = await moderateStoryText(textToModerate);
 
   try {
@@ -279,8 +297,8 @@ export async function POST(request: NextRequest) {
       `INSERT INTO hs3t_stories
         (campaign_id, account_id, student_name, school_org_unit_id, class_name, quote, story,
          achievements, org_display_name, ward_name, province_name, honor_level,
-         photo_data_url, photo_thumb_data_url, ai_verdict, ai_reason, ai_model, submitter_email, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'PENDING') RETURNING id`,
+         photo_data_url, photo_thumb_data_url, gallery, ai_verdict, ai_reason, ai_model, submitter_email, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'PENDING') RETURNING id`,
       [
         campaign.id,
         accountId,
@@ -288,7 +306,7 @@ export async function POST(request: NextRequest) {
         orgUnitId,
         className,
         quote,
-        story,
+        storySafe,
         achievements,
         orgDisplayName,
         wardName,
@@ -296,6 +314,7 @@ export async function POST(request: NextRequest) {
         honorLevel,
         body?.photoDataUrl,
         body?.photoThumbDataUrl,
+        gallery.length > 0 ? JSON.stringify(gallery) : null,
         moderation.verdict,
         moderation.reason ?? null,
         moderation.model ?? null,

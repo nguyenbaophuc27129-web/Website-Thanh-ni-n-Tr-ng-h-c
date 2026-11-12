@@ -199,12 +199,14 @@ export default function HocSinh3TotPage() {
         — cộng thêm nhóm Thành tích khác (công bố khoa học, chứng chỉ ngoại ngữ, tin học, SAT…).
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Link
-          href="/hoc-sinh-3-tot/quy-che"
+        <a
+          href="https://www.facebook.com/share/p/1Dt1aQtm1P/"
+          target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
         >
           <Scale className="h-3.5 w-3.5" /> Quy chế danh hiệu (QĐ 317)
-        </Link>
+        </a>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-medium text-stone-500">
           Thành tích tính từ 01/9 năm trước đến hết 31/8 năm xét trao
         </span>

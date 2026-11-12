@@ -97,6 +97,22 @@ export function HonorBoard({
                           className="group flex w-full items-center gap-2.5 rounded-2xl border border-transparent px-2.5 py-2 text-left transition-all hover:border-[#F26522]/30 hover:bg-[#FFF6EE]"
                         >
                           <RankMedal rank={i + 1} />
+                          {/* Ảnh kèm khung vinh danh — lãnh đạo: bảng xếp hạng thể hiện theo hình ảnh cho bắt mắt */}
+                          <span className="h-[54px] w-[43px] shrink-0 overflow-hidden rounded-lg border border-[#F26522]/25 bg-[#FFF6EE] shadow-2xs">
+                            {s.photoThumbDataUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={s.photoThumbDataUrl}
+                                alt={s.studentName}
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#FFF1E4] to-[#FFE3CC] text-sm font-black text-[#F26522]/70">
+                                {(s.studentName || "?").charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[13px] font-bold text-[#3D1A0E] group-hover:text-[#C4161C]">
                               {s.studentName}

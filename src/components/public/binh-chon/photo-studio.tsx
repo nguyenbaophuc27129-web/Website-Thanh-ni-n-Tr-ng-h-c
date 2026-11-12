@@ -2,10 +2,11 @@
 
 /**
  * Xưởng ảnh cắt nền AI — client-only.
- * - Cắt nền gọi remove.bg API QUA SERVER /api/cat-nen (key REMOVEBG_API_KEY chỉ ở BE).
- *   Free 50 lượt/tháng nhận preview 0.25MP; server tự thử "full" trước (ảnh gốc khi
- *   tài khoản có credit). Lỗi (hết lượt, sai key, mạng) → cảnh báo + vẫn dùng được
- *   các chức năng còn lại (degrade mềm).
+ * - Cắt nền chạy NGAY TRONG TRÌNH DUYỆT bằng @imgly/background-removal (mô hình ISNet
+ *   ONNX/WASM): KHÔNG cần API, không giới hạn lượt, trả nguyên độ phân giải gốc.
+ *   Lần đầu dùng tải mô hình ~44MB (một lần duy nhất — trình duyệt tự cache), lần sau
+ *   chạy gần như tức thì. Lỗi (mạng, trình duyệt quá cũ không hỗ trợ WASM SIMD)
+ *   → cảnh báo + vẫn dùng được các chức năng còn lại (degrade mềm).
  * - Khung "Tuyên dương tuổi học sinh" (theo mẫu LĐT tiêu biểu TP.HCM 2022): NỀN kem sáng
  *   (phong-nen.jpg) + người đứng CHÍNH GIỮA, dải SÓNG nhiều màu đè trước chân (song-duoi.png,
  *   PNG có alpha theo mép sóng thật — đã tách 2 chi tiết). Bên trái: logo HS3T nhỏ phía trên
@@ -529,28 +530,38 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
     reader.readAsDataURL(file);
   };
 
-  /** Cắt nền qua remove.bg API (server /api/cat-nen giữ API key) — lỗi → degrade mềm */
+  /** Tách nền bằng @imgly/background-removal — chạy 100% trong trình duyệt, không API,
+   *  không giới hạn lượt. Lần đầu tải mô hình ~44MB (cache trình duyệt), lần sau tức thì.
+   *  Lỗi → degrade mềm: cảnh báo + vẫn giữ ảnh gốc dùng được các chức năng còn lại. */
   const runRemoveBackground = async () => {
     const subject = subjectRef.current;
     if (!subject || cutting) return;
     setCutting(true);
-    setCutNote("Đang gửi ảnh tới AI remove.bg — đợi vài giây…");
+    setCutNote("Đang nạp mô hình AI (lần đầu ~44MB — trình duyệt sẽ tự nhớ, lần sau nhanh hẳn)…");
     try {
-      // Ảnh gốc chưa có alpha → gửi JPEG nhẹ hơn PNG rất nhiều
-      const imageDataUrl = subject.toDataURL("image/jpeg", 0.92);
-      const res = await fetch("/api/cat-nen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl }),
+      // Import động — chỉ tải bundle mô hình khi bấm nút
+      const { removeBackground } = await import("@imgly/background-removal");
+      // Gửi JPEG nén nhẹ cho mô hình đọc nhanh; kết quả trả PNG có alpha nguyên độ phân giải
+      const srcBlob = await new Promise<Blob>((resolve, reject) => {
+        subject.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error("Không tạo được dữ liệu ảnh"))),
+          "image/jpeg",
+          0.92
+        );
       });
-      const json = (await res.json().catch(() => null)) as
-        | { ok?: boolean; error?: string; imageDataUrl?: string }
-        | null;
-      if (!json?.ok || !json.imageDataUrl) {
-        setCutNote(json?.error ?? "Không cắt được nền — thử lại hoặc dùng ảnh cắt sẵn từ máy.");
-        setCutting(false);
-        return;
-      }
+      const result = await removeBackground(srcBlob, {
+        model: "isnet_fp16",
+        output: { format: "image/png", quality: 0.95 },
+        progress: (key, current, total) => {
+          const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+          setCutNote(
+            key.startsWith("fetch")
+              ? `Đang tải mô hình AI… ${pct}%`
+              : `Đang tách nền… ${pct}%`
+          );
+        },
+      });
+      const url = URL.createObjectURL(result);
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
@@ -559,17 +570,21 @@ export function PhotoStudio({ open, onClose, onDone, studentName = "", orgName =
         canvas.getContext("2d")?.drawImage(img, 0, 0);
         subjectRef.current = canvas;
         setHasImage(true);
-        setCutNote("Đã cắt nền xong — kéo ảnh đứng ngay giữa 2 dải sóng đỏ nhé.");
+        setCutNote("Đã tách nền xong — kéo người đứng ngay giữa khung vinh danh nhé.");
         setCutting(false);
+        URL.revokeObjectURL(url);
       };
       img.onerror = () => {
-        setCutNote("Không đọc được ảnh đã cắt — vẫn dùng ảnh gốc.");
+        setCutNote("Không đọc được ảnh đã tách nền — vẫn dùng ảnh gốc.");
         setCutting(false);
+        URL.revokeObjectURL(url);
       };
-      img.src = json.imageDataUrl;
-    } catch {
+      img.src = url;
+    } catch (err) {
       setCutting(false);
-      setCutNote("Lỗi mạng khi gọi AI cắt nền — thử lại nhé.");
+      setCutNote(
+        `Tách nền chưa thành công (${err instanceof Error ? err.message : "lỗi không rõ"}) — thử lại hoặc dùng ảnh đã cắt sẵn từ máy.`
+      );
     }
   };
 

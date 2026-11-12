@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Send, Sparkles, Trash2, User } from "lucide-react";
+import { Bot, FileDown, Send, Sparkles, Trash2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { downloadDraftWordDoc } from "@/lib/word-export";
 
 interface ChatMessage {
   from: "user" | "bot";
@@ -59,6 +61,7 @@ function renderInline(text: string): React.ReactNode {
 }
 
 export default function TroLyAiPage() {
+  const { session } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       from: "bot",
@@ -112,6 +115,16 @@ export default function TroLyAiPage() {
 
   const busy = typing;
 
+  /** Xuất bản nháp AI thành Word thể thức chuẩn (TNR 14, lề 2-2-3-2, khối quốc hiệu) — bám 2 mẫu gốc */
+  const exportWord = (text: string) => {
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+    downloadDraftWordDoc(`van-ban-tro-ly-AI-${stamp}`, {
+      draft: text,
+      orgUnitName: (session?.orgUnitName ?? "ĐOÀN CƠ SỞ").toUpperCase(),
+    });
+  };
+
   return (
     <div className="flex h-[calc(100dvh-8.5rem)] min-h-[480px] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
       {/* Header */}
@@ -159,6 +172,16 @@ export default function TroLyAiPage() {
               )}
             >
               {renderInline(m.text)}
+              {m.from === "bot" && m.text.length > 200 && !m.text.startsWith("Không") ? (
+                <button
+                  onClick={() => exportWord(m.text)}
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg border border-doan-200 bg-doan-50 px-2.5 py-1 text-[11px] font-semibold text-doan-700 transition-colors hover:bg-doan-100"
+                  title="Tải bản soạn về dạng Word (.doc) đúng thể thức văn bản: khối quốc hiệu, TNR 14, lề 2-2-3-2 cm"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  Xuất Word (thể thức chuẩn)
+                </button>
+              ) : null}
               {m.from === "bot" && m.model ? (
                 <span className="mt-1.5 block font-mono text-[9px] text-stone-300">{m.model}</span>
               ) : null}

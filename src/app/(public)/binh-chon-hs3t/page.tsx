@@ -94,7 +94,6 @@ function decodeGoogleEmail(credential: string): string {
 /** Thông tin xét chọn danh hiệu cấp TW — từ công văn CV/TWĐTN-CTTTN 10/2026 */
 const TW_SELECTION = {
   url: "https://khenthuong.doanthanhnien.vn/login",
-  guideUrl: "https://263.org.vn/huongdankhenthuong",
   deadline: "31/10/2026",
   confirmDeadline: "10/11/2026",
   steps: [
@@ -464,34 +463,15 @@ export default function BinhChonHs3tPage() {
             </span>
           </motion.div>
 
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="mt-6 text-xs sm:text-sm font-black uppercase tracking-[0.35em] text-[#FFDF7E]"
-          >
-            Vinh danh · Bình chọn · Lan toả
-          </motion.p>
-
           <motion.h1
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-2 font-serif-display text-5xl sm:text-7xl md:text-8xl lg:text-[96px] font-black leading-none tracking-tight uppercase text-white"
+            className="mt-6 font-serif-display text-5xl sm:text-7xl md:text-8xl lg:text-[96px] font-black leading-none tracking-tight uppercase text-white"
             style={{ textShadow: "0 8px 28px rgba(122,18,8,0.45)" }}
           >
             HÀNH TRÌNH 3 TỐT
           </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.35 }}
-            className="mx-auto mt-5 max-w-2xl text-xs sm:text-base leading-relaxed text-white/90"
-          >
-            Bình chọn những gương mặt rực rỡ nhất của tuổi trẻ học đường — nơi bản lĩnh Đạo đức, khát vọng Học tập
-            và sức sống Thể lực cùng thăng hoa trong Kỷ nguyên vươn mình của dân tộc.
-          </motion.p>
 
           {/* HÀNG NÚT CTA */}
           <motion.div
@@ -507,10 +487,6 @@ export default function BinhChonHs3tPage() {
             >
               <Sparkles className="h-4.5 w-4.5" /> Gửi câu chuyện vinh danh của bạn
             </Button>
-
-            <div className="flex items-center gap-2 text-xs text-white/90 font-medium">
-              <Check className="h-3.5 w-3.5 text-[#FFDF7E]" /> Xác thực Gmail · 1 phiếu cho mỗi gương · Phiếu trùng tự lọc
-            </div>
           </motion.div>
 
           {/* Countdown nổi trên hero */}
@@ -689,10 +665,6 @@ export default function BinhChonHs3tPage() {
               <h2 className="mt-2 font-serif-display text-2xl sm:text-4xl font-black text-[#C4161C]">
                 3 hạng mục bình chọn tách biệt
               </h2>
-              <p className="mt-1 text-xs text-[#7A4A33] max-w-2xl">
-                Gương đạt danh hiệu cấp trường · Gương đạt danh hiệu cấp tỉnh · Gương đề cử đạt danh hiệu cấp TW —
-                mỗi hạng mục một bảng riêng để bình chọn công bằng, không lẫn lộn.
-              </p>
             </div>
             <p className="text-xs text-[#F26522]/90 font-medium">
               Hiển thị {stats.approvedStories} câu chuyện · {stats.totalVotes} lượt tiếp lửa
@@ -868,7 +840,7 @@ export default function BinhChonHs3tPage() {
                 Danh hiệu <strong className="text-[#C4161C]">"Học sinh 3 tốt"</strong> là sự ghi nhận toàn diện cho
                 những học sinh đạt chuẩn cả ba phương diện <strong>Đạo đức tốt — Học tập tốt — Thể lực tốt</strong>.
                 Đây không đơn thuần là một tấm giấy khen: danh hiệu nuôi dưỡng lý tưởng sống đẹp, thắp sáng tinh thần
-                tiên phong trong học tập, rèn luyện và tình nguyện; tạo động lực để mỗi em trở thành công dân tốt —
+                tiên phong trong học tập, rèn luyện và tình nguyện; tạo động lực để mỗi bạn trở thành công dân tốt —
                 người trẻ đủ tri thức, đủ bản lĩnh và đủ lòng nhân ái để cống hiến cho quê hương, đất nước trong
                 Kỷ nguyên vươn mình của dân tộc.
               </p>
@@ -897,7 +869,9 @@ export default function BinhChonHs3tPage() {
                   variant="outline"
                   size="sm"
                   className="border-[#F26522]/40 bg-white text-[#C4161C] hover:bg-[#FFF1E4]"
-                  onClick={() => router.push("/hoc-sinh-3-tot/quy-che")}
+                  onClick={() =>
+                    window.open("https://www.facebook.com/share/p/1Dt1aQtm1P/", "_blank", "noopener")
+                  }
                 >
                   <ScrollText className="h-3.5 w-3.5" /> Toàn văn quy chế
                 </Button>
@@ -934,7 +908,7 @@ export default function BinhChonHs3tPage() {
                 </p>
                 <p className="mt-0.5 text-[10.5px] leading-relaxed text-amber-700/90">
                   Hệ thống xét chọn nhận hồ sơ từ 10/10 đến {TW_SELECTION.deadline}; tỉnh, thành đoàn xác nhận trước{" "}
-                  {TW_SELECTION.confirmDeadline}. Hẹn gặp các em ở kỳ xét chọn năm học tới!
+                  {TW_SELECTION.confirmDeadline}. Hẹn gặp các bạn ở kỳ xét chọn năm học tới!
                 </p>
               </div>
 
@@ -945,13 +919,6 @@ export default function BinhChonHs3tPage() {
                 >
                   <ExternalLink className="h-3.5 w-3.5" /> Web xét chọn của TW Đoàn
                 </Button>
-                <button
-                  type="button"
-                  onClick={() => window.open(TW_SELECTION.guideUrl, "_blank", "noopener")}
-                  className="text-center text-[11px] font-semibold text-[#F26522] underline-offset-2 hover:underline"
-                >
-                  Hướng dẫn sử dụng hệ thống xét chọn →
-                </button>
               </div>
             </div>
           </div>
@@ -1072,6 +1039,28 @@ export default function BinhChonHs3tPage() {
                     className="max-h-72 w-full rounded-xl object-contain bg-stone-900/5 mx-auto"
                   />
                 </div>
+
+                {/* Bộ sưu tập 3 ảnh kèm caption tự do (YCCN 12/11/2026) — chỉ endpoint detail trả */}
+                {(detail.gallery?.length ?? 0) > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {detail.gallery!.map((g, gi) => (
+                      <figure key={gi} className="space-y-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={g.dataUrl}
+                          alt={`Ảnh ${gi + 1} của ${detail.studentName}`}
+                          className="h-24 w-full rounded-lg border border-[#F26522]/25 bg-white object-cover shadow-2xs"
+                          loading="lazy"
+                        />
+                        {g.caption ? (
+                          <figcaption className="line-clamp-2 text-center text-[10px] leading-snug text-stone-500">
+                            {g.caption}
+                          </figcaption>
+                        ) : null}
+                      </figure>
+                    ))}
+                  </div>
+                ) : null}
 
                 {/* THÔNG TIN CÁ NHÂN NGAY DƯỚI HÌNH */}
                 <div className="space-y-1.5 px-0.5">

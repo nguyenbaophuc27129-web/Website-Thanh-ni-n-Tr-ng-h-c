@@ -277,7 +277,7 @@ export function BentoGrid({ cd, stats, giftNote, year = 2026 }: BentoGridProps) 
 
               <blockquote className="mt-5 font-serif-display text-lg italic leading-relaxed text-[#3D1A0E] sm:text-xl">
                 &ldquo;Mỗi câu chuyện được kể ra là một khó khăn đã vượt qua. Mỗi phiếu bình chọn là một lời động viên
-                thiêng liêng gửi tới các em — thắp sáng ngọn lửa cống hiến của thế hệ trẻ trong kỷ nguyên vươn mình của
+                thiêng liêng gửi tới các bạn — thắp sáng ngọn lửa cống hiến của thế hệ trẻ trong kỷ nguyên vươn mình của
                 dân tộc.&rdquo;
               </blockquote>
             </div>

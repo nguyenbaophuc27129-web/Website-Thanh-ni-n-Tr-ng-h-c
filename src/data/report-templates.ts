@@ -16,6 +16,8 @@ export interface ReportTemplate {
   defaultBases: string[];
   outline: string[];
   recipients: (orgName: string) => string[];
+  /** File DOCX GỐC đặt trong /mau-van-ban (public) — tải nguyên văn thể thức, YCCN 12/11/2026 */
+  sourceDoc: string;
 }
 
 export const reportTemplates: ReportTemplate[] = [
@@ -23,6 +25,7 @@ export const reportTemplates: ReportTemplate[] = [
     id: "DINH_KY",
     name: "Báo cáo định kỳ (Tuần / Tháng / Quý / Năm)",
     docSuffix: "BC/TĐTN",
+    sourceDoc: "/mau-van-ban/Bao-cao-tuan-ThanhDoan-TPHCM-06-12.10.2026-mau-dau-ra.docx",
     docPrefix: "BC",
     description:
       "Báo cáo kết quả công tác Đoàn và phong trào thanh thiếu nhi định kỳ (tuần/tháng/quý/năm). Chuẩn hóa theo thể thức Thành Đoàn TP.HCM và 6 nhóm nhiệm vụ, giải pháp công tác Đoàn.",
@@ -53,6 +56,7 @@ export const reportTemplates: ReportTemplate[] = [
     id: "CHINH_TRI_TONG_KET",
     name: "Báo cáo chính trị Đại hội Đoàn (Tổng kết nhiệm kỳ)",
     docSuffix: "BCCT/ĐTN",
+    sourceDoc: "/mau-van-ban/Du-thao-lan-5-BCCT-Dai-hoi-Doan-XIII-trinh-TTBBT-TW-Dang.docx",
     docPrefix: "BCCT",
     description:
       "Báo cáo chính trị của Ban Chấp hành trình tại Đại hội Đoàn TNCS Hồ Chí Minh. Chuẩn hóa theo Dự thảo lần 5 Báo cáo chính trị Đại hội Đoàn toàn quốc lần thứ XIII trình Thường trực Ban Bí thư TW Đảng.",

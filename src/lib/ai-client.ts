@@ -109,44 +109,66 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
 
   let lastError: Error | null = null;
   for (const model of candidateModels) {
+    // Model thế hệ mới (Gemini 3+, 11/2026) chối thinkingConfig.thinkingBudget → HTTP 400
+    // "invalid argument", trong khi family 2.5 BẮT BUỘC tắt thinking để không nuốt token.
+    // → Mỗi model thử 2 lượt: có thinking trước, 400 thì thử lại không thinking.
+    for (const useThinking of [true, false]) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
+      const reqInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: options.system }] },
+          contents: [{ role: "user", parts: [{ text: options.user }] }],
+          generationConfig: {
+            temperature: options.temperature ?? 0.3,
+            maxOutputTokens: options.maxTokens ?? 1024,
+            // Family 2.5 bật thinking mặc định — thinking nuốt maxOutputTokens
+            // → trả rỗng. Tác vụ hệ thống đều kiểu phân lớp/văn luật nên tắt hẳn.
+            ...(useThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+            // JSON mode: khoá đầu ra đúng schema thay vì chỉ dựa vào prompt
+            ...(options.json
+              ? {
+                  responseMimeType: "application/json",
+                  ...(options.jsonSchema ? { responseSchema: options.jsonSchema } : {}),
+                }
+              : {}),
           },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: options.system }] },
-            contents: [{ role: "user", parts: [{ text: options.user }] }],
-            generationConfig: {
-              temperature: options.temperature ?? 0.3,
-              maxOutputTokens: options.maxTokens ?? 1024,
-              // Family 2.5 bật thinking mặc định — thinking nuốt maxOutputTokens
-              // → trả rỗng. Tác vụ hệ thống đều kiểu phân lớp/văn luật nên tắt hẳn.
-              thinkingConfig: { thinkingBudget: 0 },
-              // JSON mode: khoá đầu ra đúng schema thay vì chỉ dựa vào prompt
-              ...(options.json
-                ? {
-                    responseMimeType: "application/json",
-                    ...(options.jsonSchema ? { responseSchema: options.jsonSchema } : {}),
-                  }
-                : {}),
-            },
-          }),
-        }
+        }),
+      };
+      let res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        reqInit
       );
+
+      // Quá tải tạm thời (429/503) — chờ 1.2s rồi thử lại MỘT lần cùng model
+      // trước khi đổ lỗi / chuyển model dự phòng ("high demand" thường hết sau vài giây)
+      if (!res.ok && (res.status === 429 || res.status === 503)) {
+        console.warn(`[TNTH][AI] Model ${model} quá tải (${res.status}), chờ 1.2s thử lại...`);
+        await new Promise((r) => setTimeout(r, 1200));
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+          reqInit
+        );
+      }
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => null);
         const errMsg = errJson?.error?.message ?? `HTTP ${res.status}`;
+        // Model mới chối tham số thinking (400) → thử lại lượt 2 không thinking
+        if (res.status === 400 && useThinking) {
+          console.warn(`[TNTH][AI] Model ${model} chối thinkingConfig (${errMsg}), thử lại không thinking...`);
+          lastError = new Error(`Gemini (${model}): ${errMsg}`);
+          continue;
+        }
         // Nếu lỗi quá tải 429 hoặc model hết hạn 404, thử model tiếp theo trong danh sách
         if ((res.status === 429 || res.status === 404 || res.status === 503) && candidateModels.length > 1) {
           console.warn(`[TNTH][AI] Model ${model} gặp lỗi (${errMsg}), chuyển sang model dự phòng...`);
           lastError = new Error(`Gemini (${model}): ${errMsg}`);
-          continue;
+          break;
         }
         throw new Error(`Gemini HTTP ${res.status}: ${errMsg}`);
       }
@@ -162,10 +184,9 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
       return { text, model: data.modelVersion ?? model };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      // Nếu còn model trong danh sách, thử tiếp
-      if (model !== candidateModels[candidateModels.length - 1]) {
-        continue;
-      }
+      // Lỗi call/lọc an toàn — bỏ sang model dự phòng (nếu còn)
+      break;
+    }
     }
   }
 

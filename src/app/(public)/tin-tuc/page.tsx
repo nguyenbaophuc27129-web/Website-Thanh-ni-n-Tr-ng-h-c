@@ -167,10 +167,11 @@ export default function TinTucPage() {
       .slice(0, 5);
   }, [allPublishedPosts]);
 
-  // 4. Khối chuyên mục "Thanh niên trường học"
+  // 4. Khối chuyên mục "Thanh niên trường học" — match không phân biệt hoa/thường
+  // (chuyên mục mới "Thanh niên Trường học" id 15 — nội dung do TW biên tập, 12/11/2026)
   const schoolPosts = useMemo(() => {
     return allPublishedPosts
-      .filter((p) => p.categoryNames?.some((c) => c.includes("trường học") || c.includes("Học sinh")))
+      .filter((p) => p.categoryNames?.some((c) => c.toLowerCase().includes("trường học") || c.toLowerCase().includes("học sinh")))
       .slice(0, 4);
   }, [allPublishedPosts]);
 

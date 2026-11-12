@@ -225,7 +225,7 @@ export default function Hs3tAdminPage() {
 
       <p className="rounded-lg bg-sky-50 px-4 py-2.5 text-xs text-sky-700">
         Ngưỡng xét: mỗi nhóm có ≥1 minh chứng → Xã/Phường · ≥2 nhóm → Tỉnh/TP · đủ cả 3 nhóm (Đạo đức · Học tập · Thể lực) và tổng ≥10 → Trung ương.
-        Tiêu chuẩn theo <Link href="/hoc-sinh-3-tot/quy-che" target="_blank" className="font-bold underline">Quy chế TW (QĐ 317 + điều chỉnh 10/2025)</Link>. Bấm “AI xét” để có nhận định chi tiết trước khi chốt.
+        Tiêu chuẩn theo <a href="https://www.facebook.com/share/p/1Dt1aQtm1P/" target="_blank" rel="noopener noreferrer" className="font-bold underline">Quy chế TW (QĐ 317 + điều chỉnh 10/2025)</a>. Bấm “AI xét” để có nhận định chi tiết trước khi chốt.
       </p>
 
       {/* ===== Điều 5 — tiêu chuẩn danh hiệu tại đơn vị ===== */}
@@ -240,9 +240,9 @@ export default function Hs3tAdminPage() {
               <p className="inline-flex items-center gap-2 text-sm font-bold text-stone-900">
                 <Scale className="h-4 w-4 text-amber-600" /> Tiêu chuẩn danh hiệu tại {store.orgName(session.orgUnitId)}
               </p>
-              <Link href="/hoc-sinh-3-tot/quy-che" target="_blank" className="text-xs font-semibold text-doan-600 hover:underline">
+              <a href="https://www.facebook.com/share/p/1Dt1aQtm1P/" target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-doan-600 hover:underline">
                 Xem toàn văn quy chế TW →
-              </Link>
+              </a>
             </div>
             <p className="text-xs leading-relaxed text-stone-500">
               Điều 5 Quy chế: đơn vị xây dựng tiêu chuẩn riêng phù hợp thực tiễn — <b className="text-amber-700">không được cao hơn chuẩn Trung ương</b>.

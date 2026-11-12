@@ -102,7 +102,7 @@ function ytWatchUrl(url: string): string {
 }
 
 export default function TaiNguyenPage() {
-  const { resources, resourceTypes, documents, downloadResource, submitResourceDraft } = useStore();
+  const { resources, resourceTypes, documents, documentCategories, downloadResource, submitResourceDraft } = useStore();
   const vanBanTypeId = resourceTypes.find((t) => t.code === "VAN_BAN")?.id ?? 4;
 
   /** Văn bản đã ban hành → dòng tài nguyên trong nhóm "Tài nguyên văn bản" (gộp Văn bản vào Tài nguyên) */
@@ -125,13 +125,39 @@ export default function TaiNguyenPage() {
         })),
     [documents, vanBanTypeId]
   );
+  const [type, setType] = useState<string>("all");
+  const publicOnly = useMemo(
+    () => resources.filter((r) => r.status === "PUBLISHED" && r.isPublic),
+    [resources]
+  );
+  /** 3 nhóm phân loại (YCCN 12/11, dùng chung khung tìm kiếm — KHÔNG tách trang riêng, không mock):
+   *  VBQPPL = documents ISSUED thuộc nhóm "Văn bản quy phạm pháp luật" · Văn bản của Đoàn = còn lại · Tài liệu khác = resources */
+  const vbqpplCatId = documentCategories.find((c) => c.code === "VBQPPL")?.id ?? 7;
+  const docCatById = useMemo(
+    () => new Map(documents.filter((d) => d.status === "ISSUED").map((d) => [10000 + d.id, d.documentCategoryId])),
+    [documents]
+  );
+  const docVbqppl = useMemo(
+    () => docRows.filter((r) => docCatById.get(r.id) === vbqpplCatId),
+    [docRows, docCatById, vbqpplCatId]
+  );
+  const docDoan = useMemo(
+    () => docRows.filter((r) => docCatById.get(r.id) !== vbqpplCatId),
+    [docRows, docCatById, vbqpplCatId]
+  );
   const publicPool = useMemo(
-    () => [...resources.filter((r) => r.status === "PUBLISHED" && r.isPublic), ...docRows],
-    [resources, docRows]
+    () =>
+      type === "vbqppl"
+        ? docVbqppl
+        : type === "doan"
+          ? docDoan
+          : type === "khac"
+            ? publicOnly
+            : [...publicOnly, ...docRows],
+    [docVbqppl, docDoan, publicOnly, docRows, type]
   );
   const { session } = useAuth();
   const { toast } = useToast();
-  const [type, setType] = useState<string>("all");
   const [fmt, setFmt] = useState<string>("all");
   const [q, setQ] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -197,33 +223,22 @@ export default function TaiNguyenPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // ?type=<code> — link sâu từ nhan-tai (vd CHU_TRUONG_CHINH_SACH)
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("type");
-    const rt = code ? resourceTypes.find((r) => r.code === code) : null;
-    if (rt) setType(String(rt.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const list = useMemo(
     () =>
       publicPool
-        .filter((r) => (type === "all" ? true : r.resourceTypeId === Number(type)))
         .filter((r) => (fmt === "all" ? true : FORMAT_FILTERS.find((f) => f.key === fmt)?.match(extOf(r.fileName)) ?? true))
         .filter((r) => (q.trim() === "" ? true : r.title.toLowerCase().includes(q.toLowerCase())))
         .sort((a, b) => b.downloadCount - a.downloadCount),
-    [publicPool, type, fmt, q]
+    [publicPool, fmt, q]
   );
 
-  /** Đếm theo định dạng trên nhóm đã lọc theo loại + tìm kiếm (không tính fmt) */
+  /** Đếm theo định dạng trên nhóm đã chọn + tìm kiếm (không tính fmt) */
   const fmtCounts = useMemo(() => {
-    const pool = publicPool
-      .filter((r) => (type === "all" ? true : r.resourceTypeId === Number(type)))
-      .filter((r) => (q.trim() === "" ? true : r.title.toLowerCase().includes(q.toLowerCase())));
+    const pool = publicPool.filter((r) => (q.trim() === "" ? true : r.title.toLowerCase().includes(q.toLowerCase())));
     return Object.fromEntries(
       FORMAT_FILTERS.map((f) => [f.key, pool.filter((r) => f.match(extOf(r.fileName))).length])
     );
-  }, [publicPool, type, q]);
+  }, [publicPool, q]);
 
   /** Tải tệp thật từ dataUrl; chưa có tệp thì báo rõ thay vì giả lập */
   const handleDownload = (r: Resource) => {
@@ -283,38 +298,39 @@ export default function TaiNguyenPage() {
         </kbd>
       </div>
 
-      {/* ===== Dải tab phân loại — sub nhộng căn giữa, có số lượng ===== */}
+      {/* ===== 3 nhóm phân loại dùng chung khung tìm kiếm (YCCN 12/11): VBQPPL · Văn bản của Đoàn · Tài liệu khác ===== */}
       <div className="mt-5 flex items-center justify-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {([
-          { value: "all", label: "Tất cả", count: publicPool.length },
-          ...resourceTypes.map((t) => ({
-            value: String(t.id),
-            label: t.short ?? t.name,
-            count: resources.filter((r) => r.status === "PUBLISHED" && r.isPublic && r.resourceTypeId === t.id).length,
-          })),
-        ] as { value: string; label: string; count: number }[]).map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setType(t.value)}
-            className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200",
-              type === t.value
-                ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            )}
-          >
-            {t.label}
-            <span
+          { value: "all", label: "Tất cả", count: publicOnly.length + docRows.length },
+          { value: "vbqppl", label: "Văn bản quy phạm pháp luật", count: docVbqppl.length },
+          { value: "doan", label: "Văn bản của Đoàn", count: docDoan.length },
+          { value: "khac", label: "Tài liệu khác", count: publicOnly.length },
+        ] as { value: string; label: string; count: number }[]).map((t) => {
+          const active = type === t.value;
+          return (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setType(t.value)}
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
-                type === t.value ? "bg-white/20 text-white" : "bg-white text-slate-400"
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200",
+                active
+                  ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               )}
             >
-              {t.count}
-            </span>
-          </button>
-        ))}
+              {t.label}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                  active ? "bg-white/20 text-white" : "bg-white text-slate-400"
+                )}
+              >
+                {t.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ===== Dải lọc định dạng file — chip icon màu riêng kèm số lượng ===== */}
@@ -508,11 +524,13 @@ export default function TaiNguyenPage() {
         <div className="mt-8">
           <EmptyState
             message={
-              type === String(resourceTypes.find((t) => t.code === "THONG_DIEP")?.id ?? -1)
-                ? "Nhóm dành cho các thông điệp tuổi trẻ (slogan, quote, sản phẩm truyền thông) — nội dung sẽ sớm được cập nhật."
-                : fmt === "all"
-                  ? "Chưa có tài nguyên công khai ở danh mục này."
-                  : "Chưa có tài nguyên công khai ở định dạng này."
+              type === "vbqppl"
+                ? "Chưa có văn bản quy phạm pháp luật nào — văn bản Nhà nước/Đoàn ban hành được đánh dấu nhóm này sẽ hiện tại đây."
+                : type === "doan"
+                  ? "Chưa có văn bản của Đoàn nào được ban hành — văn bản do các cấp phát hành trên hệ thống sẽ xuất hiện tại đây."
+                  : fmt === "all"
+                    ? "Chưa có tài nguyên công khai ở nhóm này."
+                    : "Chưa có tài nguyên công khai ở định dạng này."
             }
             icon={FolderOpen}
           />
