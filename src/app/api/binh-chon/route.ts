@@ -6,6 +6,7 @@ import {
   dataUrlGuard,
   getActiveCampaign,
   moderateStoryText,
+  STORY_DETAIL_SELECT,
   STORY_SELECT,
   toStoryDto,
 } from "@/lib/server/binh-chon";
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     if (storyId) {
       const rows = await query<Parameters<typeof toStoryDto>[0]>(
-        `${STORY_SELECT} WHERE s.id = $1 AND s.status = 'APPROVED' LIMIT 1`,
+        `${STORY_DETAIL_SELECT} WHERE s.id = $1 AND s.status = 'APPROVED' LIMIT 1`,
         [storyId]
       );
       if (rows[0]) {
@@ -315,7 +316,8 @@ export async function POST(request: NextRequest) {
         honorLevel,
         body?.photoDataUrl,
         body?.photoThumbDataUrl,
-        gallery.length > 0 ? JSON.stringify(gallery) : null,
+        // Cột gallery NOT NULL DEFAULT '[]' — không có ảnh kèm thì ghi mảng rỗng, KHÔNG ghi NULL
+        JSON.stringify(gallery),
         moderation.verdict,
         moderation.reason ?? null,
         moderation.model ?? null,

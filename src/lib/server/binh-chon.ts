@@ -75,7 +75,8 @@ type StoryRow = {
   org_display_name: string | null;
   photo_data_url: string | null;
   photo_thumb_data_url: string | null;
-  gallery: { data_url?: string; caption?: string }[] | null;
+  /** Chỉ có khi truy vấn bằng STORY_DETAIL_SELECT */
+  gallery?: { data_url?: string; caption?: string }[] | null;
   ai_verdict: string | null;
   ai_reason: string | null;
   status: string | null;
@@ -125,11 +126,12 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?
 }
 
 /** SELECT dùng lại cho cả list lẫn detail — join trường + tỉnh + danh hiệu đã đạt (HS tự khai).
- *  LEFT JOIN trường vì bài nộp bằng Gmail xác thực (không có tài khoản) không gắn đơn vị. */
+ *  LEFT JOIN trường vì bài nộp bằng Gmail xác thực (không có tài khoản) không gắn đơn vị.
+ *  KHÔNG lấy cột gallery (tới ~4.5MB/bài) — chỉ trang chi tiết dùng STORY_DETAIL_SELECT. */
 export const STORY_SELECT = `
   SELECT s.id, s.campaign_id, s.student_name, s.school_org_unit_id, s.class_name, s.quote, s.story,
          s.achievements, s.org_display_name, s.submitter_email,
-         s.photo_data_url, s.photo_thumb_data_url, s.gallery, s.ai_verdict, s.ai_reason, s.status,
+         s.photo_data_url, s.photo_thumb_data_url, s.ai_verdict, s.ai_reason, s.status,
          s.rejection_reason, s.vote_count, s.approved_at, s.created_at, s.honor_level,
          COALESCE(school.name, s.org_display_name) AS school_name,
          CASE WHEN school.path ~ '^/1/[0-9]+/' THEN split_part(school.path, '/', 3)::bigint END AS province_admin_id,
@@ -146,6 +148,11 @@ export const STORY_SELECT = `
        LIMIT 1
     ) prov ON true`;
 
+/** Như STORY_SELECT nhưng lấy thêm thư viện ảnh — chỉ dùng cho truy vấn 1 bài (trang chi tiết) */
+export const STORY_DETAIL_SELECT = STORY_SELECT.replace(
+  "s.photo_thumb_data_url,",
+  "s.photo_thumb_data_url, s.gallery,"
+);
 
 export type UnitStoryRow = {
   id: number | string;

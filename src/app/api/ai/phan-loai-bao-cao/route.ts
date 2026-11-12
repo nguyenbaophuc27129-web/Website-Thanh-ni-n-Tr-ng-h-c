@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
+import { NextResponse } from "next/server";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 import { callAI } from "@/lib/ai-client";
 import { buildPhanLoaiSystemPrompt, PHAN_LOAI_SCHEMA } from "@/data/bao-cao-agent";
 import { sanitizeClassified, type ClassifiedRecord } from "@/lib/server/bao-cao-pipeline";
@@ -17,6 +17,8 @@ export const runtime = "nodejs";
    ════════════════════════════════════════════════════════════════════ */
 
 const EXTRA_TEXT_MAX = 30_000;
+/** Trần dung lượng ngữ cảnh — cùng mức với /api/ai/nhap-bao-cao */
+const MAX_CTX_CHARS = 100_000;
 
 const SYSTEM_PROMPT = buildPhanLoaiSystemPrompt();
 
@@ -37,22 +39,16 @@ function parseJsonLoose(text: string): unknown {
   }
 }
 
-export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  let session = null;
-  if (token) {
-    try {
-      session = await sessionFromToken(token);
-    } catch {
-      session = null;
-    }
-  }
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "Bạn cần đăng nhập để dùng chức năng này." }, { status: 401 });
-  }
-  if (session.role === "DOAN_VIEN") {
-    return NextResponse.json({ ok: false, error: "Chức năng dành cho cán bộ quản trị." }, { status: 403 });
-  }
+export async function POST(request: Request) {
+  // Chỉ cán bộ + giới hạn lượt theo tài khoản và trần AI chung (như /api/ai/nhap-bao-cao)
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "ai-phan-loai-bao-cao",
+    windowMs: 10 * 60_000,
+    perAccount: 20,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
 
   const payload = (await request.json().catch(() => null)) as
     | { ctx?: ReportDraftContext; extraText?: string }
@@ -60,6 +56,9 @@ export async function POST(request: NextRequest) {
   const ctx = payload?.ctx;
   if (!ctx || !ctx.orgUnitName) {
     return NextResponse.json({ ok: false, error: "Thiếu ngữ cảnh báo cáo (ctx)." }, { status: 400 });
+  }
+  if (JSON.stringify(ctx).length > MAX_CTX_CHARS) {
+    return NextResponse.json({ ok: false, error: "Số liệu gửi lên quá lớn để phân loại." }, { status: 413 });
   }
 
   const extraText = (payload?.extraText ?? "").trim().slice(0, EXTRA_TEXT_MAX);

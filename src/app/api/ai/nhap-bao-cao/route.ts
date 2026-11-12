@@ -169,6 +169,10 @@ export async function POST(request: Request) {
   if (JSON.stringify(ctx).length > MAX_CTX_CHARS) {
     return NextResponse.json({ ok: false, error: "Số liệu gửi lên quá lớn để tạo nháp." }, { status: 413 });
   }
+  // Kết quả phân loại (stage 1) cũng đi thẳng vào prompt — cùng trần dung lượng
+  if (Array.isArray(payload?.classified) && JSON.stringify(payload.classified).length > MAX_CTX_CHARS) {
+    return NextResponse.json({ ok: false, error: "Dữ liệu phân loại quá lớn để tạo nháp." }, { status: 413 });
+  }
   const normalized: ReportDraftContext = { ...ctx, periodKind: periodKindOf(ctx.periodKind ?? "") };
   try {
     if (Array.isArray(payload?.classified) && payload.classified.length > 0) {
