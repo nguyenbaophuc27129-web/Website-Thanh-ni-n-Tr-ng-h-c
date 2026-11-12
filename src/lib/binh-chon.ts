@@ -140,6 +140,7 @@ export async function adminGet(kind: "HS3T" | "DOAN_TRUONG" = "HS3T"): Promise<A
 
 export type AdminPatchAction =
   | { action: "approve"; id: number; honorLevel?: "TRUONG" | "TINH" | "TW_DE_CU" }
+  | { action: "honor"; id: number; honorLevel: "TRUONG" | "TINH" | "TW_DE_CU" }
   | { action: "reject"; id: number; reason: string }
   | { action: "delete"; id: number }
   | {

@@ -142,6 +142,21 @@ export default function QuanTriBinhChonPage() {
     notify(s, false, "bài đã bị gỡ khỏi cuộc bình chọn — bạn có thể đăng lại bài mới");
   };
 
+  /** Đổi bảng dự thi (danh hiệu) cho bài đã duyệt — sửa nhầm/nâng hạng, không đụng phiếu */
+  const changeHonor = async (s: BinhChonStory) => {
+    const honorLevel = honorEdits[s.id];
+    if (!honorLevel || honorLevel === (s.honorLevel ?? "TRUONG")) return;
+    setBusyId(s.id);
+    const res = await adminPatch({ action: "honor", id: s.id, honorLevel });
+    setBusyId(null);
+    if (!res.ok) {
+      toast(res.error ?? "Không đổi được danh hiệu.", "warning");
+      return;
+    }
+    toast(`Đã chuyển sang ${HONOR_LEVEL_LABEL[honorLevel]}.`, "success");
+    void load();
+  };
+
   const saveCampaign = async (patch: { status?: VoteCampaignStatus }) => {
     setCSaving(true);
     const res = await adminPatch({
@@ -481,7 +496,38 @@ export default function QuanTriBinhChonPage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {s.status === "APPROVED" ? (
+                          <>
+                            <Select
+                              value={honorEdits[s.id] ?? s.honorLevel ?? "TRUONG"}
+                              onChange={(e) =>
+                                setHonorEdits((m) => ({ ...m, [s.id]: e.target.value as HonorLevel }))
+                              }
+                              className="!w-auto !py-1.5 text-xs"
+                              aria-label="Đổi bảng dự thi"
+                              disabled={busyId === s.id}
+                            >
+                              {(Object.keys(HONOR_LEVEL_LABEL) as HonorLevel[]).map((k) => (
+                                <option key={k} value={k}>
+                                  {HONOR_LEVEL_LABEL[k]}
+                                </option>
+                              ))}
+                            </Select>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void changeHonor(s)}
+                              disabled={
+                                busyId === s.id ||
+                                !honorEdits[s.id] ||
+                                honorEdits[s.id] === (s.honorLevel ?? "TRUONG")
+                              }
+                            >
+                              {busyId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Lưu danh hiệu
+                            </Button>
+                          </>
+                        ) : null}
                         <Button size="sm" variant="ghost" onClick={() => setViewStory(s)}>
                           <FileText className="h-3.5 w-3.5" /> Xem đầy đủ
                         </Button>

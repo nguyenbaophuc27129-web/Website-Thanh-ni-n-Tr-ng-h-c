@@ -297,6 +297,33 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // ═══ Đổi bảng dự thi (honor_level) cho bài đã duyệt — HS3T ═══
+  if (body?.action === "honor") {
+    if (kind !== "HS3T") return NextResponse.json({ ok: false, error: "Chỉ áp dụng cho bình chọn HS3T." }, { status: 400 });
+    if (!admin.canReview) return NextResponse.json({ ok: false, error: "Bạn không có quyền sửa bài." }, { status: 403 });
+    const id = Number(body.id);
+    if (!Number.isInteger(id)) return NextResponse.json({ ok: false, error: "Thiếu mã bài." }, { status: 400 });
+    const honor = ["TRUONG", "TINH", "TW_DE_CU"].includes(body.honorLevel ?? "") ? body.honorLevel! : null;
+    if (!honor) return NextResponse.json({ ok: false, error: "Danh hiệu không hợp lệ." }, { status: 400 });
+
+    const rows = await query<{ path: string | null }>(
+      `SELECT school.path FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id WHERE s.id = $1 LIMIT 1`,
+      [id]
+    );
+    const row = rows[0];
+    if (!row) return NextResponse.json({ ok: false, error: "Bài không tồn tại." }, { status: 404 });
+    if (!admin.scope.all && !(row.path ?? "").startsWith(admin.scope.pathPrefix ?? "\u0000")) {
+      return NextResponse.json({ ok: false, error: "Bài này ngoài phạm vi đơn vị của bạn." }, { status: 403 });
+    }
+
+    // Chỉ bài APPROVED mới đổi qua action này (PENDING thì duyệt là ghi luôn; REJECTED phải gửi lại)
+    await query(
+      `UPDATE hs3t_stories SET honor_level = $1, updated_at = now() WHERE id = $2 AND status = 'APPROVED'`,
+      [honor, id]
+    );
+    return NextResponse.json({ ok: true });
+  }
+
   // ═══ Xóa hẳn bài (hủy đăng bài) ═══
   if (body?.action === "delete") {
     if (!admin.canReview) return NextResponse.json({ ok: false, error: "Bạn không có quyền xóa bài." }, { status: 403 });
