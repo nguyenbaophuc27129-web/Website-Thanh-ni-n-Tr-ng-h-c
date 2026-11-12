@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (isJson) {
       const body = (await request.json().catch(() => null)) as { kind?: unknown; url?: unknown } | null;
       kind = body?.kind;
-      if (!isMediaKind(kind)) throw new MediaError("Phân hệ tải lên không hợp lệ.");
+      if (!isMediaKind(kind) || KIND_RULES[kind].serverOnly) throw new MediaError("Phân hệ tải lên không hợp lệ.");
       if (KIND_RULES[kind].staffOnly && isMember) throw new MediaError("Bạn không có quyền tải tệp vào mục này.", 403);
       if (typeof body?.url !== "string" || !body.url.trim()) throw new MediaError("Thiếu đường dẫn tệp.");
       recordAttempt(limitKey, UPLOAD_WINDOW_MS);
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       const form = await request.formData().catch(() => null);
       kind = form?.get("kind");
       const file = form?.get("file");
-      if (!isMediaKind(kind)) throw new MediaError("Phân hệ tải lên không hợp lệ.");
+      if (!isMediaKind(kind) || KIND_RULES[kind].serverOnly) throw new MediaError("Phân hệ tải lên không hợp lệ.");
       if (KIND_RULES[kind].staffOnly && isMember) throw new MediaError("Bạn không có quyền tải tệp vào mục này.", 403);
       if (!(file instanceof File)) throw new MediaError("Chưa chọn tệp.");
       recordAttempt(limitKey, UPLOAD_WINDOW_MS);

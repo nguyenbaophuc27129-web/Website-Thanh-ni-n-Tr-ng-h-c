@@ -11,6 +11,7 @@ import {
   type UnitStoryRow,
 } from "@/lib/server/binh-chon";
 import { FULL_PHOTO_MAX_BYTES, PAGE_SIZE, THUMB_PHOTO_MAX_BYTES } from "@/lib/binh-chon";
+import { MediaError, storeImageDataUrl } from "@/lib/server/media";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -227,6 +228,20 @@ export async function POST(request: NextRequest) {
   // Kiểm duyệt nội dung
   const modResult = await moderateStoryText(`${title}\n${intro}\n${achievements ?? ""}`);
 
+  // Ảnh lưu thành tệp trên máy chủ (/uploads/binh-chon/...) — DB chỉ giữ đường dẫn, không giữ base64
+  let photoUrl: string;
+  let photoThumbUrl: string;
+  try {
+    photoUrl = await storeImageDataUrl(photoDataUrl, "binh-chon", session.accountId);
+    photoThumbUrl = await storeImageDataUrl(photoThumbDataUrl, "binh-chon", session.accountId);
+  } catch (err) {
+    if (err instanceof MediaError) {
+      return NextResponse.json({ ok: false, error: `ẢNH KHÔNG HỢP LỆ: ${err.message}` }, { status: 400 });
+    }
+    console.error("[BINH_CHON_DOAN_TRUONG] Lỗi lưu ảnh:", err);
+    return NextResponse.json({ ok: false, error: "LUU_ANH_THAT_BAI" }, { status: 500 });
+  }
+
   try {
     const insertRows = await query<{ id: string }>(
       `INSERT INTO unit_stories (
@@ -244,8 +259,8 @@ export async function POST(request: NextRequest) {
         title,
         intro,
         achievements,
-        photoDataUrl,
-        photoThumbDataUrl,
+        photoUrl,
+        photoThumbUrl,
         modResult.verdict,
         modResult.reason ?? null,
         modResult.model ?? null,

@@ -24,7 +24,7 @@ export const UPLOAD_URL_PREFIX = "/uploads/";
 
 const MB = 1024 * 1024;
 
-export type MediaKind = "bai-viet" | "dong-gop" | "dien-dan" | "van-ban" | "tai-nguyen" | "du-an";
+export type MediaKind = "bai-viet" | "dong-gop" | "dien-dan" | "van-ban" | "tai-nguyen" | "du-an" | "binh-chon";
 type FileClass = "image" | "video" | "document";
 
 /**
@@ -34,7 +34,14 @@ type FileClass = "image" | "video" | "document";
  */
 export const KIND_RULES: Record<
   MediaKind,
-  { classes: FileClass[]; maxBytes: number; maxBytesByClass?: Partial<Record<FileClass, number>>; staffOnly: boolean }
+  {
+    classes: FileClass[];
+    maxBytes: number;
+    maxBytesByClass?: Partial<Record<FileClass, number>>;
+    staffOnly: boolean;
+    /** Chỉ máy chủ tự lưu (vd. ảnh bài dự thi gửi kèm form) — POST /api/uploads không nhận */
+    serverOnly?: boolean;
+  }
 > = {
   "bai-viet": { classes: ["image"], maxBytes: 10 * MB, staffOnly: true },
   "van-ban": { classes: ["document", "image"], maxBytes: 25 * MB, staffOnly: true },
@@ -43,6 +50,8 @@ export const KIND_RULES: Record<
   "dien-dan": { classes: ["image", "video"], maxBytes: 15 * MB, maxBytesByClass: { image: 2 * MB, video: 15 * MB }, staffOnly: false },
   "tai-nguyen": { classes: ["document", "image", "video"], maxBytes: 25 * MB, staffOnly: false },
   "du-an": { classes: ["document"], maxBytes: 25 * MB, staffOnly: false },
+  // Ảnh bài dự thi HS3T / Đoàn trường / minh chứng đề cử — route bình chọn tự chuyển data URL thành tệp
+  "binh-chon": { classes: ["image"], maxBytes: 10 * MB, staffOnly: false, serverOnly: true },
 };
 
 const CLASS_LABEL: Record<FileClass, string> = { image: "Ảnh", video: "Video", document: "Tệp" };
@@ -291,6 +300,16 @@ export function decodeDataUrl(value: string): Buffer {
   return meta.endsWith(";base64")
     ? Buffer.from(payload, "base64")
     : Buffer.from(decodeURIComponent(payload), "utf8");
+}
+
+/**
+ * Ảnh dạng data URL (form gửi kèm JSON) → lưu thành tệp WebP trên đĩa, trả đường dẫn /uploads/...
+ * Dùng cho các route nhận ảnh trong body JSON (bình chọn, đề cử) để DB chỉ giữ đường dẫn, không giữ base64.
+ */
+export async function storeImageDataUrl(dataUrl: string, kind: MediaKind, accountId?: number | null): Promise<string> {
+  if (!KIND_RULES[kind].classes.includes("image")) throw new MediaError("Mục này không nhận ảnh.", 415);
+  const stored = await storeMedia({ buffer: decodeDataUrl(dataUrl), kind, accountId });
+  return stored.url;
 }
 
 /**

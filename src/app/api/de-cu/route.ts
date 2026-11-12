@@ -9,6 +9,7 @@ import {
   type NominationRow,
 } from "@/lib/server/de-cu";
 import { NOMINATION_FIELDS } from "@/lib/de-cu";
+import { MediaError, storeImageDataUrl } from "@/lib/server/media";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -206,6 +207,20 @@ export async function POST(request: NextRequest) {
   const modText = `${achievements}\n${nomineeName}${quote ? "\n" + quote : ""}`;
   const modResult = await moderateStoryText(modText);
 
+  // Ảnh minh chứng lưu thành tệp trên máy chủ (/uploads/binh-chon/...) — DB chỉ giữ đường dẫn
+  let evidenceUrl: string;
+  let evidenceThumbUrl: string;
+  try {
+    evidenceUrl = await storeImageDataUrl(evidenceDataUrl, "binh-chon", session.accountId);
+    evidenceThumbUrl = await storeImageDataUrl(evidenceThumbDataUrl, "binh-chon", session.accountId);
+  } catch (err) {
+    if (err instanceof MediaError) {
+      return NextResponse.json({ ok: false, error: `ẢNH MINH CHỨNG KHÔNG HỢP LỆ: ${err.message}` }, { status: 400 });
+    }
+    console.error("[DE_CU] Lỗi lưu ảnh:", err);
+    return NextResponse.json({ ok: false, error: "LUU_ANH_THAT_BAI" }, { status: 500 });
+  }
+
   try {
     const insertRows = await query<{ id: string }>(
       `INSERT INTO nominations (
@@ -222,8 +237,8 @@ export async function POST(request: NextRequest) {
         field,
         quote,
         achievements,
-        evidenceDataUrl,
-        evidenceThumbDataUrl,
+        evidenceUrl,
+        evidenceThumbUrl,
         session.accountId,
         modResult.verdict,
         modResult.reason ?? null,

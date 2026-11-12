@@ -11,6 +11,7 @@ import {
   toStoryDto,
 } from "@/lib/server/binh-chon";
 import { verifyGoogleCredential } from "@/lib/server/google-verify";
+import { MediaError, storeImageDataUrl } from "@/lib/server/media";
 import { readVoteEmail, setVoteEmail } from "@/lib/server/vote-cookie";
 import { FULL_PHOTO_MAX_BYTES, PAGE_SIZE, THUMB_PHOTO_MAX_BYTES } from "@/lib/binh-chon";
 
@@ -294,6 +295,24 @@ export async function POST(request: NextRequest) {
   const textToModerate = [storySafe, quote, achievements].filter(Boolean).join("\n");
   const moderation = await moderateStoryText(textToModerate);
 
+  // Ảnh lưu thành tệp trên máy chủ (/uploads/binh-chon/...) — DB chỉ giữ đường dẫn, không giữ base64
+  let photoUrl: string;
+  let photoThumbUrl: string;
+  const galleryStored: { data_url: string; caption: string | null }[] = [];
+  try {
+    photoUrl = await storeImageDataUrl(body!.photoDataUrl!, "binh-chon", accountId);
+    photoThumbUrl = await storeImageDataUrl(body!.photoThumbDataUrl!, "binh-chon", accountId);
+    for (const g of gallery) {
+      galleryStored.push({ data_url: await storeImageDataUrl(g.data_url, "binh-chon", accountId), caption: g.caption });
+    }
+  } catch (err) {
+    if (err instanceof MediaError) {
+      return NextResponse.json({ ok: false, error: `Ảnh không hợp lệ: ${err.message}` }, { status: 400 });
+    }
+    console.error("[BINH_CHON] Lỗi lưu ảnh:", err);
+    return NextResponse.json({ ok: false, error: "Máy chủ chưa lưu được ảnh — vui lòng thử lại." }, { status: 500 });
+  }
+
   try {
     const inserted = await query<{ id: number }>(
       `INSERT INTO hs3t_stories
@@ -314,10 +333,10 @@ export async function POST(request: NextRequest) {
         wardName,
         provinceName,
         honorLevel,
-        body?.photoDataUrl,
-        body?.photoThumbDataUrl,
+        photoUrl,
+        photoThumbUrl,
         // Cột gallery NOT NULL DEFAULT '[]' — không có ảnh kèm thì ghi mảng rỗng, KHÔNG ghi NULL
-        JSON.stringify(gallery),
+        JSON.stringify(galleryStored),
         moderation.verdict,
         moderation.reason ?? null,
         moderation.model ?? null,
