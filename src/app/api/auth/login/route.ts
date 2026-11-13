@@ -67,10 +67,24 @@ export async function POST(request: NextRequest) {
     return res;
   } catch (err) {
     const message = err instanceof Error ? err.message : "LOGIN_FAILED";
-    if (message === "DB_UNAVAILABLE") {
-      return NextResponse.json({ ok: false, error: message }, { status: 503 });
+    const code = (err as { code?: string })?.code;
+    if (
+      message === "DB_UNAVAILABLE" ||
+      code === "ECONNREFUSED" ||
+      message.includes("ECONNREFUSED") ||
+      message.includes("ETIMEDOUT") ||
+      message.includes("connection timeout")
+    ) {
+      console.warn("[TNTH][AUTH] Không kết nối được CSDL:", message);
+      return NextResponse.json(
+        { ok: false, error: "Không kết nối được cơ sở dữ liệu. Vui lòng kiểm tra SSH tunnel (ssh -N tnth-db)." },
+        { status: 503 },
+      );
     }
     console.warn("[TNTH][AUTH] Lỗi đăng nhập:", message);
-    return NextResponse.json({ ok: false, error: "LOGIN_FAILED" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "Đăng nhập không thành công do lỗi máy chủ. Vui lòng thử lại." },
+      { status: 500 },
+    );
   }
 }

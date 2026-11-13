@@ -451,6 +451,7 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       contactFacebook: f("contact_facebook", "str"), contactWebsite: f("contact_website", "str"),
       beneficiaries: f("beneficiaries", "str"), participants: f("participants", "int"),
       status: f("status", "str"), submittedByAccountId: f("submitted_by_account_id", "int"),
+      submitterEmail: f("submitter_email", "str"),
       field: f("field", "str"), phase: f("phase", "str"),
       aiVerdict: f("ai_verdict", "str"), aiReason: f("ai_reason", "str"),
       moderatedByAccountId: f("moderated_by_account_id", "int"),

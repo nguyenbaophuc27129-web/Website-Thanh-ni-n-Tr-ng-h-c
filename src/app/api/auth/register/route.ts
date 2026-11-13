@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
         orgUnitId?: number;
       }
     | null;
-  const username = String(payload?.username ?? "").trim();
+  const email = String(payload?.email ?? "").trim().toLowerCase();
+  const username = String(payload?.username || email).trim().toLowerCase();
   const password = String(payload?.password ?? "");
-  const email = String(payload?.email ?? "").trim();
   const orgUnitId = Number(payload?.orgUnitId);
   if (!username || !password || !email || !orgUnitId) {
     return NextResponse.json({ ok: false, error: "Thiếu thông tin đăng ký." }, { status: 400 });
@@ -78,7 +78,31 @@ export async function POST(request: NextRequest) {
     await query(
       "SELECT setval(pg_get_serial_sequence('accounts', 'id'), (SELECT max(id) FROM accounts))",
     );
-    return NextResponse.json({ ok: true, accountId: Number(rows[0].id) });
+        const newAccountId = Number(rows[0].id);
+    // Tự động liên kết bài dự thi HS3T đã nộp bằng Gmail xác thực trước đó (nếu có)
+    await query(
+      `UPDATE hs3t_stories SET account_id = $1 WHERE lower(submitter_email) = lower($2) AND account_id IS NULL`,
+      [newAccountId, email],
+    ).catch(() => {});
+    // Tự động liên kết phiếu bình chọn đã bầu bằng Gmail xác thực trước đó (nếu có)
+    await query(
+      `UPDATE hs3t_votes SET voter_account_id = $1 WHERE lower(voter_email) = lower($2) AND voter_account_id IS NULL`,
+      [newAccountId, email],
+    ).catch(() => {});
+    // Tự động liên kết dự án tình nguyện đã nộp bằng Gmail xác thực trước đó (nếu có)
+    await query(
+      `UPDATE volunteer_projects SET submitted_by_account_id = $1
+       WHERE (lower(submitter_email) = lower($2) OR lower(contact_email) = lower($2))
+         AND submitted_by_account_id IS NULL`,
+      [newAccountId, email],
+    ).catch(() => {});
+    // Tự động liên kết danh sách tham gia dự án tình nguyện đã đăng ký bằng Gmail trước đó (nếu có)
+    await query(
+      `UPDATE volunteer_project_participants SET account_id = $1
+       WHERE lower(email) = lower($2) AND account_id IS NULL`,
+      [newAccountId, email],
+    ).catch(() => {});
+    return NextResponse.json({ ok: true, accountId: newAccountId });
   } catch (err) {
     const message = err instanceof Error ? err.message : "REGISTER_FAILED";
     if (message === "DB_UNAVAILABLE") {

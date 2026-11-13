@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, X, ShieldAlert, ShieldCheck, LibraryBig, Users, ExternalLink, Paperclip, Mail, Phone, Share2, Globe } from "lucide-react";
+import { Check, X, ShieldAlert, ShieldCheck, LibraryBig, Users, ExternalLink, Paperclip, Mail, Phone, Share2, Globe, UserCheck } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -13,8 +13,19 @@ import { Tabs } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/utils";
+import type { VolunteerProject } from "@/types";
 
 type Tab = "PENDING" | "APPROVED" | "REJECTED" | "ALL";
+
+interface ProjectParticipant {
+  id: number;
+  fullName: string;
+  email: string;
+  phone?: string;
+  schoolName?: string;
+  note?: string;
+  createdAt: string;
+}
 
 export default function DuAnAdminPage() {
   const { session } = useAuth();
@@ -23,11 +34,13 @@ export default function DuAnAdminPage() {
   const [tab, setTab] = useState<Tab>("PENDING");
   const [openId, setOpenId] = useState<number | null>(null);
   const [note, setNote] = useState("");
+  const [participantsMap, setParticipantsMap] = useState<Record<number, ProjectParticipant[]>>({});
+  const [loadingParticipants, setLoadingParticipants] = useState<number | null>(null);
 
   const scope = useMemo(() => (session ? new Set(store.scopeIds(session)) : new Set<number>()), [store, session]);
 
   const all = useMemo(
-    () => store.volunteerProjects.filter((p) => scope.has(p.orgUnitId)),
+    () => store.volunteerProjects.filter((p) => (p.orgUnitId ? scope.has(p.orgUnitId) : true)),
     [store, scope]
   );
   const pendingCount = all.filter((p) => p.status === "PENDING").length;
@@ -64,8 +77,37 @@ export default function DuAnAdminPage() {
     setNote("");
   };
 
-  const contributorName = (id?: number) =>
-    id ? store.accounts.find((a) => a.id === id)?.contactPerson ?? "Đoàn viên" : "Cán bộ Đoàn";
+  const toggleOpen = async (id: number) => {
+    if (openId === id) {
+      setOpenId(null);
+      return;
+    }
+    setOpenId(id);
+    setNote("");
+    if (!participantsMap[id]) {
+      setLoadingParticipants(id);
+      try {
+        const res = await fetch(`/api/du-an/tham-gia?projectId=${id}`);
+        const data = await res.json().catch(() => null);
+        if (data?.ok && Array.isArray(data.participants)) {
+          setParticipantsMap((prev) => ({ ...prev, [id]: data.participants }));
+        }
+      } catch {
+        // bỏ qua lỗi nạp danh sách
+      }
+      setLoadingParticipants(null);
+    }
+  };
+
+  const contributorName = (p: Pick<VolunteerProject, "submittedByAccountId" | "submitterEmail">) => {
+    if (p.submittedByAccountId) {
+      return store.accounts.find((a) => a.id === p.submittedByAccountId)?.contactPerson ?? "Đoàn viên";
+    }
+    if (p.submitterEmail) {
+      return `Gmail: ${p.submitterEmail}`;
+    }
+    return "Cán bộ Đoàn";
+  };
 
   return (
     <div className="space-y-5">
@@ -104,7 +146,7 @@ export default function DuAnAdminPage() {
             <Card key={p.id}>
               <CardBody className="p-0">
                 <button
-                  onClick={() => { setOpenId(open ? null : p.id); setNote(""); }}
+                  onClick={() => toggleOpen(p.id)}
                   className="flex w-full flex-wrap items-center gap-3 px-5 py-4 text-left hover:bg-stone-50"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
@@ -113,7 +155,7 @@ export default function DuAnAdminPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-stone-800">{p.projectName}</p>
                     <p className="text-[11px] text-stone-400">
-                      {p.schoolName} · {p.province} · {fieldLabel(p.field)} · {phaseLabel(p.phase)} · {contributorName(p.submittedByAccountId)} · {formatDateTime(p.createdAt)}
+                      {p.schoolName} · {p.province} · {fieldLabel(p.field)} · {phaseLabel(p.phase)} · {contributorName(p)} · {formatDateTime(p.createdAt)}
                     </p>
                   </div>
                   <span className="inline-flex items-center gap-1 text-[11px] text-stone-400">
@@ -129,7 +171,7 @@ export default function DuAnAdminPage() {
                     <div className="rounded-lg bg-stone-50 p-3.5">
                       <p className="mb-1 text-sm font-semibold text-stone-800">{p.projectName}</p>
                       <p className="mb-2 text-xs text-stone-500">
-                        Đơn vị: {p.schoolName} ({store.orgName(p.orgUnitId)}) · {p.province}{p.ward ? ` · ${p.ward}` : ""}
+                        Đơn vị: {p.schoolName} {p.orgUnitId ? `(${store.orgName(p.orgUnitId)})` : "(Khách gửi qua Gmail)"} · {p.province}{p.ward ? ` · ${p.ward}` : ""}
                         {p.timeframe ? ` · Thời gian: ${p.timeframe}` : ""}
                       </p>
                       <p className="whitespace-pre-line text-sm leading-relaxed text-stone-700">{p.summary}</p>
@@ -208,6 +250,36 @@ export default function DuAnAdminPage() {
                           </div>
                         </div>
                       ) : null}
+
+                      {/* Danh sách đoàn viên đăng ký tham gia trên cổng */}
+                      <div className="mt-3 border-t border-stone-200 pt-2.5">
+                        <p className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                          <UserCheck className="h-3.5 w-3.5 text-blue-600" />
+                          Đoàn viên đăng ký tham gia trên cổng ({participantsMap[p.id]?.length ?? 0})
+                        </p>
+                        {loadingParticipants === p.id ? (
+                          <p className="mt-1.5 text-xs text-stone-400">Đang nạp danh sách đăng ký…</p>
+                        ) : (participantsMap[p.id]?.length ?? 0) > 0 ? (
+                          <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-stone-200 bg-white p-2 space-y-1.5">
+                            {participantsMap[p.id]?.map((part) => (
+                              <div key={part.id} className="flex flex-wrap items-center justify-between gap-2 rounded p-1.5 text-xs hover:bg-stone-50">
+                                <div>
+                                  <span className="font-semibold text-stone-800">{part.fullName}</span>
+                                  {part.schoolName ? <span className="text-stone-500"> · {part.schoolName}</span> : null}
+                                  <div className="text-[11px] text-stone-500">
+                                    <span className="text-blue-600 font-medium">{part.email}</span>
+                                    {part.phone ? ` · SĐT: ${part.phone}` : ""}
+                                    {part.note ? ` — Ghi chú: "${part.note}"` : ""}
+                                  </div>
+                                </div>
+                                <span className="text-[10px] text-stone-400">{formatDateTime(part.createdAt)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-1.5 text-xs text-stone-400">Chưa có đoàn viên nào đăng ký trực tuyến qua cổng cho dự án này.</p>
+                        )}
+                      </div>
                     </div>
 
                     {/* Strip kết quả kiểm duyệt AI */}

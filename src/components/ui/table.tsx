@@ -1,12 +1,11 @@
-import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes, HTMLAttributes } from "react";
+import { Children, isValidElement, type ReactNode, type TdHTMLAttributes, type ThHTMLAttributes, type HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
-  const isTable =
-    children &&
-    typeof children === "object" &&
-    "type" in (children as unknown as Record<string, unknown>) &&
-    (children as unknown as { type: unknown }).type === "table";
+  const childArray = Children.toArray(children);
+  const isTable = childArray.some(
+    (c) => isValidElement(c) && (c.type === "table" || (typeof c.type === "string" && c.type.toLowerCase() === "table"))
+  );
 
   return (
     <div className={cn("thin-scrollbar overflow-x-auto", className)}>
@@ -22,11 +21,10 @@ export function TableWrap({ children, className }: { children: ReactNode; classN
 }
 
 export function THead({ children }: { children: ReactNode }) {
-  const isRow =
-    children &&
-    typeof children === "object" &&
-    "type" in (children as unknown as Record<string, unknown>) &&
-    ((children as unknown as { type: unknown }).type === "tr" || (children as unknown as { type: unknown }).type === Tr);
+  const childArray = Children.toArray(children);
+  const isRow = childArray.some(
+    (c) => isValidElement(c) && (c.type === "tr" || c.type === Tr || (typeof c.type === "string" && c.type.toLowerCase() === "tr"))
+  );
 
   return (
     <thead>

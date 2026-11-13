@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LibraryBig, HeartHandshake, Users, Send, Loader2, Clock, Plus, HandHeart, Landmark, Paperclip,
-  Search, CalendarDays, Flag, Trash2, ListOrdered, Mail, Phone, Share2, Globe,
+  Search, CalendarDays, Flag, Trash2, ListOrdered, Mail, Phone, Share2, Globe, MailCheck, Check, UserCheck,
 } from "lucide-react";
 import { Reveal, CountUp } from "@/components/public/reveal";
 import { Modal } from "@/components/ui/modal";
@@ -15,6 +15,36 @@ import { useToast } from "@/lib/toast-context";
 import { relTime } from "@/lib/utils";
 import { FIELD_META, PHASE_META } from "@/lib/volunteer-meta";
 import type { VolunteerProject, VolunteerProjectField, VolunteerProjectPhase, VolunteerProjectPhaseEntry } from "@/types";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+
+interface GoogleIdNs {
+  accounts: {
+    id: {
+      initialize: (config: { client_id: string; callback: (res: { credential: string }) => void }) => void;
+      renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
+    };
+  };
+}
+
+/** Giải mã Google JWT client-side để hiển thị thông tin email/tên */
+function decodeGoogleJwt(cred: string): { email?: string; name?: string } {
+  try {
+    const payload = cred.split(".")[1];
+    if (!payload) return {};
+    const json = JSON.parse(
+      decodeURIComponent(
+        atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      )
+    );
+    return { email: json.email, name: json.name };
+  } catch {
+    return {};
+  }
+}
 
 /** 34 đơn vị hành chính cấp tỉnh (mô hình chính quyền 2 cấp, hiệu lực 01/7/2025) */
 const PROVINCE_OPTIONS = [
@@ -56,7 +86,17 @@ export default function DuAnTinhNguyenPage() {
   const [provinceFilter, setProvinceFilter] = useState<string>("ALL");
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("ALL");
 
+  // State xác thực Google
+  const [gAuthOpen, setGAuthOpen] = useState(false);
+  const [gAuthPurpose, setGAuthPurpose] = useState<"SUBMIT_PROJECT" | "JOIN_PROJECT">("SUBMIT_PROJECT");
+  const credRef = useRef<string>("");
+  const [googleEmail, setGoogleEmail] = useState<string>("");
+  const [googleName, setGoogleName] = useState<string>("");
+  const gBtnRef = useRef<HTMLDivElement | null>(null);
+
+  // Form đăng ký dự án mới
   const [openSubmit, setOpenSubmit] = useState(false);
+  const [pSchoolName, setPSchoolName] = useState("");
   const [pName, setPName] = useState("");
   const [pProvince, setPProvince] = useState(PROVINCE_OPTIONS[0]);
   const [pWard, setPWard] = useState("");
@@ -75,6 +115,16 @@ export default function DuAnTinhNguyenPage() {
   const [pFacebook, setPFacebook] = useState("");
   const [pWebsite, setPWebsite] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Form đoàn viên đăng ký tham gia dự án
+  const [selectedProjectForJoin, setSelectedProjectForJoin] = useState<VolunteerProject | null>(null);
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [joinName, setJoinName] = useState("");
+  const [joinPhone, setJoinPhone] = useState("");
+  const [joinSchool, setJoinSchool] = useState("");
+  const [joinNote, setJoinNote] = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [localJoinedIds, setLocalJoinedIds] = useState<number[]>([]);
 
   const approved = useMemo(
     () => volunteerProjects.filter((p) => p.status === "APPROVED"),
@@ -100,15 +150,145 @@ export default function DuAnTinhNguyenPage() {
   const totalParticipants = approved.reduce((s, p) => s + p.participants, 0);
   const recruitingCount = approved.filter((p) => p.phase === "DANG_TUYEN").length;
   const myPending = volunteerProjects.filter(
-    (p) => p.status === "PENDING" && p.submittedByAccountId === session?.accountId
+    (p) =>
+      p.status === "PENDING" &&
+      ((session?.accountId && p.submittedByAccountId === session.accountId) ||
+        (googleEmail && p.submitterEmail?.toLowerCase() === googleEmail.toLowerCase()))
   );
 
+  // Render nút Google GIS khi mở modal xác thực
+  useEffect(() => {
+    if (!gAuthOpen || !GOOGLE_CLIENT_ID) return;
+    let cancelled = false;
+    const boot = () => {
+      if (cancelled) return;
+      const g = (window as unknown as { google?: GoogleIdNs }).google;
+      if (!g || !gBtnRef.current) return;
+      g.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (r) => {
+          credRef.current = r.credential;
+          const decoded = decodeGoogleJwt(r.credential);
+          if (decoded.email) {
+            setGoogleEmail(decoded.email);
+            setPEmail(decoded.email);
+          }
+          if (decoded.name) {
+            setGoogleName(decoded.name);
+            setJoinName(decoded.name);
+          }
+          setGAuthOpen(false);
+          if (gAuthPurpose === "SUBMIT_PROJECT") {
+            setOpenSubmit(true);
+          } else if (gAuthPurpose === "JOIN_PROJECT") {
+            setJoinModalOpen(true);
+          }
+        },
+      });
+      g.accounts.id.renderButton(gBtnRef.current, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+        shape: "pill",
+        logo_alignment: "left",
+        locale: "vi",
+      });
+    };
+    const existing = document.getElementById("gsi-script");
+    if (!existing) {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.id = "gsi-script";
+      script.onload = boot;
+      document.head.appendChild(script);
+    } else {
+      boot();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [gAuthOpen, gAuthPurpose]);
+
+  /** Mở form đăng ký dự án: ưu tiên session, nếu chưa có thì xác thực Google Gmail */
   const openForm = () => {
-    if (!session) {
-      toast("Bạn cần đăng nhập để đăng ký dự án.", "warning");
+    if (!session && !credRef.current) {
+      if (!GOOGLE_CLIENT_ID) {
+        toast("Chưa cấu hình xác thực Gmail — liên hệ Ban Tổ chức.", "warning");
+        return;
+      }
+      setGAuthPurpose("SUBMIT_PROJECT");
+      setGAuthOpen(true);
       return;
     }
+    if (session && !pEmail) {
+      setPEmail(session.username);
+    }
     setOpenSubmit(true);
+  };
+
+  /** Mở form đăng ký tham gia dự án */
+  const handleOpenJoin = (project: VolunteerProject) => {
+    setSelectedProjectForJoin(project);
+    if (!session && !credRef.current) {
+      if (!GOOGLE_CLIENT_ID) {
+        toast("Chưa cấu hình xác thực Gmail — liên hệ Ban Tổ chức.", "warning");
+        return;
+      }
+      setGAuthPurpose("JOIN_PROJECT");
+      setGAuthOpen(true);
+      return;
+    }
+    if (session) {
+      setJoinName(session.contactPerson || "");
+    } else if (googleName) {
+      setJoinName(googleName);
+    }
+    setJoinModalOpen(true);
+  };
+
+  /** Gửi thông tin đăng ký tham gia dự án */
+  const submitJoin = async () => {
+    if (!selectedProjectForJoin) return;
+    if (!joinName.trim()) {
+      toast("Vui lòng điền họ và tên của bạn.", "warning");
+      return;
+    }
+    setJoinBusy(true);
+    try {
+      const res = await fetch("/api/du-an/tham-gia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: selectedProjectForJoin.id,
+          fullName: joinName.trim(),
+          phone: joinPhone.trim() || undefined,
+          schoolName: joinSchool.trim() || undefined,
+          note: joinNote.trim() || undefined,
+          credential: session ? undefined : credRef.current || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      setJoinBusy(false);
+      if (!res.ok || !data?.ok) {
+        toast(data?.error ?? "Không thể đăng ký tham gia. Vui lòng thử lại.", "warning");
+        return;
+      }
+      setLocalJoinedIds((prev) => [...prev, selectedProjectForJoin.id]);
+      setJoinModalOpen(false);
+      setJoinNote("");
+      toast(
+        data.alreadyRegistered
+          ? data.message
+          : "Đăng ký tham gia dự án thành công! Thông tin của bạn đã được ghi nhận trên cổng.",
+        "success"
+      );
+    } catch {
+      setJoinBusy(false);
+      toast("Lỗi kết nối máy chủ. Vui lòng thử lại.", "warning");
+    }
   };
 
   /** Thêm một giai đoạn trống vào form tự khai */
@@ -118,7 +298,10 @@ export default function DuAnTinhNguyenPage() {
   const removePhaseRow = (idx: number) => setPPhases((prev) => prev.filter((_, i) => i !== idx));
 
   const submitProject = async () => {
-    if (!session) return;
+    if (!session && !credRef.current) {
+      toast("Cần xác thực Google Gmail hoặc đăng nhập trước khi gửi dự án.", "warning");
+      return;
+    }
     if (pName.trim().length < 8 || pSummary.trim().length < 20) {
       toast("Cần tên dự án tối thiểu 8 ký tự và phần ý nghĩa dự án tối thiểu 20 ký tự.", "warning");
       return;
@@ -127,11 +310,16 @@ export default function DuAnTinhNguyenPage() {
       toast("Nhập xã / phường nơi thực hiện dự án.", "warning");
       return;
     }
-    // Máy chủ tự kiểm duyệt AI; đơn vị / tên trường lấy theo tài khoản đăng nhập
+    if (!session && !pSchoolName.trim()) {
+      toast("Vui lòng nhập tên trường hoặc đơn vị của bạn.", "warning");
+      return;
+    }
+
     setBusy(true);
     const res = await submitVolunteerProject({
       province: pProvince,
       ward: pWard,
+      schoolName: session ? undefined : pSchoolName.trim(),
       projectName: pName,
       summary: pSummary,
       objectives: pObjectives,
@@ -147,6 +335,7 @@ export default function DuAnTinhNguyenPage() {
       contactPhone: pPhone.trim() || undefined,
       contactFacebook: pFacebook.trim() || undefined,
       contactWebsite: pWebsite.trim() || undefined,
+      credential: session ? undefined : credRef.current || undefined,
     });
     setBusy(false);
     if (!res.ok) {
@@ -154,9 +343,9 @@ export default function DuAnTinhNguyenPage() {
       return;
     }
     setOpenSubmit(false);
-    setPName(""); setPWard(""); setPSummary(""); setPObjectives(""); setPTimeframe("");
+    setPName(""); setPWard(""); setPSchoolName(""); setPSummary(""); setPObjectives(""); setPTimeframe("");
     setPBeneficiaries(""); setPParticipants("50"); setPInitialResults(""); setPDirection(""); setPPhases([]);
-    setPEmail(""); setPPhone(""); setPFacebook(""); setPWebsite("");
+    setPPhone(""); setPFacebook(""); setPWebsite("");
     const clean = res.mod?.verdict !== "FLAGGED";
     toast(
       clean
@@ -167,6 +356,8 @@ export default function DuAnTinhNguyenPage() {
   };
 
   const hasFilter = q.trim() !== "" || fieldFilter !== "ALL" || provinceFilter !== "ALL" || phaseFilter !== "ALL";
+
+  const effectiveEmail = session?.username || googleEmail || decodeGoogleJwt(credRef.current).email || "";
 
   return (
     <div>
@@ -369,13 +560,22 @@ export default function DuAnTinhNguyenPage() {
                           ) : null}
                         </div>
                       ) : null}
-                      <div className="mt-auto flex items-center gap-4 pt-3.5 text-[11px] text-slate-500">
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5 text-blue-500" /> {p.participants} đoàn viên
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <HandHeart className="h-3.5 w-3.5 text-emerald-500" /> {p.beneficiaries}
-                        </span>
+                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3.5 text-[11px] text-slate-500">
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5 text-blue-500" /> {p.participants + (localJoinedIds.includes(p.id) ? 1 : 0)} đoàn viên
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <HandHeart className="h-3.5 w-3.5 text-emerald-500" /> {p.beneficiaries}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenJoin(p)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-110 transition-all active:scale-95"
+                        >
+                          <UserCheck className="h-3.5 w-3.5" /> Tham gia
+                        </button>
                       </div>
                     </div>
                   </Reveal>
@@ -397,7 +597,7 @@ export default function DuAnTinhNguyenPage() {
               <span>
                 <span className="block text-sm font-bold">Đăng ký dự án của trường bạn</span>
                 <span className="block text-[11px] text-blue-100">
-                  Đăng nhập → điền form → AI kiểm duyệt → cấp trên duyệt đăng kho dự án
+                  Xác thực Gmail / Đăng nhập → điền form → AI kiểm duyệt → cấp trên duyệt đăng kho dự án
                 </span>
               </span>
             </button>
@@ -429,14 +629,14 @@ export default function DuAnTinhNguyenPage() {
               <ul className="mt-3 space-y-2.5 text-xs leading-relaxed text-slate-600">
                 <li className="flex gap-2"><HandHeart className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> Giải quyết vấn đề thật của cộng đồng, đo lường được kết quả.</li>
                 <li className="flex gap-2"><Landmark className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /> Có minh chứng hình ảnh và danh sách người thụ hưởng rõ ràng.</li>
-                <li className="flex gap-2"><Users className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" /> Đoàn viên tham gia có đăng ký, có xác nhận trên cổng.</li>
+                <li className="flex gap-2"><Users className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" /> Đoàn viên tham gia có đăng ký, có xác nhận trên cổng (xác thực nhanh qua Gmail hoặc tài khoản).</li>
               </ul>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ===== Modal đăng ký dự án ===== */}
+      {/* ===== Modal đăng ký dự án mới ===== */}
       <Modal
         open={openSubmit}
         onClose={() => !busy && setOpenSubmit(false)}
@@ -464,9 +664,26 @@ export default function DuAnTinhNguyenPage() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-lg bg-stone-50 px-3 py-2.5 text-xs text-stone-600">
-            Đơn vị thực hiện: <b>{orgName(session?.orgUnitId ?? 0)}</b> (lấy từ tài khoản của bạn)
+          <div className="rounded-lg bg-sky-50 px-3.5 py-2.5 text-xs text-sky-800">
+            {session ? (
+              <span>Đơn vị thực hiện: <b>{orgName(session.orgUnitId ?? 0)}</b> (lấy từ tài khoản của bạn)</span>
+            ) : (
+              <span>
+                Xác thực bởi Gmail: <b>{effectiveEmail}</b> (không cần tạo tài khoản — sau này đăng ký tài khoản bằng email này sẽ tự động cộng điểm bù).
+              </span>
+            )}
           </div>
+
+          {!session ? (
+            <Field label="Tên trường / Đơn vị thực hiện" required hint="Tên trường THPT, TT GDNN - GDTX hoặc cơ sở Đoàn nơi bạn sinh hoạt">
+              <Input
+                value={pSchoolName}
+                onChange={(e) => setPSchoolName(e.target.value)}
+                placeholder="Ví dụ: Trường THPT Chuyên Lê Hồng Phong"
+              />
+            </Field>
+          ) : null}
+
           <Field label="Tên dự án" required hint="Tối thiểu 8 ký tự">
             <Input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="Ví dụ: Đồng quản lý kênh Nông Trại xanh" />
           </Field>
@@ -580,6 +797,130 @@ export default function DuAnTinhNguyenPage() {
           <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-700">
             Dự án qua AI kiểm duyệt tự động, sau đó cấp trên duyệt sẽ đăng vào ngân hàng dự án tình nguyện
             và cộng 20 điểm đóng góp cho bạn.
+          </p>
+        </div>
+      </Modal>
+
+      {/* ===== Modal đăng ký tham gia dự án ===== */}
+      <Modal
+        open={joinModalOpen}
+        onClose={() => !joinBusy && setJoinModalOpen(false)}
+        title="Đăng ký tham gia dự án tình nguyện"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setJoinModalOpen(false)}
+              disabled={joinBusy}
+              className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={submitJoin}
+              disabled={joinBusy}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
+            >
+              {joinBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+              {joinBusy ? "Đang gửi đăng ký…" : "Xác nhận tham gia"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3.5 text-xs text-blue-900">
+            <p className="font-bold text-sm text-blue-950">{selectedProjectForJoin?.projectName}</p>
+            <p className="mt-1 text-blue-800">
+              Đơn vị: {selectedProjectForJoin?.schoolName} · {selectedProjectForJoin?.province}
+              {selectedProjectForJoin?.ward ? ` · ${selectedProjectForJoin?.ward}` : ""}
+            </p>
+          </div>
+
+          <Field label="Họ và tên" required hint="Họ và tên đoàn viên tham gia">
+            <Input
+              value={joinName}
+              onChange={(e) => setJoinName(e.target.value)}
+              placeholder="VD: Nguyễn Văn A"
+            />
+          </Field>
+
+          <Field label="Gmail xác thực" hint="Email đã xác thực thành công">
+            <Input value={effectiveEmail} disabled className="bg-stone-100 text-stone-600 cursor-not-allowed" />
+          </Field>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Số điện thoại" hint="Để đơn vị liên hệ điều phối">
+              <Input
+                value={joinPhone}
+                onChange={(e) => setJoinPhone(e.target.value)}
+                placeholder="VD: 0912345678"
+              />
+            </Field>
+            <Field label="Trường / Lớp" hint="Trường học hoặc chi đoàn bạn sinh hoạt">
+              <Input
+                value={joinSchool}
+                onChange={(e) => setJoinSchool(e.target.value)}
+                placeholder="VD: 11A2, THPT Chu Văn An"
+              />
+            </Field>
+          </div>
+
+          <Field label="Lời nhắn / Ghi chú" hint="Không bắt buộc — mong muốn đóng góp hoặc kỹ năng của bạn">
+            <Textarea
+              value={joinNote}
+              onChange={(e) => setJoinNote(e.target.value)}
+              rows={3}
+              placeholder="Ví dụ: Em có kinh nghiệm thiết kế truyền thông và có thể tham gia vào các ngày cuối tuần…"
+            />
+          </Field>
+
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] leading-relaxed text-emerald-800">
+            Đoàn viên đăng ký tham gia có xác nhận trên cổng. Sau này khi bạn đăng ký tài khoản Đoàn viên bằng Gmail này,
+            hệ thống sẽ tự động liên kết thành tích và cộng điểm bù cho bạn.
+          </p>
+        </div>
+      </Modal>
+
+      {/* ===== Modal xác thực Gmail (Google Identity Services) ===== */}
+      <Modal
+        open={gAuthOpen}
+        onClose={() => setGAuthOpen(false)}
+        title={
+          gAuthPurpose === "SUBMIT_PROJECT"
+            ? "Xác thực Gmail để đăng ký dự án"
+            : "Xác thực Gmail để đăng ký tham gia dự án"
+        }
+        className="max-w-md"
+      >
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md">
+            <MailCheck className="h-7 w-7" />
+          </div>
+          <p className="text-sm leading-relaxed text-stone-700">
+            {gAuthPurpose === "SUBMIT_PROJECT" ? (
+              <>
+                Đăng ký dự án tình nguyện <strong>không cần tạo tài khoản</strong> — chỉ cần xác thực nhanh bằng Gmail của bạn.
+              </>
+            ) : (
+              <>
+                Đoàn viên đăng ký tham gia dự án <strong>không cần tạo tài khoản</strong> — chỉ cần xác thực nhanh bằng Gmail của bạn để xác nhận trên cổng.
+              </>
+            )}
+          </p>
+          <ul className="mx-auto max-w-xs space-y-1.5 text-left text-xs text-stone-600">
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              Xác thực an toàn qua tài khoản Google của bạn.
+            </li>
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              Khi đăng ký tài khoản Đoàn viên bằng email này sau này, hệ thống sẽ tự động liên kết và cộng điểm bù.
+            </li>
+          </ul>
+          <div ref={gBtnRef} className="flex min-h-11 justify-center" />
+          <p className="text-[11px] text-stone-400">
+            Đang tải nút Google… Nếu chưa thấy nút, vui lòng đợi vài giây.
           </p>
         </div>
       </Modal>

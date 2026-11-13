@@ -218,7 +218,7 @@ export async function storeMedia(input: {
         [sha256, kind],
       );
       const prevPath = prev[0]?.path;
-      const prevAbs = prevPath ? path.join(UPLOAD_DIR, prevPath.slice(UPLOAD_URL_PREFIX.length)) : "";
+      const prevAbs = prevPath ? path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, prevPath.slice(UPLOAD_URL_PREFIX.length)) : "";
       if (prevPath && (await exists(prevAbs))) {
         // Làm mới mtime: script dọn tệp mồ côi chỉ xoá tệp cũ hơn 7 ngày, tệp vừa dùng lại phải được giữ
         const now = new Date();
@@ -232,7 +232,7 @@ export async function storeMedia(input: {
 
   const now = new Date();
   const rel = `${kind}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${sha256.slice(0, 32)}.${ext}`;
-  const abs = path.join(UPLOAD_DIR, rel);
+  const abs = path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, rel);
   if (await exists(abs)) {
     const now = new Date();
     await utimes(abs, now, now).catch(() => {});

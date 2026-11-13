@@ -409,12 +409,14 @@ interface StoreValue {
   /** Đơn vị / tên trường do máy chủ lấy theo tài khoản đăng nhập */
   submitVolunteerProject: (input: {
     province: string; ward?: string;
+    schoolName?: string;
     projectName: string; summary: string; objectives?: string; timeframe?: string;
     beneficiaries: string; participants: number;
     field: VolunteerProjectField; phase: VolunteerProjectPhase;
     initialResults?: string; direction?: string;
     phases?: VolunteerProjectPhaseEntry[];
     contactEmail?: string; contactPhone?: string; contactFacebook?: string; contactWebsite?: string;
+    credential?: string;
   }) => Promise<MemberWriteResult>;
   moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
   quizQuestions: QuizQuestion[];
@@ -2058,12 +2060,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const submitVolunteerProject = useCallback(
     async (input: {
       province: string; ward?: string;
+      schoolName?: string;
       projectName: string; summary: string; objectives?: string; timeframe?: string;
       beneficiaries: string; participants: number;
       field: VolunteerProjectField; phase: VolunteerProjectPhase;
       initialResults?: string; direction?: string;
       phases?: VolunteerProjectPhaseEntry[];
       contactEmail?: string; contactPhone?: string; contactFacebook?: string; contactWebsite?: string;
+      credential?: string;
     }): Promise<MemberWriteResult> => {
       const res = await postMemberApi<{ row: VolunteerProject; verdict?: ModerationResult["verdict"]; reason?: string | null }>(
         "/api/du-an",

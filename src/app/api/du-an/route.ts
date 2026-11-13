@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { query, withTransaction } from "@/lib/db";
 import { toObj } from "@/lib/server/store-tables";
 import { moderateServer } from "@/lib/server/moderation";
+import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
+import { verifyGoogleCredential } from "@/lib/server/google-verify";
 import {
-  UPLOAD_EXTS, fail, isUploadPath, json, notifyAdmin, rateLimit, readBody, requireSession, serverError, str,
+  UPLOAD_EXTS, fail, isUploadPath, json, notifyAdmin, rateLimit, readBody, serverError, str,
 } from "@/lib/server/member-write";
 
 export const runtime = "nodejs";
@@ -13,19 +15,41 @@ const PHASES = new Set(["DANG_TUYEN", "DANG_TRIEN_KHAI", "HOAN_THANH"]);
 
 /**
  * POST /api/du-an — đăng ký dự án tình nguyện vào ngân hàng dự án
- *   { province, ward, projectName, summary, objectives?, timeframe?, beneficiaries?, participants,
- *     field, phase, initialResults?, direction?, phases?: [{ at, content }],
- *     reportFile?: { name, dataUrl } (form cũ) } → { ok, row, verdict, reason }
- * - Đơn vị / tên trường lấy theo tài khoản đăng nhập, người gửi = tài khoản đó.
- * - Luôn PENDING chờ cấp trên duyệt; máy chủ tự kiểm duyệt AI, bị gắn cờ → thông báo Quản trị TW.
- * - File báo cáo chỉ nhận đường dẫn /uploads/du-an/... do /api/uploads tạo.
- * - `row` đúng dạng state phía client (reportFile gộp { name, dataUrl }).
+ *   Hỗ trợ 2 phương thức xác thực:
+ *   1) Đăng nhập tài khoản nội bộ (session cookie).
+ *   2) Xác thực nhanh bằng Google Gmail (body.credential từ Google Identity Services) — không cần tài khoản.
+ *   Khi người dùng đăng ký tài khoản sau này bằng Gmail đó, hệ thống sẽ tự động liên kết dự án đã gửi.
  */
 export async function POST(request: NextRequest) {
-  const session = await requireSession(request);
-  if (session instanceof NextResponse) return session;
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = token ? await sessionFromToken(token).catch(() => null) : null;
+
   const body = await readBody(request);
   if (!body) return fail("Dữ liệu gửi lên không hợp lệ.");
+
+  // Định danh người gửi
+  let accountId: number | null = null;
+  let orgUnitId: number | null = null;
+  let submitterEmail: string | null = null;
+  let defaultSchoolName = "Đoàn trường";
+
+  if (session) {
+    accountId = session.accountId;
+    orgUnitId = session.orgUnitId;
+    submitterEmail = session.username;
+    const unit = (await query<{ name: string }>("SELECT name FROM org_units WHERE id = $1", [session.orgUnitId]))[0];
+    if (unit) defaultSchoolName = unit.name;
+  } else {
+    const cred = str(body.credential);
+    const googleUser = cred ? await verifyGoogleCredential(cred) : null;
+    if (!googleUser) {
+      return json(
+        { ok: false, error: "Cần xác thực Google Gmail để đăng ký dự án — không cần tạo tài khoản.", needAuth: true },
+        401
+      );
+    }
+    submitterEmail = googleUser.email;
+  }
 
   const province = str(body.province);
   const projectName = str(body.projectName);
@@ -34,6 +58,8 @@ export async function POST(request: NextRequest) {
   const participants = Math.round(Number(body.participants)) || 1;
   const field = str(body.field);
   const phase = str(body.phase);
+  const schoolName = (str(body.schoolName) || str(body.orgDisplayName) || defaultSchoolName).slice(0, 255);
+
   if (!province || province.length > 100) return fail("Tỉnh/thành không hợp lệ.");
   if (projectName.length < 8 || projectName.length > 255) return fail("Tên dự án cần từ 8 đến 255 ký tự.");
   if (summary.length < 20 || summary.length > 10_000) return fail("Tóm tắt cần từ 20 đến 10.000 ký tự.");
@@ -60,9 +86,9 @@ export async function POST(request: NextRequest) {
   if (phaseList.length > 20) return fail("Tối đa 20 giai đoạn.");
   if (!PHASES.has(phase)) return fail("Giai đoạn không hợp lệ.");
 
-  // Kênh liên hệ (tùy chọn) — kiểm định dạng khi người dùng điền
+  // Kênh liên hệ (tùy chọn) — mặc định lấy submitterEmail nếu email liên hệ trống
   const optContact = (v: unknown, max: number) => str(v).slice(0, max) || null;
-  const contactEmail = optContact(body.contactEmail, 254);
+  const contactEmail = optContact(body.contactEmail, 254) || submitterEmail;
   if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail)) return fail("Email liên hệ không hợp lệ.");
   const contactPhone = optContact(body.contactPhone, 20);
   if (contactPhone && !/^[0-9+()\s.\-]{8,20}$/.test(contactPhone)) return fail("Số điện thoại liên hệ không hợp lệ.");
@@ -89,10 +115,8 @@ export async function POST(request: NextRequest) {
     reportName = str(rf.name).slice(0, 255) || "bao-cao-du-an";
   }
 
-  const unit = (await query<{ name: string }>("SELECT name FROM org_units WHERE id = $1", [session.orgUnitId]))[0];
-  if (!unit) return fail("Không xác định được đơn vị của tài khoản.");
-
-  const limited = rateLimit(`du-an:${session.accountId}`, 10, 10 * 60_000);
+  const rateLimitKey = accountId ? `du-an:acc:${accountId}` : `du-an:email:${submitterEmail}`;
+  const limited = rateLimit(rateLimitKey, 10, 10 * 60_000);
   if (limited) return limited;
 
   const mod = await moderateServer(
@@ -104,13 +128,13 @@ export async function POST(request: NextRequest) {
     const row = await withTransaction(async (client) => {
       const r = await client.query(
         `INSERT INTO volunteer_projects (org_unit_id, school_name, province, project_name, summary, beneficiaries,
-           participants, status, submitted_by_account_id, field, phase, ai_verdict, ai_reason, report_file_name, report_file_data,
+           participants, status, submitted_by_account_id, submitter_email, field, phase, ai_verdict, ai_reason, report_file_name, report_file_data,
            ward, objectives, timeframe, initial_results, direction, phases,
            contact_email, contact_phone, contact_facebook, contact_website)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8, $9, $10, $11, $12, $13, $14,
            $15, $16, $17, $18, $19, $20::jsonb, $21, $22, $23, $24) RETURNING *`,
-        [session.orgUnitId, unit.name.slice(0, 255), province, projectName, summary, beneficiaries, participants,
-          session.accountId, field, phase, mod.verdict, mod.reason ?? null, reportName, reportPath,
+        [orgUnitId, schoolName, province, projectName, summary, beneficiaries, participants,
+          accountId, submitterEmail, field, phase, mod.verdict, mod.reason ?? null, reportName, reportPath,
           ward, objectives, timeframe, initialResults, direction, JSON.stringify(phaseList),
           contactEmail, contactPhone, contactFacebook, contactWebsite],
       );

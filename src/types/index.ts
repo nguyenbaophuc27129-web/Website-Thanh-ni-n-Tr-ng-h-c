@@ -658,8 +658,10 @@ export interface VolunteerProjectPhaseEntry {
 /** Dự án tình nguyện "Mỗi trường THPT — 01 dự án" — đơn vị tự khai, đăng trong ngân hàng dự án */
 export interface VolunteerProject {
   id: number;
-  orgUnitId: number;
+  orgUnitId?: number;
   schoolName: string;
+  /** Email người gửi xác thực qua Google (nếu nộp bài không dùng tài khoản nội bộ) */
+  submitterEmail?: string;
   province: string;
   /** Xã / phường nơi thực hiện dự án */
   ward?: string;
@@ -698,6 +700,20 @@ export interface VolunteerProject {
   rejectionReason?: string;
   /** Legacy: file báo cáo đính kèm từ mẫu cũ (đã bỏ upload từ form tự khai) */
   reportFile?: { name: string; dataUrl?: string };
+  createdAt: string;
+}
+
+/** Đoàn viên đăng ký tham gia dự án tình nguyện trên cổng */
+export interface VolunteerProjectParticipant {
+  id: number;
+  projectId: number;
+  accountId?: number;
+  email: string;
+  fullName: string;
+  phone?: string;
+  schoolName?: string;
+  note?: string;
+  status: "REGISTERED" | "CONFIRMED" | "CANCELLED";
   createdAt: string;
 }
 

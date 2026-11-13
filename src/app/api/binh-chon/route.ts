@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     const params: unknown[] = [campaign.id];
     if (q) {
       params.push(`%${q}%`);
-      where.push(`(s.student_name ILIKE $${params.length} OR school.name ILIKE $${params.length})`);
+      where.push(`(s.student_name ILIKE $${params.length} OR school.name ILIKE $${params.length} OR s.org_display_name ILIKE $${params.length})`);
     }
     if (provinceId) {
       params.push(provinceId);
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     const orderBy = sort === "hot" ? "s.vote_count DESC, s.approved_at ASC" : "s.approved_at DESC";
 
     const countRows = await query<{ c: string; v: string | null }>(
-      `SELECT count(*) c, sum(s.vote_count) v FROM hs3t_stories s JOIN org_units school ON school.id = s.school_org_unit_id ${whereSql}`,
+      `SELECT count(*) c, sum(s.vote_count) v FROM hs3t_stories s LEFT JOIN org_units school ON school.id = s.school_org_unit_id ${whereSql}`,
       params
     );
     const total = Number(countRows[0]?.c ?? 0);

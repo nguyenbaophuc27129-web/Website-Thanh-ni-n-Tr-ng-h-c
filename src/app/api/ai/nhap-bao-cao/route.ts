@@ -4,6 +4,7 @@ import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 import { cleanAiText } from "@/lib/ai-text";
 import { buildDocContext } from "@/lib/server/doc-context";
 import { buildBaoCaoSystemPrompt, inferPeriodKind, periodKindOf } from "@/data/bao-cao-agent";
+import { SKILL_THE_THUC_29HD } from "@/data/the-thuc-van-ban";
 import {
   aggregateSection2,
   buildRepairInstruction,
@@ -96,9 +97,17 @@ async function draftWithAI(ctx: ReportDraftContext): Promise<{ content: string; 
       : "",
   ].filter(Boolean).join("\n");
 
+  const userWithSkill = [
+    user,
+    "\n════════════════════════════════════════════════════════════════",
+    "[BỘ KỸ NĂNG & QUY CHUẨN THỂ THỨC VĂN BẢN ĐOÀN — CHUẨN 100% HƯỚNG DẪN 29-HD/TWĐTN-VP & MẪU 3]",
+    "Khi xuất bản báo cáo, bắt buộc tuân thủ 100% từng dóng gạch, dấu phân cách, căn lề và thể thức đề ký sau:",
+    SKILL_THE_THUC_29HD,
+  ].join("\n");
+
   const { text, model } = await callAI({
     system: SYSTEM_PROMPT,
-    user,
+    user: userWithSkill,
     maxTokens: 8000,
     temperature: 0.25,
   });
@@ -114,7 +123,14 @@ async function draftWithClassified(
   const agg = aggregateSection2(records);
   const topic = [ctx.orgUnitName, ctx.period, ...records.slice(0, 40).map((r) => r.ten)].join(" ");
   const docContext = await buildDocContext(topic, 4000);
-  const user = buildStage2UserMessage(ctx, records, agg, docContext || undefined);
+  const userBase = buildStage2UserMessage(ctx, records, agg, docContext || undefined);
+  const user = [
+    userBase,
+    "\n════════════════════════════════════════════════════════════════",
+    "[BỘ KỸ NĂNG & QUY CHUẨN THỂ THỨC VĂN BẢN ĐOÀN — CHUẨN 100% HƯỚNG DẪN 29-HD/TWĐTN-VP & MẪU 3]",
+    "Khi xuất bản báo cáo, bắt buộc tuân thủ 100% từng dóng gạch, dấu phân cách, căn lề và thể thức đề ký sau:",
+    SKILL_THE_THUC_29HD,
+  ].join("\n");
   const hasSuggestions = Boolean(ctx.suggestions?.length);
 
   const { text, model } = await callAI({
