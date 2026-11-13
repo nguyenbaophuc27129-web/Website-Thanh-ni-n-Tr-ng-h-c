@@ -115,11 +115,14 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?
           .slice(0, 3)
           .map((g) => ({ dataUrl: g.data_url!, caption: g.caption || undefined }))
       : undefined,
-    // Minh chứng PDF: đường dẫn + tên tệp, rất gọn → trả ở cả list lẫn detail (trang duyệt cần)
-    evidenceFiles: (r.evidence_files ?? [])
-      .filter((e) => Boolean(e?.data_url))
-      .slice(0, 3)
-      .map((e) => ({ url: e.data_url!, name: e.name || undefined })),
+    // Minh chứng PDF (bằng khen/giấy khen — có thông tin cá nhân học sinh): giống Gmail người gửi,
+    // chỉ trả cho trang quản trị (withEmail) — KHÔNG trả ra API công khai
+    evidenceFiles: opts?.withEmail
+      ? (r.evidence_files ?? [])
+          .filter((e) => Boolean(e?.data_url))
+          .slice(0, 3)
+          .map((e) => ({ url: e.data_url!, name: e.name || undefined }))
+      : undefined,
     voteCount: Number(r.vote_count),
     approvedAt: r.approved_at ? ISO(r.approved_at) : undefined,
     createdAt: ISO(r.created_at),
