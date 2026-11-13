@@ -241,7 +241,11 @@ function dedupeRecords(records: ClassifiedRecord[]): ClassifiedRecord[] {
     existing.mergedFrom = [...(existing.mergedFrom ?? []), rec.id];
     existing.nguon = Array.from(new Set([...(existing.nguon ?? []), ...(rec.nguon ?? [])]));
     for (const sl of rec.so_lieu ?? []) {
-      const dup = (existing.so_lieu ?? []).some((x) => x.chi_so === sl.chi_so && x.don_vi === sl.don_vi && x.loai === sl.loai);
+      // R4: so sánh chỉ số/đơn vị ĐÃ CHUẨN HÓA (khớp cách aggregateSection2 nhóm) —
+      // trùng thì giữ số của bản ghi chính (nguồn chính thức), không cộng, không trung bình.
+      const dup = (existing.so_lieu ?? []).some(
+        (x) => normKey(x.chi_so) === normKey(sl.chi_so) && normKey(x.don_vi) === normKey(sl.don_vi) && x.loai === sl.loai
+      );
       if (!dup) existing.so_lieu = [...(existing.so_lieu ?? []), sl];
     }
     existing.chi_tieu = Array.from(new Set([...(existing.chi_tieu ?? []), ...(rec.chi_tieu ?? [])]));

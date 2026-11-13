@@ -77,6 +77,8 @@ type StoryRow = {
   photo_thumb_data_url: string | null;
   /** Chỉ có khi truy vấn bằng STORY_DETAIL_SELECT */
   gallery?: { data_url?: string; caption?: string }[] | null;
+  /** Minh chứng bằng khen/giấy khen — mảng { data_url, name } (data_url là đường dẫn /uploads/binh-chon/...pdf) */
+  evidence_files?: { data_url?: string; name?: string }[] | null;
   ai_verdict: string | null;
   ai_reason: string | null;
   status: string | null;
@@ -113,6 +115,11 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?
           .slice(0, 3)
           .map((g) => ({ dataUrl: g.data_url!, caption: g.caption || undefined }))
       : undefined,
+    // Minh chứng PDF: đường dẫn + tên tệp, rất gọn → trả ở cả list lẫn detail (trang duyệt cần)
+    evidenceFiles: (r.evidence_files ?? [])
+      .filter((e) => Boolean(e?.data_url))
+      .slice(0, 3)
+      .map((e) => ({ url: e.data_url!, name: e.name || undefined })),
     voteCount: Number(r.vote_count),
     approvedAt: r.approved_at ? ISO(r.approved_at) : undefined,
     createdAt: ISO(r.created_at),
@@ -131,7 +138,7 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?
 export const STORY_SELECT = `
   SELECT s.id, s.campaign_id, s.student_name, s.school_org_unit_id, s.class_name, s.quote, s.story,
          s.achievements, s.org_display_name, s.submitter_email,
-         s.photo_data_url, s.photo_thumb_data_url, s.ai_verdict, s.ai_reason, s.status,
+         s.photo_data_url, s.photo_thumb_data_url, s.evidence_files, s.ai_verdict, s.ai_reason, s.status,
          s.rejection_reason, s.vote_count, s.approved_at, s.created_at, s.honor_level,
          COALESCE(school.name, s.org_display_name) AS school_name,
          CASE WHEN school.path ~ '^/1/[0-9]+/' THEN split_part(school.path, '/', 3)::bigint END AS province_admin_id,
@@ -244,6 +251,15 @@ export function dataUrlGuard(dataUrl: unknown, maxBytes: number): dataUrl is str
   if (!/^data:image\/(jpeg|png|webp);base64,/.test(dataUrl)) return false;
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
   if (!base64 || base64.length > 8_400_000) return false; // ~6MB base64 trước khi decode
+  return Buffer.byteLength(base64, "base64") <= maxBytes;
+}
+
+/** Guard tệp PDF dataUrl (minh chứng bằng khen/giấy khen): prefix data:application/pdf + dung lượng */
+export function pdfDataUrlGuard(dataUrl: unknown, maxBytes: number): dataUrl is string {
+  if (typeof dataUrl !== "string") return false;
+  if (!/^data:application\/pdf;base64,/.test(dataUrl)) return false;
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  if (!base64 || base64.length > 7_000_000) return false; // ~5.2MB base64 trước khi decode
   return Buffer.byteLength(base64, "base64") <= maxBytes;
 }
 

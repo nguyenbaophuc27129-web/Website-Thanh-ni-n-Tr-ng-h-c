@@ -414,6 +414,7 @@ interface StoreValue {
     field: VolunteerProjectField; phase: VolunteerProjectPhase;
     initialResults?: string; direction?: string;
     phases?: VolunteerProjectPhaseEntry[];
+    contactEmail?: string; contactPhone?: string; contactFacebook?: string; contactWebsite?: string;
   }) => Promise<MemberWriteResult>;
   moderateVolunteerProject: (session: Session, id: number, action: "APPROVE" | "REJECT", reason?: string) => void;
   quizQuestions: QuizQuestion[];
@@ -2062,6 +2063,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       field: VolunteerProjectField; phase: VolunteerProjectPhase;
       initialResults?: string; direction?: string;
       phases?: VolunteerProjectPhaseEntry[];
+      contactEmail?: string; contactPhone?: string; contactFacebook?: string; contactWebsite?: string;
     }): Promise<MemberWriteResult> => {
       const res = await postMemberApi<{ row: VolunteerProject; verdict?: ModerationResult["verdict"]; reason?: string | null }>(
         "/api/du-an",

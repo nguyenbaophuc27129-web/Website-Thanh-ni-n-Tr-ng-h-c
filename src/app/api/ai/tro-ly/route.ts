@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 import { callAI } from "@/lib/ai-client";
 import { cleanAiText } from "@/lib/ai-text";
 import { buildDocContext } from "@/lib/server/doc-context";
+import { THE_THUC_RULEBOOK } from "@/data/the-thuc-van-ban";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,8 @@ export const runtime = "nodejs";
    Văn bản — RAG theo FILE THẬT). Đầu ra plain-text, tuyệt đối không
    markdown/dấu *. Khách → 401; Đoàn viên → 403.
    History client gửi kèm, gom thành 1 user turn (callAI single-turn).
+   Soạn văn bản bám THE_THUC_RULEBOOK (QĐ 27-HĐ/TĐTN-VP + Mẫu 3) — đúng
+   thể thức mọi loại văn bản, mọi cấp, mọi hướng gửi.
    ════════════════════════════════════════════════════════════════════ */
 
 const MAX_HISTORY_TURNS = 12;
@@ -24,7 +27,8 @@ const TRO_LY_SYSTEM_PROMPT =
   "nhiệm vụ thi đua, công tác Thanh niên Trường học; tham chiếu VĂN BẢN TW ĐÃ BAN HÀNH được cấp kèm dưới đây (nếu có) — trích đúng số hiệu, " +
   "không bịa số hiệu hay nội dung ngoài tài liệu. Khi ngữ cảnh không đủ đáp án, trả lời theo kiến thức nghiệp vụ chung và nói rõ người dùng nên đối chiếu văn bản gốc. " +
   "Bắt buộc định dạng: viết tiếng Việt hành chính plain-text — KHÔNG dùng markdown, KHÔNG dùng dấu *, KHÔNG ký tự #, không bảng; " +
-  "đánh mục bằng chữ (A. / 1. / a)) và gạch đầu dòng '– ', xuống dòng rõ ràng. Trả lời đủ ý nhưng không lan man.";
+  "đánh mục bằng chữ (A. / 1. / a)) và gạch đầu dòng '– ', xuống dòng rõ ràng. Trả lời đủ ý nhưng không lan man.\n\n" +
+  THE_THUC_RULEBOOK;
 
 async function replyWithAI(
   history: { role: string; content: string }[],
@@ -47,7 +51,8 @@ async function replyWithAI(
   const { text, model } = await callAI({
     system: TRO_LY_SYSTEM_PROMPT,
     user,
-    maxTokens: 1200,
+    // Văn bản thể thức đầy đủ (khối thể thức + căn cứ + thân + nơi nhận + chữ ký) thường 800-1800 token
+    maxTokens: 2400,
     temperature: 0.4,
   });
   return { reply: cleanAiText(text), model };
@@ -55,21 +60,15 @@ async function replyWithAI(
 
 /** POST /api/ai/tro-ly — { history: [{role:"user"|"assistant", content}], question } → { ok, reply, model } */
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  let session = null;
-  if (token) {
-    try {
-      session = await sessionFromToken(token);
-    } catch {
-      session = null;
-    }
-  }
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "Bạn cần đăng nhập để dùng Trợ lý AI." }, { status: 401 });
-  }
-  if (session.role === "DOAN_VIEN") {
-    return NextResponse.json({ ok: false, error: "Trợ lý AI dành cho cán bộ quản trị." }, { status: 403 });
-  }
+  // Chỉ cán bộ + giới hạn lượt theo tài khoản và trần AI chung
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "ai-tro-ly",
+    windowMs: 10 * 60_000,
+    perAccount: 40,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
 
   const payload = (await request.json().catch(() => null)) as
     | { history?: { role?: string; content?: string }[]; question?: string }

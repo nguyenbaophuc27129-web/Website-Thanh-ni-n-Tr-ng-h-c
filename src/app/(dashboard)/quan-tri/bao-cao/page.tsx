@@ -12,6 +12,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { reportTemplates, suggestDocCode, templateById } from "@/data/report-templates";
+import { mauQuyDinh } from "@/data/the-thuc-van-ban";
 import { buildReportWordData, downloadDraftWordDoc, downloadWordDoc, vnDateStr, type WordDocData } from "@/lib/word-export";
 import type { ClassifiedRecord, SelfCheckResult } from "@/lib/server/bao-cao-pipeline";
 
@@ -690,8 +691,8 @@ export default function BaoCaoPage() {
 
       <Card>
         <CardHeader
-          title="Kho mẫu văn bản chính thức (02 mẫu quy định)"
-          subtitle="Áp dụng chuẩn 02 mẫu văn bản chính thức: Báo cáo định kỳ (Tuần/Tháng/Quý/Năm) và Báo cáo chính trị Đại hội Đoàn."
+          title="Kho mẫu văn bản chính thức"
+          subtitle="Áp dụng chuẩn 02 mẫu báo cáo chính thức (định kỳ Tuần/Tháng/Quý/Năm và chính trị Đại hội Đoàn) + đầy đủ thể thức các loại văn bản theo QĐ 27-HĐ trong Trợ lý AI."
         />
         <CardBody className="p-0">
           <ul className="divide-y divide-stone-100">
@@ -723,6 +724,31 @@ export default function BaoCaoPage() {
               </li>
             ))}
           </ul>
+          {/* Văn bản quy định thể thức — tải nguyên văn (QĐ 27-HĐ + Mẫu 1, 2, 3) */}
+          <div className="border-t border-stone-100 px-5 py-4">
+            <p className="text-xs font-bold text-stone-700">Văn bản quy định thể thức (nguyên văn)</p>
+            <p className="mt-0.5 text-[11px] text-stone-400">
+              Trợ lý AI soạn văn bản bám quy định này — đối chiếu khi cần chỉnh bản nháp.
+            </p>
+            <ul className="mt-2.5 grid gap-2 sm:grid-cols-3">
+              {mauQuyDinh.map((m) => (
+                <li key={m.file}>
+                  <a
+                    href={m.file}
+                    download
+                    className="flex h-full flex-col gap-1 rounded-lg border border-stone-200 bg-white p-3 transition hover:border-doan-300 hover:bg-doan-50"
+                    title={`Tải ${m.name}`}
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-800">
+                      <FileDown className="h-3.5 w-3.5 shrink-0 text-doan-600" /> {m.name}
+                    </span>
+                    <span className="text-[11px] leading-snug text-stone-500">{m.moTa}</span>
+                    <span className="mt-auto pt-1 text-[10px] font-medium uppercase text-stone-400">{m.ext}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         </CardBody>
       </Card>
 

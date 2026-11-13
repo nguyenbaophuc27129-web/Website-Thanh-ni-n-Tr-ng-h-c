@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbEnabled, query } from "@/lib/db";
 import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
+import { inferPeriodKind } from "@/data/bao-cao-agent";
 import type { ReportActivityRecord, ReportDraftContext } from "@/app/api/ai/nhap-bao-cao/route";
 
 export const runtime = "nodejs";
@@ -76,6 +77,39 @@ export async function POST(request: NextRequest) {
 
   const targetOrgUnitId = body.orgUnitId ?? session.orgUnitId;
 
+  // ── Kiểm tra phạm vi dữ liệu (scope) ──────────────────────────────────
+  // QUAN_TRI_TW được xuất dữ liệu của mọi đơn vị; cán bộ khác chỉ được xuất
+  // dữ liệu của đơn vị mình và các đơn vị cấp dưới trong cây org_units.
+  let targetPath: string | null = null;
+  if (dbEnabled()) {
+    try {
+      const tgtRows = await query<{ path: string }>(
+        "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL LIMIT 1",
+        [targetOrgUnitId]
+      );
+      targetPath = tgtRows[0]?.path ?? null;
+      if (session.role !== "QUAN_TRI_TW") {
+        const ownRows = await query<{ path: string }>(
+          "SELECT path FROM org_units WHERE id = $1 AND deleted_at IS NULL LIMIT 1",
+          [session.orgUnitId]
+        );
+        const ownPath = ownRows[0]?.path ?? null;
+        if (!targetPath || !ownPath || !targetPath.startsWith(ownPath)) {
+          return NextResponse.json(
+            { ok: false, error: "Bạn chỉ được xuất dữ liệu của đơn vị mình và các đơn vị cấp dưới." },
+            { status: 403 }
+          );
+        }
+      }
+    } catch (scopeErr) {
+      console.warn("[TNTH][xuat-du-lieu] Không kiểm được phạm vi, chặn để an toàn:", scopeErr);
+      return NextResponse.json(
+        { ok: false, error: "Không xác định được phạm vi dữ liệu. Vui lòng thử lại sau." },
+        { status: 503 }
+      );
+    }
+  }
+
   let orgName = `Đơn vị #${targetOrgUnitId}`;
   let orgLevel = 4;
   let rawActivities: Array<{
@@ -147,11 +181,12 @@ export async function POST(request: NextRequest) {
             location: string | null;
             participant_count: number | null;
           }>(
-            `SELECT id, org_unit_id, title, summary, start_date, location, participant_count 
-             FROM activities 
-             WHERE id = ANY($1::int[]) 
+            `SELECT id, org_unit_id, title, summary, start_date, location, participant_count
+             FROM activities
+             WHERE id = ANY($1::int[])
+               AND org_unit_id = $2
              ORDER BY start_date ASC`,
-            [ids]
+            [ids, targetOrgUnitId]
           );
 
           rawActivities = actRows.map((r) => ({
@@ -178,11 +213,17 @@ export async function POST(request: NextRequest) {
         (r) => `${r.code} đạt ${(Number(r.completion_rate) || 0).toFixed(1)}%`
       );
 
-      // 4. Lấy số tin bài xuất bản
-      const postRows = await query<{ count: string }>(
-        `SELECT count(*)::text as count FROM published_posts WHERE status = 'PUBLISHED'`
-      );
-      postCount = postRows.length > 0 ? parseInt(postRows[0].count, 10) : 0;
+      // 4. Lấy số tin bài xuất bản của đơn vị (theo cây đơn vị) — không đếm toàn cổng
+      if (targetPath) {
+        const postRows = await query<{ count: string }>(
+          `SELECT count(*)::text AS count
+           FROM published_posts p
+           JOIN org_units u ON u.id = p.author_org_unit_id
+           WHERE p.status = 'PUBLISHED' AND u.path LIKE $1`,
+          [`${targetPath}%`]
+        );
+        postCount = postRows.length > 0 ? parseInt(postRows[0].count, 10) : 0;
+      }
     } catch (dbErr) {
       console.warn("[TNTH][xuat-du-lieu] DB query error, falling back:", dbErr);
     }
@@ -221,7 +262,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (fb.publishedPosts) {
-      postCount = fb.publishedPosts.filter((p) => p.status === "PUBLISHED").length;
+      postCount = fb.publishedPosts.filter(
+        (p) => p.status === "PUBLISHED" && p.authorOrgUnitName === orgName
+      ).length;
     }
   }
 
@@ -264,6 +307,7 @@ export async function POST(request: NextRequest) {
     orgUnitName: orgName,
     cap,
     period: periodLabel,
+    periodKind: inferPeriodKind(periodLabel, body.periodStart, body.periodEnd),
     periodStart: formatDateVn(body.periodStart),
     periodEnd: formatDateVn(body.periodEnd),
     activityCount: rawActivities.length,

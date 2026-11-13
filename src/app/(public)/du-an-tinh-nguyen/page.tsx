@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   LibraryBig, HeartHandshake, Users, Send, Loader2, Clock, Plus, HandHeart, Landmark, Paperclip,
-  Search, CalendarDays, Flag, Trash2, ListOrdered,
+  Search, CalendarDays, Flag, Trash2, ListOrdered, Mail, Phone, Share2, Globe,
 } from "lucide-react";
 import { Reveal, CountUp } from "@/components/public/reveal";
 import { Modal } from "@/components/ui/modal";
@@ -70,6 +70,10 @@ export default function DuAnTinhNguyenPage() {
   const [pInitialResults, setPInitialResults] = useState("");
   const [pDirection, setPDirection] = useState("");
   const [pPhases, setPPhases] = useState<VolunteerProjectPhaseEntry[]>([]);
+  const [pEmail, setPEmail] = useState("");
+  const [pPhone, setPPhone] = useState("");
+  const [pFacebook, setPFacebook] = useState("");
+  const [pWebsite, setPWebsite] = useState("");
   const [busy, setBusy] = useState(false);
 
   const approved = useMemo(
@@ -139,6 +143,10 @@ export default function DuAnTinhNguyenPage() {
       initialResults: pInitialResults,
       direction: pDirection,
       phases: pPhases,
+      contactEmail: pEmail.trim() || undefined,
+      contactPhone: pPhone.trim() || undefined,
+      contactFacebook: pFacebook.trim() || undefined,
+      contactWebsite: pWebsite.trim() || undefined,
     });
     setBusy(false);
     if (!res.ok) {
@@ -148,6 +156,7 @@ export default function DuAnTinhNguyenPage() {
     setOpenSubmit(false);
     setPName(""); setPWard(""); setPSummary(""); setPObjectives(""); setPTimeframe("");
     setPBeneficiaries(""); setPParticipants("50"); setPInitialResults(""); setPDirection(""); setPPhases([]);
+    setPEmail(""); setPPhone(""); setPFacebook(""); setPWebsite("");
     const clean = res.mod?.verdict !== "FLAGGED";
     toast(
       clean
@@ -336,6 +345,30 @@ export default function DuAnTinhNguyenPage() {
                         </p>
                       ) : null}
                       <ReportFileChip p={p} />
+                      {p.contactEmail || p.contactPhone || p.contactFacebook || p.contactWebsite ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-slate-500">
+                          {p.contactEmail ? (
+                            <a href={`mailto:${p.contactEmail}`} className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                              <Mail className="h-3 w-3" /> <span className="max-w-44 truncate">{p.contactEmail}</span>
+                            </a>
+                          ) : null}
+                          {p.contactPhone ? (
+                            <a href={`tel:${p.contactPhone}`} className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                              <Phone className="h-3 w-3" /> {p.contactPhone}
+                            </a>
+                          ) : null}
+                          {p.contactFacebook ? (
+                            <a href={p.contactFacebook} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                              <Share2 className="h-3 w-3" /> Facebook
+                            </a>
+                          ) : null}
+                          {p.contactWebsite ? (
+                            <a href={p.contactWebsite} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                              <Globe className="h-3 w-3" /> Website
+                            </a>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div className="mt-auto flex items-center gap-4 pt-3.5 text-[11px] text-slate-500">
                         <span className="inline-flex items-center gap-1">
                           <Users className="h-3.5 w-3.5 text-blue-500" /> {p.participants} đoàn viên
@@ -495,6 +528,16 @@ export default function DuAnTinhNguyenPage() {
           </div>
           <Field label="Kết quả bước đầu" hint="Đơn vị tự khai — có thể cập nhật sau khi kết thúc giai đoạn">
             <Textarea value={pInitialResults} onChange={(e) => setPInitialResults(e.target.value)} className="min-h-20" />
+          </Field>
+
+          {/* Kênh liên hệ của dự án (tùy chọn) — hiển thị công khai trên thẻ dự án */}
+          <Field label="Kênh liên hệ" hint="Không bắt buộc — người quan tâm sẽ liên hệ trực tiếp với dự án">
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <Input value={pEmail} onChange={(e) => setPEmail(e.target.value)} placeholder="Email liên hệ" type="email" className="text-xs" />
+              <Input value={pPhone} onChange={(e) => setPPhone(e.target.value)} placeholder="Số điện thoại liên hệ" className="text-xs" />
+              <Input value={pFacebook} onChange={(e) => setPFacebook(e.target.value)} placeholder="Link fanpage Facebook" className="text-xs" />
+              <Input value={pWebsite} onChange={(e) => setPWebsite(e.target.value)} placeholder="Website / trang thông tin" className="text-xs" />
+            </div>
           </Field>
 
           {/* Các giai đoạn của dự án — tự bấm thêm từng giai đoạn */}

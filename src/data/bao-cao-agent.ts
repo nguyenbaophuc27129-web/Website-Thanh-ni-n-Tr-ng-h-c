@@ -258,6 +258,32 @@ export const PHUONG_HUONG_LABEL: Record<PeriodKind, string> = {
 export const periodKindOf = (kind: string): PeriodKind =>
   kind === "TUAN" || kind === "THANG" || kind === "QUY" || kind === "SIX_MONTH" || kind === "NAM" ? kind : "THANG";
 
+/** Suy ra loại kỳ (tuần/tháng/quý/6 tháng/năm) từ nhãn kỳ hoặc khoảng ngày —
+ *  dùng khi client không gửi periodKind để phần IV không luôn in nhãn "tháng tới". */
+export function inferPeriodKind(label?: string, start?: string, end?: string): PeriodKind {
+  const lower = (label ?? "").toLowerCase();
+  if (/6 tháng|sáu tháng|nửa đầu năm|nửa cuối năm/.test(lower)) return "SIX_MONTH";
+  if (/tuần/.test(lower)) return "TUAN";
+  if (/quý/.test(lower)) return "QUY";
+  if (/tháng/.test(lower)) return "THANG";
+  if (/năm/.test(lower)) return "NAM";
+  const toD = (s?: string): Date | null => {
+    const m = (s ?? "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  };
+  const a = toD(start);
+  const b = toD(end);
+  if (a && b && b >= a) {
+    const days = Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1;
+    if (days <= 14) return "TUAN";
+    if (days <= 45) return "THANG";
+    if (days <= 120) return "QUY";
+    if (days <= 240) return "SIX_MONTH";
+    return "NAM";
+  }
+  return "THANG";
+}
+
 /** Quy tắc lọc R1 - R4 + gán mục R5 - R8 + gắn chỉ tiêu R9 - R10 (rút nguyên văn) */
 export const R_RULES: string[] = [
   "R1 - Kỳ báo cáo: ngày diễn ra nằm ngoài kỳ thì không đưa vào phần I. Hoạt động đã diễn ra trước kỳ: trạng thái NGOAI_KY. Hoạt động diễn ra sau kỳ: trạng thái PHUONG_HUONG (viết ở phần IV). Căn cứ là NGÀY DIỄN RA, không phải ngày đăng bài.",

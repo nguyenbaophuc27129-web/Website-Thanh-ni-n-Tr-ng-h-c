@@ -14,6 +14,7 @@ interface ChatMessage {
 
 const SUGGESTIONS = [
   "Soạn báo cáo tháng của đơn vị",
+  "Soạn công văn mời phối hợp tổ chức hoạt động",
   "Viết kế hoạch hoạt động tháng 11",
   "Hỏi quy chế Học sinh 3 tốt",
 ];

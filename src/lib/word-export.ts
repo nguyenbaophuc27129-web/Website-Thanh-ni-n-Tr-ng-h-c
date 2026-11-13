@@ -153,6 +153,7 @@ export interface DraftWordInput {
   noiNhan?: string[]; // đè danh sách nơi nhận (nếu bỏ trống bắt từ bản nháp, fallback theo mẫu)
   signOrg?: string; // "TM. BAN THƯỜNG VỤ THÀNH ĐOÀN" — suy ra từ tên đơn vị nếu bỏ trống
   signTitle?: string; // "BÍ THƯ"
+  signerName?: string; // họ tên người ký — bắt từ bản nháp nếu bỏ trống (QĐ 27-HĐ mục 7)
 }
 
 const isThucTheLine = (s: string): boolean =>
@@ -165,7 +166,15 @@ const isThucTheLine = (s: string): boolean =>
 const isDivider = (s: string): boolean => /^-{3,}$/.test(s.trim());
 const isRomanHeading = (s: string): boolean => /^[IVX]+\.\s+\S/.test(s.trim());
 const isNumHeading = (s: string): boolean => /^\d+\.\s+\S/.test(s.trim()) || /^\d+\.\d+\.\s+\S/.test(s.trim());
-const isSignBlock = (s: string): boolean => /^(TM\.|BÍ THƯ|CHỦ TỊCH|PHÓ BÍ THƯ)/i.test(s.trim());
+const isSignBlock = (s: string): boolean =>
+  /^(TM\.|KT\.|TL\.|OĐ\.|TĐL\.|ĐK\.|BÍ THƯ|CHỦ TỊCH|PHÓ BÍ THƯ|THƯ KÝ|ĐOÀN CHỦ TỊCH|ĐOÀN THƯ KÝ|CHÁNH VĂN PHÒNG|Q\. TRƯỞNG|TRƯỞNG BAN|PHÓ TRƯỞNG)/i.test(
+    s.trim()
+  );
+/** Dòng "(Chữ ký)" / "(chữ ký)" trong bản nháp AI — không in vào file Word */
+const isSignPlaceholder = (s: string): boolean => /^\(chữ ký\)\.?$|^ký tên\.?$/i.test(s.trim());
+/** Tên người ký: các từ viết hoa in thường, không dấu câu (VD "Nguyễn Văn A") */
+const isPersonName = (s: string): boolean =>
+  /^[\p{Lu}][\p{L}\s.]{3,39}$/u.test(s.trim()) && !/[,:;!?(){}[\]"']/.test(s) && !isAllCaps(s) && !isSignBlock(s);
 const TITLE_RE = /^(báo cáo|chương trình|kế hoạch|nghị quyết|chỉ thị|hướng dẫn|tổng kết)\b/i;
 const isDateLine = (s: string): boolean => /ngày\s+\d+\s+tháng\s+\d+\s+năm/i.test(s.trim());
 const isAllCaps = (s: string): boolean => {
@@ -266,6 +275,9 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
   let inPhuLuc = false;
   let phuLucHead = false;
   let sawSection = false;
+  /** Dòng kế sau khối đề ký là họ tên người ký → in vào chân trang theo thể thức QĐ 27-HĐ */
+  let pendingSignName = false;
+  let signerName = i.signerName ?? null;
   let tableBuf: string[][] | null = null;
   const flushTable = () => {
     if (tableBuf) {
@@ -316,9 +328,16 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
     }
     collectingNn = false;
     if (isSignBlock(line)) {
-      if (/^TM\./i.test(line)) signOrg = signOrg ?? line;
+      if (/^TM\.|KT\.|TL\./i.test(line)) signOrg = signOrg ?? line;
       else signTitle = signTitle ?? line;
+      pendingSignName = true;
       continue;
+    }
+    if (pendingSignName) {
+      // Bỏ qua dòng "(Chữ ký)"; dòng sau chức danh là họ tên người ký → giữ để in chân trang
+      if (isSignPlaceholder(line)) continue;
+      if (signerName === null && isPersonName(line)) signerName = line;
+      pendingSignName = false;
     }
     if (/^Phần thứ\s+\S+/i.test(line)) {
       paras.push(`<p style="text-align:center;margin:3pt 0 3pt;font-weight:bold;">${mdInline(line)}</p>`);
@@ -342,6 +361,11 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
     if (isDivider(line)) {
       phuLucHead = false;
       paras.push(`<p style="text-align:center;margin:0 0 6pt;">-----------</p>`);
+      continue;
+    }
+    // Trích yếu công văn "V/v …" — chữ thường nghiêng căn giữa ngay dưới số - ký hiệu (QĐ 27-HĐ mục 5)
+    if (/^V\/v/i.test(line)) {
+      paras.push(`<p style="text-align:center;margin:0 0 3pt;font-style:italic;">${mdInline(line)}</p>`);
       continue;
     }
     // cụm dẫn nhập ngắn kết thúc ":" → in nghiêng (Ưu điểm:/Hạn chế:/Học tập và làm theo…:)
@@ -415,6 +439,7 @@ ${subtitles.map((s) => `<p style="text-align:center;margin:0;font-weight:bold;">
     <p style="margin:0;font-size:14pt;font-weight:bold;">${esc(finalSignOrg)}</p>
     <p style="margin:18pt 0;">&nbsp;</p>
     <p style="margin:0;font-weight:bold;">${esc((signTitle ?? i.signTitle ?? "BÍ THƯ").toUpperCase())}</p>
+    ${signerName ? `<p style="margin:24pt 0 0;font-weight:bold;">${esc(signerName)}</p>` : ""}
   </td>
 </tr>
 </table>`;

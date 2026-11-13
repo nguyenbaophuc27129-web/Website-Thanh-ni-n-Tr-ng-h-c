@@ -14,11 +14,12 @@ import {
   Eye,
   Edit3,
   HelpCircle,
+  FileText,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
-import { submitStory } from "@/lib/binh-chon";
+import { EVIDENCE_PDF_MAX_BYTES, submitStory } from "@/lib/binh-chon";
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
 import { PhotoStudio } from "./photo-studio";
@@ -150,6 +151,9 @@ export function SubmitModal({
   const [galleryItems, setGalleryItems] = useState<{ dataUrl: string; caption: string }[]>([]);
   const galleryPickRef = useRef<HTMLInputElement>(null);
   const gallerySlotRef = useRef<number>(0);
+  /** Minh chứng bằng khen/giấy khen — tối đa 3 tệp PDF, bắt buộc khi danh hiệu cấp Trường/Tỉnh */
+  const [evidenceItems, setEvidenceItems] = useState<{ dataUrl: string; name: string }[]>([]);
+  const evidencePickRef = useRef<HTMLInputElement>(null);
   const [studioOpen, setStudioOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -166,6 +170,7 @@ export function SubmitModal({
       setWardName("");
       setProvinceName("");
       setGalleryItems([]);
+      setEvidenceItems([]);
       orgTouchedRef.current = false;
     }
   }, [open]);
@@ -201,11 +206,14 @@ export function SubmitModal({
     if (textareaRef.current) textareaRef.current.focus();
   };
 
+  const hasEvidence = evidenceItems.some((ev) => ev.dataUrl);
   const valid =
     studentName.trim().length >= 2 &&
     story.trim().length >= 30 &&
     Boolean(full) &&
-    Boolean(thumb);
+    Boolean(thumb) &&
+    // Bắt buộc ≥1 minh chứng PDF với danh hiệu cấp Trường/Tỉnh (cấp TW dò trên khenthuong.doanthanhnien.vn)
+    (honor === "TW_DE_CU" || hasEvidence);
 
   const send = async () => {
     if (!valid || sending) return;
@@ -229,6 +237,12 @@ export function SubmitModal({
             .slice(0, 3)
             .map((g) => ({ dataUrl: g.dataUrl, caption: g.caption.trim() || undefined }))
         : undefined,
+      evidenceFiles: hasEvidence
+        ? evidenceItems
+            .filter((ev) => ev.dataUrl)
+            .slice(0, 3)
+            .map((ev) => ({ dataUrl: ev.dataUrl, name: ev.name || undefined }))
+        : undefined,
       credential: session ? undefined : credentialRef?.current || undefined,
     });
     setSending(false);
@@ -249,6 +263,7 @@ export function SubmitModal({
     setFull("");
     setThumb("");
     setGalleryItems([]);
+    setEvidenceItems([]);
     orgTouchedRef.current = false;
     onSubmitted();
     onClose();
@@ -627,6 +642,102 @@ export function SubmitModal({
                     });
                   })
                   .catch(() => setError("Không đọc được ảnh — chọn tệp ảnh khác nhé."));
+              }}
+            />
+          </div>
+
+          {/* MINH CHỨNG BẰNG KHEN / GIẤY KHEN (PDF) — bắt buộc cấp Trường/Tỉnh, TW dò khenthuong.doanthanhnien.vn */}
+          <div className="sm:col-span-2 space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-stone-800">
+                Minh chứng bằng khen / giấy khen{" "}
+                {honor === "TW_DE_CU" ? (
+                  <span className="text-stone-400 font-normal">(không bắt buộc)</span>
+                ) : (
+                  <span className="text-red-500">*</span>
+                )}
+              </label>
+              {evidenceItems.filter((ev) => ev.dataUrl).length > 0 ? (
+                <span className="text-[11px] text-stone-400">
+                  {evidenceItems.filter((ev) => ev.dataUrl).length}/3 tệp ·{" "}
+                  {evidenceItems.filter((ev) => ev.dataUrl).reduce((n, ev) => n + kb(ev.dataUrl), 0)} KB
+                </span>
+              ) : null}
+            </div>
+            {honor === "TW_DE_CU" ? (
+              <p className="rounded-lg bg-stone-50 px-3 py-2 text-[11px] text-stone-500">
+                Danh hiệu cấp Trung ương không cần đính kèm minh chứng — Ban tổ chức đối chiếu trực tiếp trên hệ
+                thống khenthuong.doanthanhnien.vn.
+              </p>
+            ) : null}
+            <div className="space-y-1.5">
+              {evidenceItems.map((ev, i) =>
+                ev.dataUrl ? (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5"
+                  >
+                    <FileText className="h-4 w-4 shrink-0 text-red-500" />
+                    <span className="min-w-0 flex-1 truncate text-xs text-stone-700" title={ev.name}>
+                      {ev.name || "minh-chung.pdf"}
+                    </span>
+                    <span className="text-[10px] text-stone-400">{kb(ev.dataUrl)} KB</span>
+                    <button
+                      type="button"
+                      onClick={() => setEvidenceItems((list) => list.filter((_, gi) => gi !== i))}
+                      className="text-[10px] font-semibold text-rose-500 hover:text-rose-700"
+                    >
+                      Xoá
+                    </button>
+                  </div>
+                ) : null
+              )}
+              {evidenceItems.filter((ev) => ev.dataUrl).length < 3 ? (
+                <button
+                  type="button"
+                  onClick={() => evidencePickRef.current?.click()}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 bg-stone-50 px-4 py-3 text-xs font-medium text-stone-500 hover:border-[#F26522]/60 hover:bg-[#FFF6EE]"
+                >
+                  <FileText className="h-4 w-4" />
+                  {hasEvidence ? "Thêm tệp minh chứng (PDF)" : "Chọn tệp PDF bằng khen / giấy khen"}
+                </button>
+              ) : null}
+              <p className="px-1 text-[11px] text-stone-400">
+                Tối đa 3 tệp PDF, mỗi tệp ≤ 5MB — bản scan/chụp rõ chữ của bằng khen, giấy khen đã đạt (bắt buộc
+                với danh hiệu cấp Trường hoặc cấp Tỉnh).
+              </p>
+            </div>
+            <input
+              ref={evidencePickRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (!files.length) return;
+                setError("");
+                for (const f of files) {
+                  const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+                  if (!isPdf) {
+                    setError("Minh chứng phải là tệp PDF — hãy chuyển đổi trước khi đính kèm.");
+                    continue;
+                  }
+                  if (f.size > EVIDENCE_PDF_MAX_BYTES) {
+                    setError(`Tệp "${f.name}" vượt 5MB — hãy nén hoặc scan lại với độ phân giải thấp hơn.`);
+                    continue;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () =>
+                    setEvidenceItems((list) =>
+                      list.length >= 3 || list.some((x) => x.dataUrl === String(reader.result))
+                        ? list
+                        : [...list, { dataUrl: String(reader.result), name: f.name.slice(0, 255) }]
+                    );
+                  reader.onerror = () => setError("Không đọc được tệp PDF — thử lại nhé.");
+                  reader.readAsDataURL(f);
+                }
               }}
             />
           </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, sessionFromToken } from "@/lib/server/auth";
+import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 import { callAI } from "@/lib/ai-client";
 import { cleanAiText } from "@/lib/ai-text";
 import { EMPTY_SECTION_SENTENCE, MO_DAU_PREFIX, NV_GROUPS } from "@/data/bao-cao-agent";
@@ -49,21 +49,15 @@ async function editWithAI(content: string, instruction: string): Promise<{ conte
 
 /** POST /api/ai/chinh-bao-cao — { content, instruction } → { ok, content, model } */
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  let session = null;
-  if (token) {
-    try {
-      session = await sessionFromToken(token);
-    } catch {
-      session = null;
-    }
-  }
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "Bạn cần đăng nhập để dùng chức năng này." }, { status: 401 });
-  }
-  if (session.role === "DOAN_VIEN") {
-    return NextResponse.json({ ok: false, error: "Chức năng dành cho cán bộ quản trị." }, { status: 403 });
-  }
+  // Chỉ cán bộ + giới hạn lượt theo tài khoản và trần AI chung
+  const gate = await guardRequest(request, {
+    access: "staff",
+    bucket: "ai-chinh-bao-cao",
+    windowMs: 10 * 60_000,
+    perAccount: 20,
+    global: AI_GLOBAL_LIMIT,
+  });
+  if (!gate.ok) return gate.response;
 
   const payload = (await request.json().catch(() => null)) as
     | { content?: string; instruction?: string }

@@ -448,6 +448,31 @@ export default function QuanTriBinhChonPage() {
                       <p className="mt-2 rounded-md bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">Lý do từ chối: {s.rejectionReason}</p>
                     ) : null}
 
+                    {(s.evidenceFiles?.length ?? 0) > 0 ? (
+                      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-stone-500">
+                        <span className="inline-flex items-center gap-1 font-semibold">
+                          <FileText className="h-3 w-3 text-red-400" /> Minh chứng:
+                        </span>
+                        {(s.evidenceFiles ?? []).map((ev, i) => (
+                          <a
+                            key={i}
+                            href={ev.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            download={ev.name}
+                            className="max-w-44 truncate font-medium text-blue-600 hover:underline"
+                            title={ev.name ?? `Tệp ${i + 1}`}
+                          >
+                            {ev.name || `Tệp ${i + 1}`}
+                          </a>
+                        ))}
+                      </p>
+                    ) : s.honorLevel !== "TW_DE_CU" && s.status === "PENDING" ? (
+                      <p className="mt-2 text-[11px] text-amber-600">
+                        Chưa có minh chứng PDF — danh hiệu cấp Trường/Tỉnh cần tối thiểu 1 bằng khen/giấy khen.
+                      </p>
+                    ) : null}
+
                     {s.status === "PENDING" ? (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <Select
@@ -591,6 +616,32 @@ export default function QuanTriBinhChonPage() {
               </div>
             </div>
             <div className="rounded-lg bg-stone-50 p-4 border border-stone-200"><StoryContent content={viewStory.story} /></div>
+            {/* Minh chứng bằng khen/giấy khen (PDF) — mở tab mới để đối chiếu */}
+            <div className="rounded-lg border border-stone-200 p-3">
+              <p className="text-xs font-bold text-stone-600">Minh chứng bằng khen / giấy khen</p>
+              {(viewStory.evidenceFiles?.length ?? 0) > 0 ? (
+                <ul className="mt-1.5 space-y-1">
+                  {viewStory.evidenceFiles!.map((ev, i) => (
+                    <li key={i} className="flex items-center gap-2 text-xs">
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <a
+                        href={ev.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        download={ev.name}
+                        className="truncate font-medium text-blue-600 hover:underline"
+                      >
+                        {ev.name || `Minh chứng ${i + 1}`}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-stone-400">
+                  Không có tệp đính kèm{viewStory.honorLevel === "TW_DE_CU" ? " (danh hiệu cấp TW — đối chiếu trên khenthuong.doanthanhnien.vn)" : ""}.
+                </p>
+              )}
+            </div>
           </div>
         ) : null}
       </Modal>

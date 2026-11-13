@@ -60,6 +60,24 @@ export async function POST(request: NextRequest) {
   if (phaseList.length > 20) return fail("Tối đa 20 giai đoạn.");
   if (!PHASES.has(phase)) return fail("Giai đoạn không hợp lệ.");
 
+  // Kênh liên hệ (tùy chọn) — kiểm định dạng khi người dùng điền
+  const optContact = (v: unknown, max: number) => str(v).slice(0, max) || null;
+  const contactEmail = optContact(body.contactEmail, 254);
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail)) return fail("Email liên hệ không hợp lệ.");
+  const contactPhone = optContact(body.contactPhone, 20);
+  if (contactPhone && !/^[0-9+()\s.\-]{8,20}$/.test(contactPhone)) return fail("Số điện thoại liên hệ không hợp lệ.");
+  const linkOf = (v: unknown): string | null => {
+    let s = str(v).trim();
+    if (!s) return null;
+    if (/^(https?:\/\/)/i.test(s)) return s.slice(0, 255);
+    if (/^(www\.|facebook\.com|fb\.com|m\.facebook\.com)/i.test(s)) return `https://${s}`.slice(0, 255);
+    return null;
+  };
+  const contactFacebook = linkOf(body.contactFacebook);
+  const contactWebsite = linkOf(body.contactWebsite);
+  if (contactFacebook && !/facebook\.com|fb\.(com|me)/i.test(contactFacebook)) return fail("Link liên hệ Facebook không hợp lệ.");
+  if (contactWebsite && !/^https:\/\//i.test(contactWebsite)) return fail("Website phải bắt đầu bằng https://");
+
   let reportName: string | null = null;
   let reportPath: string | null = null;
   const rf = body.reportFile as { name?: unknown; dataUrl?: unknown } | null | undefined;
@@ -87,12 +105,14 @@ export async function POST(request: NextRequest) {
       const r = await client.query(
         `INSERT INTO volunteer_projects (org_unit_id, school_name, province, project_name, summary, beneficiaries,
            participants, status, submitted_by_account_id, field, phase, ai_verdict, ai_reason, report_file_name, report_file_data,
-           ward, objectives, timeframe, initial_results, direction, phases)
+           ward, objectives, timeframe, initial_results, direction, phases,
+           contact_email, contact_phone, contact_facebook, contact_website)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8, $9, $10, $11, $12, $13, $14,
-           $15, $16, $17, $18, $19, $20::jsonb) RETURNING *`,
+           $15, $16, $17, $18, $19, $20::jsonb, $21, $22, $23, $24) RETURNING *`,
         [session.orgUnitId, unit.name.slice(0, 255), province, projectName, summary, beneficiaries, participants,
           session.accountId, field, phase, mod.verdict, mod.reason ?? null, reportName, reportPath,
-          ward, objectives, timeframe, initialResults, direction, JSON.stringify(phaseList)],
+          ward, objectives, timeframe, initialResults, direction, JSON.stringify(phaseList),
+          contactEmail, contactPhone, contactFacebook, contactWebsite],
       );
       const p = r.rows[0] as Record<string, unknown>;
       if (mod.verdict === "FLAGGED") {

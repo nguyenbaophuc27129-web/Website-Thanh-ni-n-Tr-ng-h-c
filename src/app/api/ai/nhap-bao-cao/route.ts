@@ -3,7 +3,7 @@ import { callAI } from "@/lib/ai-client";
 import { AI_GLOBAL_LIMIT, guardRequest } from "@/lib/server/require-session";
 import { cleanAiText } from "@/lib/ai-text";
 import { buildDocContext } from "@/lib/server/doc-context";
-import { buildBaoCaoSystemPrompt, periodKindOf } from "@/data/bao-cao-agent";
+import { buildBaoCaoSystemPrompt, inferPeriodKind, periodKindOf } from "@/data/bao-cao-agent";
 import {
   aggregateSection2,
   buildRepairInstruction,
@@ -173,7 +173,14 @@ export async function POST(request: Request) {
   if (Array.isArray(payload?.classified) && JSON.stringify(payload.classified).length > MAX_CTX_CHARS) {
     return NextResponse.json({ ok: false, error: "Dữ liệu phân loại quá lớn để tạo nháp." }, { status: 413 });
   }
-  const normalized: ReportDraftContext = { ...ctx, periodKind: periodKindOf(ctx.periodKind ?? "") };
+  // periodKind: giữ loại kỳ hợp lệ do client gửi, thiếu/sai thì suy từ nhãn + khoảng ngày
+  const normalized: ReportDraftContext = {
+    ...ctx,
+    periodKind:
+      ctx.periodKind && periodKindOf(ctx.periodKind) === ctx.periodKind
+        ? ctx.periodKind
+        : inferPeriodKind(ctx.period, ctx.periodStart, ctx.periodEnd),
+  };
   try {
     if (Array.isArray(payload?.classified) && payload.classified.length > 0) {
       const { content, model, checks, repaired } = await draftWithClassified(normalized, payload.classified);

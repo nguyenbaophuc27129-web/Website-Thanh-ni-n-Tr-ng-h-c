@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, X, ShieldAlert, ShieldCheck, LibraryBig, Users, ExternalLink, Paperclip } from "lucide-react";
+import { Check, X, ShieldAlert, ShieldCheck, LibraryBig, Users, ExternalLink, Paperclip, Mail, Phone, Share2, Globe } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
@@ -180,6 +180,33 @@ export default function DuAnAdminPage() {
                             )}
                           </span>
                         </p>
+                      ) : null}
+                      {p.contactEmail || p.contactPhone || p.contactFacebook || p.contactWebsite ? (
+                        <div className="mt-3 border-t border-stone-200 pt-2.5">
+                          <p className="text-xs font-bold text-stone-600">Kênh liên hệ</p>
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-stone-600">
+                            {p.contactEmail ? (
+                              <a href={`mailto:${p.contactEmail}`} className="inline-flex items-center gap-1.5 text-blue-600 hover:underline">
+                                <Mail className="h-3.5 w-3.5 text-stone-400" /> {p.contactEmail}
+                              </a>
+                            ) : null}
+                            {p.contactPhone ? (
+                              <a href={`tel:${p.contactPhone}`} className="inline-flex items-center gap-1.5 text-blue-600 hover:underline">
+                                <Phone className="h-3.5 w-3.5 text-stone-400" /> {p.contactPhone}
+                              </a>
+                            ) : null}
+                            {p.contactFacebook ? (
+                              <a href={p.contactFacebook} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-blue-600 hover:underline">
+                                <Share2 className="h-3.5 w-3.5 text-stone-400" /> Facebook
+                              </a>
+                            ) : null}
+                            {p.contactWebsite ? (
+                              <a href={p.contactWebsite} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-blue-600 hover:underline">
+                                <Globe className="h-3.5 w-3.5 text-stone-400" /> Website
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
                       ) : null}
                     </div>
 

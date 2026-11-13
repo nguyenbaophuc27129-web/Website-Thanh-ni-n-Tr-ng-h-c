@@ -44,6 +44,12 @@ function currentProvider(): "gemini" | "claude" {
     : "gemini";
 }
 
+/** Trần thời gian chờ mỗi lượt gọi AI — không để request treo vô hạn khi nhà cung cấp không phản hồi. */
+const AI_TIMEOUT_MS = 120_000;
+const CLAUDE_TIMEOUT_MS = 90_000;
+const isTimeoutErr = (e: unknown) =>
+  e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+
 /** Route dùng để chọn thông báo lỗi thân thiện khi chưa cấu hình key. */
 export function aiConfigError(): string | null {
   const provider = currentProvider();
@@ -74,6 +80,7 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
       : options.system;
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
@@ -91,7 +98,11 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
     const data = (await res.json()) as {
       content?: Array<{ type?: string; text?: string }>;
       model?: string;
+      stop_reason?: string;
     };
+    if (data.stop_reason === "max_tokens") {
+      throw new Error("Claude cắt mất phần trả lời vì vượt giới hạn max_tokens — cần tăng maxTokens rồi thử lại.");
+    }
     const text = (data.content?.find((b) => b.type === "text")?.text ?? "").trim();
     if (!text) throw new Error("Claude trả về nội dung rỗng");
     return { text, model: data.model ?? model };
@@ -116,6 +127,7 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
     try {
       const reqInit: RequestInit = {
         method: "POST",
+        signal: AbortSignal.timeout(AI_TIMEOUT_MS),
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": apiKey,
@@ -174,16 +186,23 @@ export async function callAI(options: AiCallOptions): Promise<AiCallResult> {
       }
 
       const data = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
         modelVersion?: string;
       };
+      const finishReason = data.candidates?.[0]?.finishReason ?? "";
       const text = (data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "").trim();
+      // Bị cắt giữa chừng (đạt trần token) — trả về cụt sẽ phá JSON/số liệu, phải báo lỗi rõ
+      if (finishReason === "MAX_TOKENS") {
+        throw new Error("Gemini cắt mất phần trả lời vì vượt giới hạn maxOutputTokens — cần tăng maxTokens rồi thử lại.");
+      }
       if (!text) {
-        throw new Error("Gemini trả về nội dung rỗng (có thể do bộ lọc an toàn)");
+        throw new Error(`Gemini trả về nội dung rỗng${finishReason && finishReason !== "STOP" ? ` (finishReason: ${finishReason}, có thể do bộ lọc an toàn)` : " (có thể do bộ lọc an toàn)"}`);
       }
       return { text, model: data.modelVersion ?? model };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      // Mạng/nhà cung cấp treo (timeout) — model khác cũng sẽ treo, dừng ngay để không kéo dài request
+      if (isTimeoutErr(err)) throw lastError;
       // Lỗi call/lọc an toàn — bỏ sang model dự phòng (nếu còn)
       break;
     }

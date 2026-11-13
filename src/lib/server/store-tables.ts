@@ -447,6 +447,8 @@ export const ENTITY_SPECS: Record<string, EntitySpec> = {
       objectives: f("objectives", "str"), timeframe: f("timeframe", "str"),
       initialResults: f("initial_results", "str"), direction: f("direction", "str"),
       phases: f("phases", "json"),
+      contactEmail: f("contact_email", "str"), contactPhone: f("contact_phone", "str"),
+      contactFacebook: f("contact_facebook", "str"), contactWebsite: f("contact_website", "str"),
       beneficiaries: f("beneficiaries", "str"), participants: f("participants", "int"),
       status: f("status", "str"), submittedByAccountId: f("submitted_by_account_id", "int"),
       field: f("field", "str"), phase: f("phase", "str"),

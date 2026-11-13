@@ -6,14 +6,21 @@ import {
   dataUrlGuard,
   getActiveCampaign,
   moderateStoryText,
+  pdfDataUrlGuard,
   STORY_DETAIL_SELECT,
   STORY_SELECT,
   toStoryDto,
 } from "@/lib/server/binh-chon";
 import { verifyGoogleCredential } from "@/lib/server/google-verify";
-import { MediaError, storeImageDataUrl } from "@/lib/server/media";
+import { MediaError, storeDocumentDataUrl, storeImageDataUrl } from "@/lib/server/media";
 import { readVoteEmail, setVoteEmail } from "@/lib/server/vote-cookie";
-import { FULL_PHOTO_MAX_BYTES, PAGE_SIZE, THUMB_PHOTO_MAX_BYTES } from "@/lib/binh-chon";
+import {
+  EVIDENCE_MAX_COUNT,
+  EVIDENCE_PDF_MAX_BYTES,
+  FULL_PHOTO_MAX_BYTES,
+  PAGE_SIZE,
+  THUMB_PHOTO_MAX_BYTES,
+} from "@/lib/binh-chon";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -215,6 +222,7 @@ export async function POST(request: NextRequest) {
         photoDataUrl?: string;
         photoThumbDataUrl?: string;
         gallery?: { dataUrl?: string; caption?: string }[];
+        evidenceFiles?: { dataUrl?: string; name?: string }[];
         credential?: string;
       }
     | null;
@@ -282,6 +290,29 @@ export async function POST(request: NextRequest) {
     gallery.push({ data_url: g.dataUrl, caption: String(g?.caption ?? "").trim().slice(0, 300) || null });
   }
 
+  // Minh chứng bằng khen/giấy khen (PDF): BẮT BUỘC ≥ 1 tệp khi danh hiệu cấp Trường/Tỉnh.
+  // Cấp TW không cần — khen thưởng TW dò trên khenthuong.doanthanhnien.vn.
+  const evidenceRaw = Array.isArray(body?.evidenceFiles) ? body.evidenceFiles : [];
+  if (honorLevel !== "TW_DE_CU" && evidenceRaw.length === 0) {
+    return NextResponse.json(
+      { ok: false, error: "Cần đính kèm tối thiểu 1 minh chứng bằng khen/giấy khen (PDF) cho danh hiệu cấp Trường hoặc cấp Tỉnh." },
+      { status: 400 }
+    );
+  }
+  if (evidenceRaw.length > EVIDENCE_MAX_COUNT) {
+    return NextResponse.json({ ok: false, error: `Tối đa ${EVIDENCE_MAX_COUNT} tệp minh chứng.` }, { status: 400 });
+  }
+  const evidence: { data_url: string; name: string | null }[] = [];
+  for (const ev of evidenceRaw) {
+    if (!pdfDataUrlGuard(ev?.dataUrl, EVIDENCE_PDF_MAX_BYTES)) {
+      return NextResponse.json(
+        { ok: false, error: "Minh chứng phải là tệp PDF hợp lệ, mỗi tệp không vượt 5MB." },
+        { status: 400 }
+      );
+    }
+    evidence.push({ data_url: ev.dataUrl, name: String(ev?.name ?? "").trim().slice(0, 255) || "minh-chung.pdf" });
+  }
+
   if (accountId !== null) {
     const school = await query<{ id: number }>("SELECT id FROM org_units WHERE id = $1 AND deleted_at IS NULL", [
       orgUnitId,
@@ -295,22 +326,26 @@ export async function POST(request: NextRequest) {
   const textToModerate = [storySafe, quote, achievements].filter(Boolean).join("\n");
   const moderation = await moderateStoryText(textToModerate);
 
-  // Ảnh lưu thành tệp trên máy chủ (/uploads/binh-chon/...) — DB chỉ giữ đường dẫn, không giữ base64
+  // Ảnh/tệp lưu thành tệp trên máy chủ (/uploads/binh-chon/...) — DB chỉ giữ đường dẫn, không giữ base64
   let photoUrl: string;
   let photoThumbUrl: string;
   const galleryStored: { data_url: string; caption: string | null }[] = [];
+  const evidenceStored: { data_url: string; name: string | null }[] = [];
   try {
     photoUrl = await storeImageDataUrl(body!.photoDataUrl!, "binh-chon", accountId);
     photoThumbUrl = await storeImageDataUrl(body!.photoThumbDataUrl!, "binh-chon", accountId);
     for (const g of gallery) {
       galleryStored.push({ data_url: await storeImageDataUrl(g.data_url, "binh-chon", accountId), caption: g.caption });
     }
+    for (const ev of evidence) {
+      evidenceStored.push({ data_url: await storeDocumentDataUrl(ev.data_url, "binh-chon", accountId), name: ev.name });
+    }
   } catch (err) {
     if (err instanceof MediaError) {
-      return NextResponse.json({ ok: false, error: `Ảnh không hợp lệ: ${err.message}` }, { status: 400 });
+      return NextResponse.json({ ok: false, error: `Tệp đính kèm không hợp lệ: ${err.message}` }, { status: 400 });
     }
-    console.error("[BINH_CHON] Lỗi lưu ảnh:", err);
-    return NextResponse.json({ ok: false, error: "Máy chủ chưa lưu được ảnh — vui lòng thử lại." }, { status: 500 });
+    console.error("[BINH_CHON] Lỗi lưu tệp đính kèm:", err);
+    return NextResponse.json({ ok: false, error: "Máy chủ chưa lưu được tệp đính kèm — vui lòng thử lại." }, { status: 500 });
   }
 
   try {
@@ -318,8 +353,8 @@ export async function POST(request: NextRequest) {
       `INSERT INTO hs3t_stories
         (campaign_id, account_id, student_name, school_org_unit_id, class_name, quote, story,
          achievements, org_display_name, ward_name, province_name, honor_level,
-         photo_data_url, photo_thumb_data_url, gallery, ai_verdict, ai_reason, ai_model, submitter_email, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'PENDING') RETURNING id`,
+         photo_data_url, photo_thumb_data_url, gallery, evidence_files, ai_verdict, ai_reason, ai_model, submitter_email, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'PENDING') RETURNING id`,
       [
         campaign.id,
         accountId,
@@ -335,8 +370,9 @@ export async function POST(request: NextRequest) {
         honorLevel,
         photoUrl,
         photoThumbUrl,
-        // Cột gallery NOT NULL DEFAULT '[]' — không có ảnh kèm thì ghi mảng rỗng, KHÔNG ghi NULL
+        // Cột gallery/evidence_files NOT NULL DEFAULT '[]' — không có thì ghi mảng rỗng, KHÔNG ghi NULL
         JSON.stringify(galleryStored),
+        JSON.stringify(evidenceStored),
         moderation.verdict,
         moderation.reason ?? null,
         moderation.model ?? null,

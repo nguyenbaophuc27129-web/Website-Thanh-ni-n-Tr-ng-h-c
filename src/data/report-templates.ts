@@ -95,11 +95,11 @@ export const reportTemplates: ReportTemplate[] = [
   },
 ];
 
-/** Tìm mẫu báo cáo theo ID, tương thích ngược các mã cũ */
+/** Tìm mẫu báo cáo theo ID (map thay vì chỉ mục cứng — an toàn khi thêm mẫu mới), tương thích ngược các mã cũ */
 export const templateById = (id: string): ReportTemplate => {
-  if (id === "CHINH_TRI_TONG_KET" || id === "SUMMARY") {
-    return reportTemplates[1];
-  }
+  const byId = reportTemplates.find((t) => t.id === id);
+  if (byId) return byId;
+  if (id === "SUMMARY") return reportTemplates.find((t) => t.id === "CHINH_TRI_TONG_KET") ?? reportTemplates[0];
   return reportTemplates[0];
 };
 

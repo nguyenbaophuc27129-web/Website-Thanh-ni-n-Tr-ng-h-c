@@ -8,6 +8,9 @@ import type { BinhChonStory, VoteCampaign } from "@/types";
 export const PAGE_SIZE = 12;
 export const FULL_PHOTO_MAX_BYTES = 2 * 1024 * 1024; // 2MB — ảnh full 640x853
 export const THUMB_PHOTO_MAX_BYTES = 400 * 1024; // 400KB — thumb 320x427
+/** Minh chứng bằng khen/giấy khen: tối đa 3 tệp PDF, mỗi tệp ≤ 5MB */
+export const EVIDENCE_MAX_COUNT = 3;
+export const EVIDENCE_PDF_MAX_BYTES = 5 * 1024 * 1024;
 
 export interface BinhChonStats {
   approvedStories: number;
@@ -64,6 +67,8 @@ export interface SubmitStoryInput {
   photoThumbDataUrl: string;
   /** Tối đa 3 ảnh kèm caption tự do (client nén sẵn, mỗi ảnh ≤ ~1.5MB) */
   gallery?: { dataUrl: string; caption?: string }[];
+  /** Minh chứng bằng khen/giấy khen — tối đa 3 tệp PDF (bắt buộc khi danh hiệu cấp Trường/Tỉnh) */
+  evidenceFiles?: { dataUrl: string; name?: string }[];
   /** Google ID token đã xác thực — bắt buộc khi gửi bài KHÔNG qua tài khoản */
   credential?: string;
 }

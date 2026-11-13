@@ -684,6 +684,13 @@ export interface VolunteerProject {
   direction?: string;
   /** Các giai đoạn triển khai của dự án */
   phases?: VolunteerProjectPhaseEntry[];
+  /** Kênh liên hệ của dự án (tùy chọn, hiển thị công khai) */
+  contactEmail?: string;
+  contactPhone?: string;
+  /** Link fanpage / nhóm Facebook của dự án */
+  contactFacebook?: string;
+  /** Website / trang thông tin của dự án */
+  contactWebsite?: string;
   aiVerdict?: "CLEAN" | "FLAGGED";
   aiReason?: string;
   moderatedByAccountId?: number;
@@ -868,6 +875,8 @@ export interface BinhChonStory {
   photoDataUrl?: string;
   /** Thư viện tối đa 3 ảnh kèm caption tự do (chỉ trả ở endpoint detail) */
   gallery?: { dataUrl: string; caption?: string }[];
+  /** Minh chứng bằng khen / giấy khen — tối đa 3 tệp PDF (bắt buộc với danh hiệu cấp Trường/Tỉnh) */
+  evidenceFiles?: { url: string; name?: string }[];
   voteCount: number;
   approvedAt?: string;
   createdAt: string;
