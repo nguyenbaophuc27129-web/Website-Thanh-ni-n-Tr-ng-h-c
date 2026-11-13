@@ -31,14 +31,18 @@ export async function POST(request: NextRequest) {
   let accountId: number | null = null;
   let orgUnitId: number | null = null;
   let submitterEmail: string | null = null;
-  let defaultSchoolName = "Đoàn trường";
+  // Tên đơn vị: tài khoản nội bộ luôn lấy theo đơn vị của tài khoản (không tin dữ liệu gửi lên);
+  // khách Gmail chưa có đơn vị nội bộ nên được tự khai tên trường.
+  let unitName: string | null = null;
 
   if (session) {
     accountId = session.accountId;
     orgUnitId = session.orgUnitId;
-    submitterEmail = session.username;
+    // username của tài khoản nội bộ không phải email → dùng email tài khoản
+    submitterEmail = session.email?.trim().toLowerCase() || null;
     const unit = (await query<{ name: string }>("SELECT name FROM org_units WHERE id = $1", [session.orgUnitId]))[0];
-    if (unit) defaultSchoolName = unit.name;
+    if (!unit) return fail("Không xác định được đơn vị của tài khoản.");
+    unitName = unit.name;
   } else {
     const cred = str(body.credential);
     const googleUser = cred ? await verifyGoogleCredential(cred) : null;
@@ -58,7 +62,7 @@ export async function POST(request: NextRequest) {
   const participants = Math.round(Number(body.participants)) || 1;
   const field = str(body.field);
   const phase = str(body.phase);
-  const schoolName = (str(body.schoolName) || str(body.orgDisplayName) || defaultSchoolName).slice(0, 255);
+  const schoolName = (unitName ?? (str(body.schoolName) || str(body.orgDisplayName) || "Đoàn trường")).slice(0, 255);
 
   if (!province || province.length > 100) return fail("Tỉnh/thành không hợp lệ.");
   if (projectName.length < 8 || projectName.length > 255) return fail("Tên dự án cần từ 8 đến 255 ký tự.");
@@ -86,9 +90,10 @@ export async function POST(request: NextRequest) {
   if (phaseList.length > 20) return fail("Tối đa 20 giai đoạn.");
   if (!PHASES.has(phase)) return fail("Giai đoạn không hợp lệ.");
 
-  // Kênh liên hệ (tùy chọn) — mặc định lấy submitterEmail nếu email liên hệ trống
+  // Kênh liên hệ (tùy chọn) — kiểm định dạng khi người dùng điền
   const optContact = (v: unknown, max: number) => str(v).slice(0, max) || null;
-  const contactEmail = optContact(body.contactEmail, 254) || submitterEmail;
+  // Email liên hệ hiển thị công khai → chỉ lấy khi người gửi tự điền (form đã điền sẵn Gmail, người gửi có thể xoá)
+  const contactEmail = optContact(body.contactEmail, 254);
   if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contactEmail)) return fail("Email liên hệ không hợp lệ.");
   const contactPhone = optContact(body.contactPhone, 20);
   if (contactPhone && !/^[0-9+()\s.\-]{8,20}$/.test(contactPhone)) return fail("Số điện thoại liên hệ không hợp lệ.");
@@ -132,7 +137,7 @@ export async function POST(request: NextRequest) {
            ward, objectives, timeframe, initial_results, direction, phases,
            contact_email, contact_phone, contact_facebook, contact_website)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8, $9, $10, $11, $12, $13, $14,
-           $15, $16, $17, $18, $19, $20::jsonb, $21, $22, $23, $24) RETURNING *`,
+           $15, $16, $17, $18, $19, $20::jsonb, $21, $22, $23, $24, $25) RETURNING *`,
         [orgUnitId, schoolName, province, projectName, summary, beneficiaries, participants,
           accountId, submitterEmail, field, phase, mod.verdict, mod.reason ?? null, reportName, reportPath,
           ward, objectives, timeframe, initialResults, direction, JSON.stringify(phaseList),

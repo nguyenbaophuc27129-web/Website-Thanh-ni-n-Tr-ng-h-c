@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     ) {
       console.warn("[TNTH][AUTH] Không kết nối được CSDL:", message);
       return NextResponse.json(
-        { ok: false, error: "Không kết nối được cơ sở dữ liệu. Vui lòng kiểm tra SSH tunnel (ssh -N tnth-db)." },
+        { ok: false, error: "Hệ thống đang tạm gián đoạn, chưa thể đăng nhập. Vui lòng thử lại sau ít phút." },
         { status: 503 },
       );
     }

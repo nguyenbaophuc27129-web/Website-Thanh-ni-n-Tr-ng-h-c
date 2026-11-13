@@ -148,7 +148,7 @@ function maskForum(row: Record<string, unknown>, v: ReadViewer) {
 /** Dự án tình nguyện của người khác: bỏ id người gửi + thông tin kiểm duyệt */
 function maskProject(row: Record<string, unknown>, v: ReadViewer) {
   if (v.accountId !== null && Number(row.submittedByAccountId) === v.accountId) return;
-  for (const f of ["submittedByAccountId", "moderatedByAccountId", "moderatedAt", "aiVerdict", "aiReason", "rejectionReason"]) {
+  for (const f of ["submittedByAccountId", "submitterEmail", "moderatedByAccountId", "moderatedAt", "aiVerdict", "aiReason", "rejectionReason"]) {
     delete row[f];
   }
 }
