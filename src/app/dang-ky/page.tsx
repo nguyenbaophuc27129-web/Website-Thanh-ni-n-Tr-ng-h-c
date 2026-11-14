@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, LogIn, MailCheck, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, LogIn, MailCheck, ShieldCheck, UserPlus, Users } from "lucide-react";
 import { DEMO_ACCOUNTS, useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import type { OrgUnit } from "@/types";
@@ -13,6 +13,18 @@ import { DV_HOI_POSITION_GROUPS } from "@/data/positions";
 
 const SOFT_INPUT =
   "mt-1.5 w-full rounded-xl border border-transparent bg-slate-100/60 px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500/40 focus:bg-white focus:shadow-[0_0_0_4px_rgba(37,99,235,0.12)] disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Client ID Google Identity Services */
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+
+interface GoogleIdNs {
+  accounts: {
+    id: {
+      initialize: (c: { client_id: string; callback: (r: { credential: string }) => void }) => void;
+      renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
+    };
+  };
+}
 
 export default function DangKyPage() {
   const { session, ready } = useAuth();
@@ -32,6 +44,70 @@ export default function DangKyPage() {
   const [registered, setRegistered] = useState<string | null>(null);
   const [selectedProvinceId, setSelectedProvinceId] = useState<string>("");
   const [selectedCommuneId, setSelectedCommuneId] = useState<string>("");
+
+  // Google Sign-In
+  const credRef = useRef<string>("");
+  const gBtnRef = useRef<HTMLDivElement | null>(null);
+  const [gAuthDone, setGAuthDone] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState("");
+
+  /** Nạp GIS script và khởi tạo nút Google */
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const id = "gsi-script";
+    if (!document.getElementById(id)) {
+      const s = document.createElement("script");
+      s.id = id;
+      s.src = "https://accounts.google.com/gsi/client";
+      s.async = true;
+      s.defer = true;
+      document.head.appendChild(s);
+    }
+    const init = () => {
+      const g = (window as unknown as { google?: GoogleIdNs }).google;
+      if (!g?.accounts?.id) return;
+      g.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (res) => {
+          credRef.current = res.credential;
+          // Giải mã email từ JWT payload (base64)
+          try {
+            const payloadB64 = res.credential.split(".")[1];
+            const decoded = JSON.parse(atob(payloadB64)) as { email?: string };
+            const gm = decoded.email ?? "";
+            setGoogleEmail(gm);
+            setForm((f) => ({ ...f, email: gm }));
+            setGAuthDone(true);
+          } catch {
+            setGAuthDone(true);
+          }
+        },
+      });
+      if (gBtnRef.current) {
+        g.accounts.id.renderButton(gBtnRef.current, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "signin_with",
+          shape: "rectangular",
+          width: gBtnRef.current.offsetWidth || 400,
+          locale: "vi",
+        });
+      }
+    };
+    // Thử init ngay (nếu script đã load) hoặc đợi onload
+    const existing = document.getElementById(id) as HTMLScriptElement | null;
+    if ((window as unknown as { google?: GoogleIdNs }).google?.accounts?.id) {
+      init();
+    } else if (existing) {
+      existing.addEventListener("load", init);
+      return () => existing.removeEventListener("load", init);
+    } else {
+      const s = document.getElementById(id) as HTMLScriptElement | null;
+      s?.addEventListener("load", init);
+      return () => s?.removeEventListener("load", init);
+    }
+  }, []);
 
   /* Cây đơn vị sống từ DB (có cả trường tạo runtime) — seed tĩnh chỉ là fallback offline */
   const [units, setUnits] = useState<OrgUnit[]>(orgUnits);
@@ -124,6 +200,8 @@ export default function DangKyPage() {
           position: form.position,
           className,
           orgUnitId: schoolId,
+          // Gửi kèm Google credential nếu người dùng đã xác thực Gmail — server sẽ liên kết dữ liệu khách
+          ...(credRef.current ? { credential: credRef.current } : {}),
         }),
       });
       const j = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
@@ -202,6 +280,29 @@ export default function DangKyPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            {/* Xác thực Gmail Google — tuỳ chọn nhưng khuyến khích để tự động liên kết dữ liệu */}
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+              <p className="mb-2.5 text-xs font-semibold text-blue-800">
+                <ShieldCheck className="mr-1 inline h-3.5 w-3.5 text-blue-600" />
+                Xác thực bằng Gmail{" "}
+                <span className="font-normal text-blue-600">(khuyến khích)</span>
+              </p>
+              {gAuthDone ? (
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-700 border border-emerald-200">
+                  <MailCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                  Gmail đã xác thực:{" "}
+                  <span className="font-semibold">{googleEmail}</span>
+                </div>
+              ) : (
+                <>
+                  <div ref={gBtnRef} className="w-full" />
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                    Nếu trước đây bạn đã gửi câu chuyện HS3T, bình chọn hoặc đăng ký dự án tình nguyện bằng Gmail này, dữ liệu sẽ được tự động gắn vào tài khoản mới.
+                  </p>
+                </>
+              )}
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-slate-600">
@@ -218,14 +319,18 @@ export default function DangKyPage() {
               <div>
                 <label className="text-sm font-medium text-slate-600">
                   Email <span className="text-rose-500">*</span>
+                  {gAuthDone && (
+                    <span className="ml-1.5 text-[10px] font-normal text-emerald-600">✓ đã xác thực</span>
+                  )}
                 </label>
                 <input
                   value={form.email}
-                  onChange={set("email")}
+                  onChange={gAuthDone ? undefined : set("email")}
+                  readOnly={gAuthDone}
                   placeholder="ban@truong.edu.vn"
                   type="email"
                   required
-                  className={SOFT_INPUT}
+                  className={SOFT_INPUT + (gAuthDone ? " cursor-default bg-emerald-50/60 border-emerald-200/60" : "")}
                 />
               </div>
             </div>
