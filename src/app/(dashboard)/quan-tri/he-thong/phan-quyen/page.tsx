@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   Eye,
   EyeOff,
+  Building2,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth, type Role } from "@/lib/auth-context";
@@ -1016,7 +1017,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
             <CardBody className="p-0">
               <TableWrap>
                 <THead>
-                  <Th>Tài khoản &amp; Người đại diện</Th>
+                  <Th>Tài khoản &amp; Đơn vị</Th>
                   <Th>Đơn vị trực thuộc</Th>
                   <Th>Chức vụ trong Đoàn</Th>
                   <Th>Chức danh</Th>
@@ -1039,14 +1040,27 @@ export default function PhanQuyenVaTaiKhoanPage() {
                           {/* Cột 1: Tài khoản */}
                           <Td>
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-xs font-bold text-white shadow-xs">
-                                {account.contactPerson ? account.contactPerson.charAt(0).toUpperCase() : "U"}
+                              <div
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white shadow-xs ${
+                                  account.role === "DOAN_VIEN" ? "bg-teal-600" : "bg-blue-700"
+                                }`}
+                              >
+                                {account.role === "DOAN_VIEN" ? (
+                                  account.contactPerson ? account.contactPerson.charAt(0).toUpperCase() : "U"
+                                ) : (
+                                  <Building2 className="h-4 w-4 text-white" />
+                                )}
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className="font-mono text-xs font-bold text-stone-900">
                                     @{account.username}
                                   </span>
+                                  {account.role !== "DOAN_VIEN" && (
+                                    <span className="rounded bg-sky-100 px-1.5 py-0.2 text-[10px] font-semibold text-sky-800">
+                                      Tài khoản đơn vị
+                                    </span>
+                                  )}
                                   {isOwner && (
                                     <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-semibold text-blue-800">
                                       Tài khoản của bạn
@@ -1068,8 +1082,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-xs font-semibold text-stone-900">{account.contactPerson}</p>
-                                <p className="text-[11px] text-stone-500">{account.email}</p>
+                                <p className="text-xs font-semibold text-stone-900">
+                                  {account.role !== "DOAN_VIEN" ? (unit?.name ?? account.contactPerson) : account.contactPerson}
+                                </p>
+                                <p className="text-[11px] text-stone-500">
+                                  {account.role !== "DOAN_VIEN" && account.contactPerson && account.contactPerson !== unit?.name ? (
+                                    <span>Đầu mối: {account.contactPerson} · </span>
+                                  ) : null}
+                                  {account.email}
+                                </p>
                               </div>
                             </div>
                           </Td>
@@ -1214,8 +1235,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
       {activeTab === "unit-accounts" && (
         <div className="space-y-4">
           <p className="rounded-lg bg-sky-50 px-3.5 py-2.5 text-xs leading-relaxed text-sky-800">
-            Mỗi đơn vị tổ chức (Tỉnh/Thành đoàn, cấp cơ sở, trường…) dùng chung <b>01 tài khoản đơn vị</b> — khác với
-            tài khoản Đoàn viên cá nhân. Tạo mới từng tài khoản hoặc nhập hàng loạt bằng file Excel.
+            Mỗi cơ quan, đơn vị Đoàn (Tỉnh/Thành đoàn, Đoàn cấp cơ sở, Đoàn trường THPT...) sử dụng chung <b>01 tài khoản đơn vị</b> để quản trị, phân công nhiệm vụ, phê duyệt hoạt động và nộp báo cáo — đây là tài khoản dùng chung của cả đơn vị, không phải tài khoản riêng của cá nhân người đại diện nào.
           </p>
           <Card>
             <CardBody className="p-3.5">
@@ -1226,7 +1246,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
                     type="text"
                     value={unitSearch}
                     onChange={(e) => setUnitSearch(e.target.value)}
-                    placeholder="Tìm theo tên đăng nhập, người đại diện, đơn vị…"
+                    placeholder="Tìm theo tên đơn vị, tên đăng nhập (@username), email liên hệ…"
                     className="w-full rounded-lg border border-stone-200 bg-white py-2 pl-9 pr-3 text-sm text-stone-800 placeholder-stone-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
@@ -1247,10 +1267,10 @@ export default function PhanQuyenVaTaiKhoanPage() {
             <CardBody className="p-0">
               <TableWrap>
                 <THead>
-                  <Th>Tài khoản &amp; Người đại diện</Th>
-                  <Th>Đơn vị</Th>
-                  <Th>Cấp</Th>
-                  <Th>Email / Điện thoại</Th>
+                  <Th>Đơn vị sở hữu tài khoản</Th>
+                  <Th>Tài khoản đăng nhập</Th>
+                  <Th>Cấp đơn vị</Th>
+                  <Th>Email / Đầu mối liên hệ</Th>
                   <Th>Trạng thái</Th>
                   <Th className="text-right">Thao tác</Th>
                 </THead>
@@ -1268,25 +1288,49 @@ export default function PhanQuyenVaTaiKhoanPage() {
                       : "—";
                     return (
                       <Tr key={a.id}>
+                        {/* Cột 1: Đơn vị sở hữu tài khoản */}
                         <Td>
-                          <p className="font-mono text-xs font-bold text-stone-900">@{a.username}</p>
-                          <p className="text-[11px] text-stone-500">{a.contactPerson || "—"}{a.contactPosition ? ` · ${a.contactPosition}` : ""}</p>
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
+                              <Building2 className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-xs text-stone-900 truncate" title={u?.name}>
+                                {u?.name ?? `Đơn vị #${a.orgUnitId}`}
+                              </p>
+                              {a.contactPerson && a.contactPerson !== u?.name ? (
+                                <p className="text-[11px] text-stone-500 truncate">
+                                  Đầu mối: {a.contactPerson}{a.contactPosition ? ` (${a.contactPosition})` : ""}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
                         </Td>
-                        <Td className="max-w-56">
-                          <span className="block truncate text-xs font-medium text-stone-800" title={u?.name}>
-                            {u?.name ?? `Đơn vị #${a.orgUnitId}`}
+
+                        {/* Cột 2: Tên đăng nhập */}
+                        <Td>
+                          <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                            @{a.username}
                           </span>
                         </Td>
+
+                        {/* Cột 3: Cấp */}
                         <Td><Badge tone={lvl === 2 ? "blue" : lvl === 3 ? "purple" : lvl === 4 ? "orange" : "gray"}>{levelLabel}</Badge></Td>
-                        <Td className="text-xs text-stone-500">
-                          <p className="truncate">{a.email || "—"}</p>
-                          <p className="text-[11px] text-stone-400">{a.phone || ""}</p>
+
+                        {/* Cột 4: Email / SĐT */}
+                        <Td className="text-xs text-stone-600">
+                          <p className="truncate font-medium">{a.email || "—"}</p>
+                          {a.phone ? <p className="text-[11px] text-stone-400">{a.phone}</p> : null}
                         </Td>
+
+                        {/* Cột 5: Trạng thái */}
                         <Td>
                           {a.status === "ACTIVE" ? <Badge tone="green">Đang hoạt động</Badge>
                             : a.status === "LOCKED" ? <Badge tone="gray">Đã khóa</Badge>
                             : <Badge tone="yellow">Chờ duyệt</Badge>}
                         </Td>
+
+                        {/* Cột 6: Thao tác */}
                         <Td className="text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <Button size="sm" variant="outline" onClick={() => openEditModal(a)}>
@@ -1473,11 +1517,11 @@ export default function PhanQuyenVaTaiKhoanPage() {
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Họ và tên người đại diện *">
+            <Field label={editingAccount?.role === "DOAN_VIEN" ? "Họ và tên đoàn viên *" : "Tên hiển thị / Cán bộ đầu mối liên hệ *"}>
               <Input
                 value={editForm.contactPerson}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, contactPerson: e.target.value }))}
-                placeholder="Nguyễn Văn Toàn"
+                placeholder={editingAccount?.role === "DOAN_VIEN" ? "Nguyễn Văn A" : "Tên đơn vị hoặc tên cán bộ đầu mối"}
               />
             </Field>
 
@@ -1590,7 +1634,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
           <Field label="Đơn vị trực thuộc * (Thuộc TW Đoàn, Tỉnh/Thành hoặc Đoàn trực thuộc)">
             <select
               value={createForm.orgUnitId}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, orgUnitId: e.target.value }))}
+              onChange={(e) => {
+                const val = e.target.value;
+                const sel = store.orgById(Number(val));
+                setCreateForm((prev) => ({
+                  ...prev,
+                  orgUnitId: val,
+                  contactPerson: prev.contactPerson || sel?.name || "",
+                }));
+              }}
               className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
             >
               <option value="">-- Chọn đơn vị trực thuộc --</option>
@@ -1663,15 +1715,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Họ và tên người đại diện *">
+            <Field label="Tên hiển thị / Cán bộ đầu mối liên hệ *">
               <Input
                 value={createForm.contactPerson}
                 onChange={(e) => setCreateForm((prev) => ({ ...prev, contactPerson: e.target.value }))}
-                placeholder="Nguyễn Văn A"
+                placeholder="Mặc định theo tên đơn vị hoặc tên cán bộ đầu mối"
               />
             </Field>
 
-            <Field label="Email *">
+            <Field label="Email liên hệ *">
               <Input
                 type="email"
                 value={createForm.email}
