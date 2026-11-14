@@ -26,6 +26,23 @@ interface GoogleIdNs {
   };
 }
 
+/**
+ * Lấy email từ Google ID token (JWT). Phần payload mã hoá base64url (dùng "-" "_", bỏ "=")
+ * nên phải đổi về base64 chuẩn trước khi atob, rồi giải mã UTF-8 (tên tiếng Việt).
+ * Chỉ để hiển thị/điền sẵn — máy chủ tự xác minh credential với Google.
+ */
+function googleEmailFromCredential(credential: string): string {
+  try {
+    const part = credential.split(".")[1] ?? "";
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as { email?: unknown };
+    return typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+  } catch {
+    return "";
+  }
+}
+
 export default function DangKyPage() {
   const { session, ready } = useAuth();
   const { toast } = useToast();
@@ -69,18 +86,17 @@ export default function DangKyPage() {
       g.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: (res) => {
-          credRef.current = res.credential;
-          // Giải mã email từ JWT payload (base64)
-          try {
-            const payloadB64 = res.credential.split(".")[1];
-            const decoded = JSON.parse(atob(payloadB64)) as { email?: string };
-            const gm = decoded.email ?? "";
-            setGoogleEmail(gm);
-            setForm((f) => ({ ...f, email: gm }));
-            setGAuthDone(true);
-          } catch {
-            setGAuthDone(true);
+          // Không đọc được Gmail → không khoá ô email, bỏ credential, để người dùng thử lại hoặc tự nhập
+          const gm = googleEmailFromCredential(res.credential);
+          if (!gm) {
+            credRef.current = "";
+            toast("Không đọc được Gmail từ Google — vui lòng thử lại hoặc tự nhập email.", "warning");
+            return;
           }
+          credRef.current = res.credential;
+          setGoogleEmail(gm);
+          setForm((f) => ({ ...f, email: gm }));
+          setGAuthDone(true);
         },
       });
       if (gBtnRef.current) {
