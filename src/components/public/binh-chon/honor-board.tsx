@@ -118,6 +118,7 @@ export function HonorBoard({
                               {s.studentName}
                             </span>
                             <span className="block truncate text-[10.5px] text-stone-500">
+                              {s.position ? `${s.position} · ` : ""}
                               {s.className ? `${s.className} · ` : ""}
                               {s.orgDisplayName || s.schoolName}
                             </span>

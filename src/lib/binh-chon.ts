@@ -53,6 +53,8 @@ export interface AdminBinhChonResult {
 export interface SubmitStoryInput {
   studentName: string;
   className?: string;
+  /** Chức vụ Đoàn - Hội / Ban cán sự (nhập tự do) */
+  position?: string;
   quote?: string;
   story: string;
   /** Thành tích nổi bật — ô riêng, optional */

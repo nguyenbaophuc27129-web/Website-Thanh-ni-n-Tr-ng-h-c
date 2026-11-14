@@ -416,6 +416,7 @@ export default function QuanTriBinhChonPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold text-stone-900">{s.studentName}</p>
+                      {s.position ? <Badge tone="orange">{s.position}</Badge> : null}
                       {s.className ? <Badge tone="blue">Lớp {s.className}</Badge> : null}
                       <Badge tone="purple">{HONOR_LEVEL_SHORT[s.honorLevel ?? "TRUONG"]}</Badge>
                       {/* Badge AI */}
@@ -609,6 +610,7 @@ export default function QuanTriBinhChonPage() {
               <div className="text-sm">
                 <p className="font-semibold text-stone-900">{viewStory.studentName}</p>
                 <p className="text-stone-500">
+                  {viewStory.position ? `${viewStory.position} · ` : ""}
                   {viewStory.className ? `Lớp ${viewStory.className} · ` : ""}
                   {viewStory.orgDisplayName || viewStory.schoolName}
                 </p>

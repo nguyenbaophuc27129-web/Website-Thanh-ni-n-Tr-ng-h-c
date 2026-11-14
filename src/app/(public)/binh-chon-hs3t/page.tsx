@@ -1068,6 +1068,7 @@ export default function BinhChonHs3tPage() {
                     {detail.studentName}
                   </h3>
                   <p className="text-xs sm:text-sm font-semibold leading-relaxed text-stone-700">
+                    {detail.position ? `${detail.position} · ` : ""}
                     {detail.className ? `Lớp ${detail.className} · ` : ""}
                     {detail.orgDisplayName || detail.schoolName}
                     {detail.wardName ? ` · ${detail.wardName}` : ""}

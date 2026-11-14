@@ -880,6 +880,8 @@ export interface BinhChonStory {
   provinceName?: string;
   wardName?: string;
   className?: string;
+  /** Chức vụ Đoàn - Hội / Ban cán sự (học sinh nhập tự do) */
+  position?: string;
   quote?: string;
   story: string;
   /** Ô "Thành tích nổi bật" nhập riêng (b cũ có thể để trống — fallback parse từ story) */

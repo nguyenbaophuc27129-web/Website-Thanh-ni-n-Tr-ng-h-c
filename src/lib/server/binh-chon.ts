@@ -69,6 +69,7 @@ type StoryRow = {
   province_name: string | null;
   ward_name?: string | null;
   class_name: string | null;
+  student_position?: string | null;
   quote: string | null;
   story: string;
   achievements: string | null;
@@ -103,6 +104,7 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?
     provinceName: r.province_name ?? undefined,
     wardName: r.ward_name ?? undefined,
     className: r.class_name ?? undefined,
+    position: r.student_position ?? undefined,
     quote: r.quote ?? undefined,
     story: r.story,
     achievements: r.achievements ?? undefined,
@@ -139,7 +141,7 @@ export function toStoryDto(r: StoryRow, opts?: { withPhoto?: boolean; withEmail?
  *  LEFT JOIN trường vì bài nộp bằng Gmail xác thực (không có tài khoản) không gắn đơn vị.
  *  KHÔNG lấy cột gallery (tới ~4.5MB/bài) — chỉ trang chi tiết dùng STORY_DETAIL_SELECT. */
 export const STORY_SELECT = `
-  SELECT s.id, s.campaign_id, s.student_name, s.school_org_unit_id, s.class_name, s.quote, s.story,
+  SELECT s.id, s.campaign_id, s.student_name, s.student_position, s.school_org_unit_id, s.class_name, s.quote, s.story,
          s.achievements, s.org_display_name, s.submitter_email,
          s.photo_data_url, s.photo_thumb_data_url, s.evidence_files, s.ai_verdict, s.ai_reason, s.status,
          s.rejection_reason, s.vote_count, s.approved_at, s.created_at, s.honor_level,

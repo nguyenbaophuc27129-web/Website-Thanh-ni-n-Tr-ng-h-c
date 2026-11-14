@@ -178,8 +178,9 @@ export function CdttbCard({
               </span>
             </div>
 
-            {/* Thông tin lớp & trường */}
+            {/* Thông tin chức vụ, lớp & trường */}
             <p className="mt-1 line-clamp-2 text-[10.5px] sm:text-[11px] font-medium leading-relaxed text-[#7A4A33]">
+              {story.position ? `${story.position} · ` : ""}
               {story.className ? `${story.className} · ` : ""}
               {story.orgDisplayName || story.schoolName}
               {story.wardName ? ` · ${story.wardName}` : ""}

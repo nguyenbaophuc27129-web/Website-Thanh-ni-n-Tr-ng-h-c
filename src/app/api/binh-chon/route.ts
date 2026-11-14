@@ -211,6 +211,7 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         studentName?: string;
+        position?: string;
         className?: string;
         quote?: string;
         story?: string;
@@ -252,6 +253,7 @@ export async function POST(request: NextRequest) {
   }
 
   const studentName = body?.studentName?.trim() ?? "";
+  const studentPosition = body?.position?.trim().slice(0, 120) || null;
   const className = body?.className?.trim().slice(0, 60) || null;
   const quote = body?.quote?.trim().slice(0, 300) || null;
   const story = body?.story?.trim() ?? "";
@@ -351,14 +353,15 @@ export async function POST(request: NextRequest) {
   try {
     const inserted = await query<{ id: number }>(
       `INSERT INTO hs3t_stories
-        (campaign_id, account_id, student_name, school_org_unit_id, class_name, quote, story,
+        (campaign_id, account_id, student_name, student_position, school_org_unit_id, class_name, quote, story,
          achievements, org_display_name, ward_name, province_name, honor_level,
          photo_data_url, photo_thumb_data_url, gallery, evidence_files, ai_verdict, ai_reason, ai_model, submitter_email, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'PENDING') RETURNING id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'PENDING') RETURNING id`,
       [
         campaign.id,
         accountId,
         studentName,
+        studentPosition,
         orgUnitId,
         className,
         quote,

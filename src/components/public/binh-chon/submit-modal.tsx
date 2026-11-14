@@ -135,6 +135,8 @@ export function SubmitModal({
   const sessionOrgName = orgUnits.find((u) => u.id === session?.orgUnitId)?.name ?? "";
   const [studentName, setStudentName] = useState("");
   const [className, setClassName] = useState("");
+  const [position, setPosition] = useState("");
+  const positionTouchedRef = useRef(false);
   const [quote, setQuote] = useState("");
   const [story, setStory] = useState("");
   const [achievements, setAchievements] = useState("");
@@ -166,12 +168,14 @@ export function SubmitModal({
       setError("");
       setSending(false);
       setActiveTab("edit");
+      setPosition("");
       setAchievements("");
       setWardName("");
       setProvinceName("");
       setGalleryItems([]);
       setEvidenceItems([]);
       orgTouchedRef.current = false;
+      positionTouchedRef.current = false;
     }
   }, [open]);
 
@@ -179,6 +183,13 @@ export function SubmitModal({
   useEffect(() => {
     if (open && !orgTouchedRef.current && !orgName) setOrgName(sessionOrgName);
   }, [open, sessionOrgName, orgName]);
+
+  // Prefill chức vụ theo tài khoản (cho tới khi học sinh tự sửa ô này)
+  useEffect(() => {
+    if (open && !positionTouchedRef.current && !position && session?.contactPosition) {
+      setPosition(session.contactPosition);
+    }
+  }, [open, session?.contactPosition, position]);
 
   const insertFormat = (before: string, after: string = "", placeholder: string = "") => {
     const textarea = textareaRef.current;
@@ -222,6 +233,7 @@ export function SubmitModal({
     const res = await submitStory({
       studentName: studentName.trim(),
       className: className.trim() || undefined,
+      position: position.trim() || undefined,
       quote: quote.trim() || undefined,
       story: story.trim(),
       achievements: achievements.trim() || undefined,
@@ -303,6 +315,20 @@ export function SubmitModal({
               onChange={(e) => setClassName(e.target.value)}
               placeholder="12A1"
               maxLength={60}
+            />
+          </Field>
+          <Field
+            label="Chức vụ Đoàn - Hội / Ban cán sự"
+            hint="Nhập tự do (VD: Bí thư Chi đoàn, Lớp trưởng, BCH Đoàn trường...)"
+          >
+            <Input
+              value={position}
+              onChange={(e) => {
+                positionTouchedRef.current = true;
+                setPosition(e.target.value);
+              }}
+              placeholder="VD: Bí thư Chi đoàn, Lớp phó, Đoàn viên..."
+              maxLength={120}
             />
           </Field>
           <Field
