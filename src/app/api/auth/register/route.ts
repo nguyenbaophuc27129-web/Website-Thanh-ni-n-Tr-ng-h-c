@@ -53,12 +53,12 @@ export async function POST(request: NextRequest) {
       );
     }
     const dup = await query<{ id: number }>(
-      "SELECT id FROM accounts WHERE (username = $1 OR email = $2) AND deleted_at IS NULL LIMIT 1",
+      "SELECT id FROM accounts WHERE (lower(username) = lower($1) OR lower(email) = lower($2)) AND deleted_at IS NULL LIMIT 1",
       [username, email],
     );
     if (dup[0]) {
       return NextResponse.json(
-        { ok: false, error: "Tên đăng nhập hoặc email đã tồn tại." },
+        { ok: false, error: "Tên đăng nhập hoặc email đã tồn tại trên hệ thống." },
         { status: 409 },
       );
     }

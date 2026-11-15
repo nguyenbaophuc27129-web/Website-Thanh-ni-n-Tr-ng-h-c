@@ -53,14 +53,16 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "activity.view", "activity.review", "task.assign", "task.review",
     "score.manage", "report.manage", "ranking.manage", "document.issue",
     "feedback.manage", "resource.manage", "system.orgtree.view", "system.account.manage",
+    "hs3t.view", "hs3t.review", "project.manage",
   ],
   QUAN_TRI_CAP3: [
     "activity.view", "activity.review", "task.assign", "task.review",
     "score.view", "report.manage", "document.view", "feedback.view", "resource.view",
+    "hs3t.view", "hs3t.review", "project.manage",
   ],
   DON_VI: [
     "activity.create", "activity.view", "task.update", "report.create",
-    "document.view", "resource.view",
+    "document.view", "resource.view", "hs3t.view", "project.manage",
   ],
   BIEN_TAP_VIEN: [
     "activity.view", "post.manage", "post.publish", "document.view", "resource.manage",

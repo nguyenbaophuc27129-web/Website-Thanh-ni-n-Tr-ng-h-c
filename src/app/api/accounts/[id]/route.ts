@@ -216,9 +216,14 @@ export async function DELETE(
     const denied = await checkManageScope(session, target, "XÓA");
     if (denied) return denied;
 
-    // Xóa mềm: đánh dấu deleted_at = now() và thu hồi các phiên đăng nhập đang hoạt động
+    // Xóa mềm: đánh dấu deleted_at = now(), đổi username/email với đuôi __del_ để giải phóng tên tài khoản gốc, và thu hồi các phiên đang hoạt động
     await query(
-      "UPDATE accounts SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL",
+      `UPDATE accounts 
+       SET deleted_at = now(),
+           updated_at = now(),
+           username = username || '__del_' || id || '_' || extract(epoch from now())::bigint,
+           email = email || '__del_' || id || '_' || extract(epoch from now())::bigint
+       WHERE id = $1 AND deleted_at IS NULL`,
       [accountId],
     );
     await query(

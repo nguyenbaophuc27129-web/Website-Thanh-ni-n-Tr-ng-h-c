@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  UserCircle, LogIn, LogOut, Coins, FileEdit, FolderUp, HeartHandshake, Award, ArrowRight, MessageSquareQuote,
+  UserCircle, LogIn, LogOut, Coins, FileEdit, FolderUp, HeartHandshake, Award, ArrowRight, MessageSquareQuote, MessagesSquare, CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
@@ -74,6 +74,10 @@ export default function TaiKhoanPage() {
     myPoints.filter((c) => c.kind === kind).reduce((s, c) => s + c.points, 0);
 
   const myContributions = store.memberContributions.filter((c) => c.contributorAccountId === session.accountId);
+  const myProjects = store.volunteerProjects.filter(
+    (p) => (p.submittedByAccountId === session.accountId || (p as { accountId?: number }).accountId === session.accountId) ||
+      (session.email && p.submitterEmail?.toLowerCase() === session.email.toLowerCase())
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
@@ -135,6 +139,75 @@ export default function TaiKhoanPage() {
                 Quy tắc cộng điểm: bài viết +{CONTRIBUTION_POINTS.POST} · tài nguyên +{CONTRIBUTION_POINTS.RESOURCE} ·
                 dự án tình nguyện +{CONTRIBUTION_POINTS.PROJECT} · hồ sơ 3 tốt được chốt danh hiệu +{CONTRIBUTION_POINTS.HS3T}.
               </p>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader title="Không gian hoạt động Đoàn viên" subtitle="Các chức năng công khai Đoàn viên được quyền tham gia" />
+            <CardBody className="space-y-2 p-3">
+              <Link
+                href="/dien-dan"
+                className="flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-stone-50 border border-stone-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+                    <MessagesSquare className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-stone-800">Diễn đàn ẩn danh</p>
+                    <p className="text-[11px] text-stone-400">Chia sẻ tâm tư, câu chuyện học đường</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-stone-400" />
+              </Link>
+
+              <Link
+                href="/du-an-tinh-nguyen"
+                className="flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-stone-50 border border-stone-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <HeartHandshake className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-stone-800">Dự án tình nguyện</p>
+                    <p className="text-[11px] text-stone-400">Gửi &amp; tham gia dự án cộng đồng</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-stone-400" />
+              </Link>
+
+              <Link
+                href="/phan-anh"
+                className="flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-stone-50 border border-stone-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                    <MessageSquareQuote className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-stone-800">Phản ánh &amp; Khiếu nại</p>
+                    <p className="text-[11px] text-stone-400">Bạo lực học đường, an toàn, tâm tư</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-stone-400" />
+              </Link>
+
+              <Link
+                href="/binh-chon-hs3t"
+                className="flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-stone-50 border border-stone-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                    <Award className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-stone-800">Bình chọn Học sinh 3 tốt</p>
+                    <p className="text-[11px] text-stone-400">Bình chọn &amp; gửi gương tiêu biểu</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-stone-400" />
+              </Link>
             </CardBody>
           </Card>
         </div>
@@ -223,6 +296,49 @@ export default function TaiKhoanPage() {
                         : f.status === "IN_PROGRESS" ? <Badge tone="yellow">Đang xử lý</Badge>
                         : f.status === "RESOLVED" ? <Badge tone="green">Đã giải quyết</Badge>
                         : <Badge tone="gray">Đã đóng</Badge>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardBody>
+          </Card>
+
+          {/* ===== Dự án tình nguyện của tôi ===== */}
+          <Card>
+            <CardHeader
+              title="Dự án tình nguyện của tôi"
+              subtitle="Các dự án tình nguyện bạn gửi vào Ngân hàng dự án — theo dõi tiến trình và duyệt công khai"
+            />
+            <CardBody>
+              {myProjects.length === 0 ? (
+                <div className="rounded-xl bg-stone-50 px-4 py-6 text-center">
+                  <p className="text-sm text-stone-500">Bạn chưa gửi dự án tình nguyện nào.</p>
+                  <Link
+                    href="/du-an-tinh-nguyen"
+                    className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-doan-600 hover:underline"
+                  >
+                    <HeartHandshake className="h-3.5 w-3.5" /> Gửi dự án tình nguyện <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              ) : (
+                <ul className="divide-y divide-stone-100">
+                  {myProjects.map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-start gap-3 py-3">
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                        <HeartHandshake className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <Link href={`/du-an-tinh-nguyen?id=${p.id}`} className="block truncate text-sm font-medium text-stone-800 hover:text-doan-600 hover:underline">
+                          {p.projectName}
+                        </Link>
+                        <p className="mt-0.5 text-[11px] text-stone-400">
+                          {p.schoolName} · {p.province}
+                          {p.phase ? ` · ${p.phase === "DANG_TUYEN" ? "Đang tuyển" : p.phase === "DANG_TRIEN_KHAI" ? "Đang triển khai" : "Hoàn thành"}` : ""}
+                        </p>
+                      </div>
+                      {p.status === "PENDING" ? <Badge tone="yellow">Chờ duyệt</Badge>
+                        : p.status === "APPROVED" ? <Badge tone="green">Đã duyệt</Badge>
+                        : <Badge tone="red">Từ chối</Badge>}
                     </li>
                   ))}
                 </ul>
