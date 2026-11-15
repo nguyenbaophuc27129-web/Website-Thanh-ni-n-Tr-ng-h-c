@@ -256,16 +256,29 @@ export default function PhanQuyenTaiKhoanPage({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-doan-600 text-base font-bold text-white shadow-xs">
-                {targetAccount.contactPerson ? targetAccount.contactPerson.slice(0, 1).toUpperCase() : "U"}
+                {targetAccount.role !== "DOAN_VIEN" ? (
+                  <Building2 className="h-6 w-6 text-white" />
+                ) : targetAccount.contactPerson ? (
+                  targetAccount.contactPerson.slice(0, 1).toUpperCase()
+                ) : (
+                  "U"
+                )}
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-bold text-stone-900">
-                    {targetAccount.contactPerson}
+                    {targetAccount.role !== "DOAN_VIEN"
+                      ? orgUnit?.name ?? targetAccount.contactPerson
+                      : targetAccount.contactPerson}
                   </h2>
-                  <span className="font-mono text-xs text-stone-500">
-                    (@{targetAccount.username})
+                  <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    @{targetAccount.username}
                   </span>
+                  {targetAccount.role !== "DOAN_VIEN" ? (
+                    <span className="inline-flex items-center rounded-md bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800 border border-sky-200">
+                      Tài khoản đơn vị dùng chung
+                    </span>
+                  ) : null}
                   {targetAccount.chucDanh ? (
                     <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-800 border border-blue-200">
                       {targetAccount.chucDanh}
@@ -277,7 +290,14 @@ export default function PhanQuyenTaiKhoanPage({
                     <Building2 className="h-3.5 w-3.5 text-stone-400" />
                     {orgUnit?.name ?? `Đơn vị #${targetAccount.orgUnitId}`} (Cấp {orgUnit?.orgLevel ?? "—"})
                   </span>
-                  {targetAccount.contactPosition ? (
+                  {targetAccount.role !== "DOAN_VIEN" &&
+                  targetAccount.contactPerson &&
+                  targetAccount.contactPerson !== orgUnit?.name ? (
+                    <span className="flex items-center gap-1 text-stone-600 font-medium">
+                      Đầu mối liên hệ: {targetAccount.contactPerson}
+                      {targetAccount.contactPosition ? ` (${targetAccount.contactPosition})` : ""}
+                    </span>
+                  ) : targetAccount.contactPosition ? (
                     <span className="flex items-center gap-1">
                       <Briefcase className="h-3.5 w-3.5 text-stone-400" />
                       {targetAccount.contactPosition}

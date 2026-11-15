@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   Eye,
   EyeOff,
+  Building2,
 } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { useAuth, type Role } from "@/lib/auth-context";
@@ -31,7 +32,7 @@ import { TableWrap, THead, Th, Tr, Td, EmptyRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Field, Input } from "@/components/ui/input";
-import type { Account } from "@/types";
+import type { Account, OrgUnit } from "@/types";
 
 /* =====================================================================
  * EXCEL IMPORT: 6 CỘT CHUẨN:
@@ -63,6 +64,54 @@ function normalizeHeaderKey(s: string): string {
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "");
+}
+
+/** Tự sinh tên đăng nhập đề xuất chuẩn hóa theo tên và cấp của đơn vị trong cây */
+function generateSuggestedUsername(unit: OrgUnit, existingAccounts: Account[]): string {
+  let cleanName = unit.name
+    .toLowerCase()
+    .replace(/đoàn tncs hồ chí minh/gi, "")
+    .replace(/tỉnh đoàn/gi, "")
+    .replace(/thành đoàn/gi, "")
+    .replace(/huyện đoàn/gi, "")
+    .replace(/thị đoàn/gi, "")
+    .replace(/quận đoàn/gi, "")
+    .replace(/đoàn trường/gi, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .replace(/[^a-z0-9]/g, "");
+
+  let prefix = "dv";
+  if (unit.orgLevel === 1) prefix = "tw";
+  else if (unit.orgLevel === 2) prefix = "td";
+  else if (unit.orgLevel === 3) prefix = "cd";
+  else if (unit.orgLevel === 4) prefix = "cs";
+
+  const normShort = (unit.shortName || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+  let base = `${prefix}.${normShort || cleanName.slice(0, 15)}`;
+  base = base.replace(/\.+/g, ".").replace(/\.$/, "").slice(0, 25);
+  if (!base || base.length < 3) base = `${prefix}.unit${unit.id}`;
+
+  let candidate = base;
+  let counter = 1;
+  const taken = new Set(existingAccounts.map((a) => a.username.toLowerCase()));
+  while (taken.has(candidate.toLowerCase())) {
+    counter++;
+    candidate = `${base}${counter}`;
+  }
+  return candidate;
+}
+
+/** Tạo mật khẩu khởi tạo an toàn và thân thiện cho tài khoản đơn vị mới */
+function generateRandomPassword(): string {
+  return "Doan@" + Math.floor(100000 + Math.random() * 900000);
 }
 
 const LEVEL_ROLE: Record<number, Role> = {
@@ -97,6 +146,8 @@ export default function PhanQuyenVaTaiKhoanPage() {
   const [nametagFilter, setNametagFilter] = useState<string>("all");
   const [permFilter, setPermFilter] = useState<string>("all");
   const [unitSearch, setUnitSearch] = useState("");
+  const [unitLevelFilter, setUnitLevelFilter] = useState<string>("all");
+  const [unitStatusFilter, setUnitStatusFilter] = useState<string>("all");
 
   // Nametags dynamic list from DB
   const [dbNametags, setDbNametags] = useState<DbNametag[]>([]);
@@ -291,28 +342,96 @@ export default function PhanQuyenVaTaiKhoanPage() {
     };
   }, [store.accounts, scope, session]);
 
-  /* ================= Danh sách TÀI KHOẢN ĐƠN VỊ (mục riêng — TK tổ chức, không gồm Đoàn viên cá nhân) ================= */
-  const unitAccounts = useMemo(() => {
+  /* ================= Danh sách TÀI KHOẢN ĐƠN VỊ (Gắn liền Cây cơ sở 1 đơn vị = 1 TK) ================= */
+  interface UnitAccountRow {
+    unit: OrgUnit;
+    account?: Account;
+    parentUnit?: OrgUnit;
+  }
+
+  const unitAccounts = useMemo<UnitAccountRow[]>(() => {
+    // Phạm vi đơn vị theo session
+    const allowedUnits = store.orgUnits.filter((u) => {
+      if (session?.role === "QUAN_TRI_TW") return true;
+      return u.id === session?.orgUnitId || scope.includes(u.id);
+    });
+
+    // Bản đồ account theo orgUnitId (lấy account tổ chức, role !== 'DOAN_VIEN')
+    const accountByUnitId = new Map<number, Account>();
+    store.accounts.forEach((a) => {
+      if (a.role !== "DOAN_VIEN") {
+        const existing = accountByUnitId.get(a.orgUnitId);
+        if (!existing || a.username === "tw.admin" || (a.status === "ACTIVE" && existing.status !== "ACTIVE")) {
+          accountByUnitId.set(a.orgUnitId, a);
+        }
+      }
+    });
+
     const q = unitSearch.trim().toLowerCase();
-    return store.accounts
-      .filter((a) => a.role !== "DOAN_VIEN")
-      .filter((a) => (session?.role === "QUAN_TRI_TW" ? true : scope.includes(a.orgUnitId)))
-      .filter((a) => {
+
+    return allowedUnits
+      .map((u) => ({
+        unit: u,
+        account: accountByUnitId.get(u.id),
+        parentUnit: u.parentId ? store.orgById(u.parentId) : undefined,
+      }))
+      .filter(({ unit, account }) => {
+        if (unitLevelFilter !== "all" && String(unit.orgLevel) !== unitLevelFilter) return false;
+        if (unitStatusFilter === "has_account" && !account) return false;
+        if (unitStatusFilter === "no_account" && account) return false;
+        if (unitStatusFilter === "active" && account?.status !== "ACTIVE") return false;
+        if (unitStatusFilter === "locked" && account?.status !== "LOCKED") return false;
+
         if (!q) return true;
-        const u = store.orgById(a.orgUnitId);
         return (
-          a.username.toLowerCase().includes(q) ||
-          a.contactPerson.toLowerCase().includes(q) ||
-          a.email.toLowerCase().includes(q) ||
-          (u?.name ?? "").toLowerCase().includes(q)
+          unit.name.toLowerCase().includes(q) ||
+          (unit.shortName && unit.shortName.toLowerCase().includes(q)) ||
+          (unit.code && unit.code.toLowerCase().includes(q)) ||
+          (account && account.username.toLowerCase().includes(q)) ||
+          (account && account.email.toLowerCase().includes(q)) ||
+          (account && account.contactPerson.toLowerCase().includes(q))
         );
       })
       .sort((a, b) => {
-        const ua = store.orgById(a.orgUnitId);
-        const ub = store.orgById(b.orgUnitId);
-        return (ua?.path ?? "").localeCompare(ub?.path ?? "") || a.username.localeCompare(b.username);
+        return (
+          a.unit.orgLevel - b.unit.orgLevel ||
+          (a.unit.path ?? "").localeCompare(b.unit.path ?? "") ||
+          a.unit.name.localeCompare(b.unit.name)
+        );
       });
-  }, [store.accounts, store, scope, session, unitSearch]);
+  }, [store.orgUnits, store.accounts, session, scope, unitSearch, unitLevelFilter, unitStatusFilter, store]);
+
+  const unitStats = useMemo(() => {
+    const allowed = store.orgUnits.filter((u) => {
+      if (session?.role === "QUAN_TRI_TW") return true;
+      return u.id === session?.orgUnitId || scope.includes(u.id);
+    });
+    const withAcc = allowed.filter((u) =>
+      store.accounts.some((a) => a.orgUnitId === u.id && a.role !== "DOAN_VIEN")
+    ).length;
+    return {
+      total: allowed.length,
+      withAccount: withAcc,
+      withoutAccount: allowed.length - withAcc,
+    };
+  }, [store.orgUnits, store.accounts, session, scope]);
+
+  const openCreateForUnit = (unit: OrgUnit) => {
+    const suggested = generateSuggestedUsername(unit, store.accounts);
+    setCreateForm({
+      orgUnitId: String(unit.id),
+      username: suggested,
+      password: generateRandomPassword(),
+      contactPerson: unit.name,
+      email: `${suggested}@doanthanhnienvn.vn`,
+      phone: "",
+      contactPosition: "Cán bộ phụ trách quản trị",
+      chucDanh: "",
+      className: "",
+      accType: "canbo",
+    });
+    setCreateOpen(true);
+  };
 
   /* ================= Xử lý sửa Chức danh (Nametag) ================= */
   const openEditNametagModal = (item: { id?: number; name: string; description?: string }) => {
@@ -917,7 +1036,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
               : "border-transparent text-stone-500 hover:text-stone-800"
           }`}
         >
-          <FileSpreadsheet className="h-4 w-4" /> Danh sách tài khoản đơn vị ({unitAccounts.length})
+          <FileSpreadsheet className="h-4 w-4" /> Danh sách tài khoản đơn vị ({unitStats.withAccount}/{unitStats.total})
         </button>
 
         <button
@@ -1016,7 +1135,7 @@ export default function PhanQuyenVaTaiKhoanPage() {
             <CardBody className="p-0">
               <TableWrap>
                 <THead>
-                  <Th>Tài khoản &amp; Người đại diện</Th>
+                  <Th>Tài khoản &amp; Đơn vị</Th>
                   <Th>Đơn vị trực thuộc</Th>
                   <Th>Chức vụ trong Đoàn</Th>
                   <Th>Chức danh</Th>
@@ -1039,14 +1158,27 @@ export default function PhanQuyenVaTaiKhoanPage() {
                           {/* Cột 1: Tài khoản */}
                           <Td>
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-xs font-bold text-white shadow-xs">
-                                {account.contactPerson ? account.contactPerson.charAt(0).toUpperCase() : "U"}
+                              <div
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white shadow-xs ${
+                                  account.role === "DOAN_VIEN" ? "bg-teal-600" : "bg-blue-700"
+                                }`}
+                              >
+                                {account.role === "DOAN_VIEN" ? (
+                                  account.contactPerson ? account.contactPerson.charAt(0).toUpperCase() : "U"
+                                ) : (
+                                  <Building2 className="h-4 w-4 text-white" />
+                                )}
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className="font-mono text-xs font-bold text-stone-900">
                                     @{account.username}
                                   </span>
+                                  {account.role !== "DOAN_VIEN" && (
+                                    <span className="rounded bg-sky-100 px-1.5 py-0.2 text-[10px] font-semibold text-sky-800">
+                                      Tài khoản đơn vị
+                                    </span>
+                                  )}
                                   {isOwner && (
                                     <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-semibold text-blue-800">
                                       Tài khoản của bạn
@@ -1068,8 +1200,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-xs font-semibold text-stone-900">{account.contactPerson}</p>
-                                <p className="text-[11px] text-stone-500">{account.email}</p>
+                                <p className="text-xs font-semibold text-stone-900">
+                                  {account.role !== "DOAN_VIEN" ? (unit?.name ?? account.contactPerson) : account.contactPerson}
+                                </p>
+                                <p className="text-[11px] text-stone-500">
+                                  {account.role !== "DOAN_VIEN" && account.contactPerson && account.contactPerson !== unit?.name ? (
+                                    <span>Đầu mối: {account.contactPerson} · </span>
+                                  ) : null}
+                                  {account.email}
+                                </p>
                               </div>
                             </div>
                           </Td>
@@ -1209,94 +1348,304 @@ export default function PhanQuyenVaTaiKhoanPage() {
        * TAB 2: DANH MỤC CHỨC DANH (19) — ĐỒNG BỘ CỘT THẲNG HÀNG, MÀU XANH DƯƠNG, BỎ ICON
        * ============================================================== */}
       {/* ==============================================================
-       * TAB: DANH SÁCH TÀI KHOẢN ĐƠN VỊ (TK dùng chung của tổ chức cơ sở)
+       * TAB: DANH SÁCH TÀI KHOẢN ĐƠN VỊ (Gắn liền Cây cơ sở 1 đơn vị = 1 TK)
        * ============================================================== */}
       {activeTab === "unit-accounts" && (
         <div className="space-y-4">
-          <p className="rounded-lg bg-sky-50 px-3.5 py-2.5 text-xs leading-relaxed text-sky-800">
-            Mỗi đơn vị tổ chức (Tỉnh/Thành đoàn, cấp cơ sở, trường…) dùng chung <b>01 tài khoản đơn vị</b> — khác với
-            tài khoản Đoàn viên cá nhân. Tạo mới từng tài khoản hoặc nhập hàng loạt bằng file Excel.
-          </p>
+          {/* Box Nguyên tắc phân cấp theo quy định chính thức của Đoàn */}
+          <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-4 text-xs leading-relaxed text-sky-950 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-200/80 pb-2.5">
+              <div className="flex items-center gap-2 font-bold text-sm text-sky-900">
+                <ShieldCheck className="h-4.5 w-4.5 text-blue-700 shrink-0" />
+                <span>Nguyên tắc quản lý tài khoản &amp; Phân cấp quản lý theo cơ cấu tổ chức Đoàn</span>
+              </div>
+              <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 border border-sky-200">
+                Mô hình: 1 Đơn vị = 1 Tài khoản quản trị dùng chung
+              </span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg bg-white/90 p-3 border border-sky-100 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-sky-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[11px] text-blue-800">1</span>
+                  <span>Cấp cơ sở (Đoàn Trường)</span>
+                </div>
+                <p className="text-stone-600 text-[11.5px]">
+                  Cập nhật hoạt động, nhiệm vụ, dự án tình nguyện và hồ sơ Học sinh 3 tốt của trường; duyệt danh sách Đoàn viên trong trường.
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-white/90 p-3 border border-sky-100 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-sky-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-[11px] text-purple-800">2</span>
+                  <span>Cấp trên trực tiếp (Phường/Xã/Huyện)</span>
+                </div>
+                <p className="text-stone-600 text-[11.5px]">
+                  Theo dõi, tổng hợp và <b>xác nhận kết quả</b> thực hiện nhiệm vụ, chỉ tiêu của các cơ sở trực thuộc để đánh giá, thi đua.
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-white/90 p-3 border border-sky-100 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-sky-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-100 text-[11px] text-sky-800">3</span>
+                  <span>Tỉnh, Thành Đoàn</span>
+                </div>
+                <p className="text-stone-600 text-[11.5px]">
+                  Giao chỉ tiêu, tổng hợp và <b>xác nhận kết quả</b> của các đơn vị trực thuộc để đánh giá thi đua toàn tỉnh và tổng hợp báo cáo.
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-white/90 p-3 border border-sky-100 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-sky-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[11px] text-amber-800">4</span>
+                  <span>Trung ương Đoàn</span>
+                </div>
+                <p className="text-stone-600 text-[11.5px]">
+                  Tổng hợp, theo dõi và đánh giá kết quả thực hiện của các Tỉnh, Thành Đoàn trên toàn quốc; ban hành văn bản và chỉ đạo chung.
+                </p>
+              </div>
+            </div>
+
+            <p className="italic text-[11px] text-sky-800 pt-1 border-t border-sky-200/60">
+              * Quy định chính thức: Việc xác nhận kết quả phục vụ công tác thống kê, đánh giá, chấm điểm và báo cáo; không phải là cơ chế phê duyệt từng bài viết hoặc nội dung truyền thông của đơn vị.
+            </p>
+          </div>
+
+          {/* Thanh thống kê tiến độ phủ tài khoản */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-stone-200 bg-white p-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-stone-500 font-medium">Tổng số đơn vị trong cây</p>
+                <p className="text-xl font-bold text-stone-900 mt-0.5">{unitStats.total} <span className="text-xs font-normal text-stone-400">đơn vị</span></p>
+              </div>
+              <Building2 className="h-8 w-8 text-stone-300" />
+            </div>
+
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-emerald-700 font-medium">Đã có tài khoản quản trị</p>
+                <p className="text-xl font-bold text-emerald-700 mt-0.5">
+                  {unitStats.withAccount} <span className="text-xs font-medium text-emerald-600">({Math.round((unitStats.withAccount / Math.max(unitStats.total, 1)) * 100)}%)</span>
+                </p>
+              </div>
+              <CircleCheck className="h-8 w-8 text-emerald-300" />
+            </div>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-amber-700 font-medium">Chưa khởi tạo tài khoản</p>
+                <p className="text-xl font-bold text-amber-700 mt-0.5">{unitStats.withoutAccount} <span className="text-xs font-normal text-amber-600">đơn vị</span></p>
+              </div>
+              <AlertTriangle className="h-8 w-8 text-amber-300" />
+            </div>
+          </div>
+
+          {/* Thanh tìm kiếm & bộ lọc */}
           <Card>
             <CardBody className="p-3.5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="relative lg:col-span-2">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
                   <input
                     type="text"
                     value={unitSearch}
                     onChange={(e) => setUnitSearch(e.target.value)}
-                    placeholder="Tìm theo tên đăng nhập, người đại diện, đơn vị…"
+                    placeholder="Tìm theo tên đơn vị, @username, email..."
                     className="w-full rounded-lg border border-stone-200 bg-white py-2 pl-9 pr-3 text-sm text-stone-800 placeholder-stone-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
+
+                <select
+                  value={unitLevelFilter}
+                  onChange={(e) => setUnitLevelFilter(e.target.value)}
+                  className="rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
+                >
+                  <option value="all">Tất cả cấp đơn vị</option>
+                  <option value="1">Cấp 1 — Trung ương Đoàn</option>
+                  <option value="2">Cấp 2 — Tỉnh / Thành đoàn</option>
+                  <option value="3">Cấp 3 — Cấp cơ sở &amp; tương đương</option>
+                  <option value="4">Cấp 4 — Đoàn trực thuộc cơ sở / Trường</option>
+                </select>
+
+                <select
+                  value={unitStatusFilter}
+                  onChange={(e) => setUnitStatusFilter(e.target.value)}
+                  className="rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
+                >
+                  <option value="all">Tất cả trạng thái tài khoản</option>
+                  <option value="has_account">Đã có tài khoản</option>
+                  <option value="no_account">Chưa khởi tạo tài khoản</option>
+                  <option value="active">Đang hoạt động (ACTIVE)</option>
+                  <option value="locked">Đã khóa (LOCKED)</option>
+                </select>
+
                 <Button
                   onClick={() => setCreateOpen(true)}
                   className="bg-blue-700 hover:bg-blue-800 text-white"
                 >
-                  <UserPlus className="h-4 w-4" /> Tạo tài khoản đơn vị
-                </Button>
-                <Button variant="outline" onClick={() => setImportOpen(true)}>
-                  <FileUp className="h-4 w-4" /> Import Excel
+                  <UserPlus className="h-4 w-4" /> Cấp tài khoản đơn vị
                 </Button>
               </div>
             </CardBody>
           </Card>
 
+          {/* Bảng danh sách Cây đơn vị & Tài khoản quản trị */}
           <Card>
             <CardBody className="p-0">
               <TableWrap>
                 <THead>
-                  <Th>Tài khoản &amp; Người đại diện</Th>
-                  <Th>Đơn vị</Th>
-                  <Th>Cấp</Th>
-                  <Th>Email / Điện thoại</Th>
+                  <Th>Đơn vị trong cơ cấu tổ chức</Th>
+                  <Th>Cấp đơn vị &amp; Nhiệm vụ</Th>
+                  <Th>Tài khoản quản trị đơn vị</Th>
                   <Th>Trạng thái</Th>
                   <Th className="text-right">Thao tác</Th>
                 </THead>
                 <tbody>
-                  {unitAccounts.length === 0 ? <EmptyRow colSpan={6} message="Chưa có tài khoản đơn vị nào trong phạm vi của bạn." /> : null}
-                  {unitAccounts.map((a) => {
-                    const u = store.orgById(a.orgUnitId);
-                    const lvl = u?.orgLevel;
+                  {unitAccounts.length === 0 ? (
+                    <EmptyRow colSpan={5} message="Không tìm thấy đơn vị nào khớp với điều kiện lọc." />
+                  ) : null}
+                  {unitAccounts.map(({ unit, account, parentUnit }) => {
+                    const lvl = unit.orgLevel;
                     const levelLabel =
                       lvl === 1 ? "Trung ương Đoàn"
                       : lvl === 2 ? "Tỉnh / Thành đoàn"
                       : lvl === 3 ? "Cấp cơ sở và tương đương"
                       : lvl === 4 ? "Đoàn trực thuộc cấp cơ sở"
-                      : lvl === 5 ? "Dưới cơ sở"
+                      : "Dưới cơ sở";
+
+                    const roleDesc =
+                      lvl === 1 ? "Toàn quyền quản trị, theo dõi & đánh giá toàn quốc"
+                      : lvl === 2 ? "Giao chỉ tiêu, xác nhận kết quả & báo cáo tỉnh"
+                      : lvl === 3 ? "Tổng hợp & xác nhận kết quả cơ sở trực thuộc"
+                      : lvl === 4 ? "Cập nhật hoạt động & số liệu nội bộ trường"
                       : "—";
+
                     return (
-                      <Tr key={a.id}>
+                      <Tr key={unit.id} className={account ? "" : "bg-amber-50/20"}>
+                        {/* Cột 1: Đơn vị trong cơ cấu tổ chức */}
                         <Td>
-                          <p className="font-mono text-xs font-bold text-stone-900">@{a.username}</p>
-                          <p className="text-[11px] text-stone-500">{a.contactPerson || "—"}{a.contactPosition ? ` · ${a.contactPosition}` : ""}</p>
+                          <div className="flex items-start gap-2.5">
+                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5 ${
+                              lvl === 1 ? "bg-amber-100 text-amber-700"
+                              : lvl === 2 ? "bg-blue-100 text-blue-700"
+                              : lvl === 3 ? "bg-purple-100 text-purple-700"
+                              : "bg-orange-100 text-orange-700"
+                            }`}>
+                              <Building2 className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-xs text-stone-900" title={unit.name}>
+                                {unit.name}
+                              </p>
+                              <p className="text-[11px] text-stone-400 mt-0.5">
+                                {parentUnit ? `Trực thuộc: ${parentUnit.name}` : "Cơ quan Trung ương"}
+                                {unit.code ? ` · Mã: ${unit.code}` : ""}
+                              </p>
+                            </div>
+                          </div>
                         </Td>
-                        <Td className="max-w-56">
-                          <span className="block truncate text-xs font-medium text-stone-800" title={u?.name}>
-                            {u?.name ?? `Đơn vị #${a.orgUnitId}`}
-                          </span>
-                        </Td>
-                        <Td><Badge tone={lvl === 2 ? "blue" : lvl === 3 ? "purple" : lvl === 4 ? "orange" : "gray"}>{levelLabel}</Badge></Td>
-                        <Td className="text-xs text-stone-500">
-                          <p className="truncate">{a.email || "—"}</p>
-                          <p className="text-[11px] text-stone-400">{a.phone || ""}</p>
-                        </Td>
+
+                        {/* Cột 2: Cấp đơn vị & Nhiệm vụ */}
                         <Td>
-                          {a.status === "ACTIVE" ? <Badge tone="green">Đang hoạt động</Badge>
-                            : a.status === "LOCKED" ? <Badge tone="gray">Đã khóa</Badge>
-                            : <Badge tone="yellow">Chờ duyệt</Badge>}
+                          <div>
+                            <Badge tone={lvl === 1 ? "purple" : lvl === 2 ? "blue" : lvl === 3 ? "purple" : "orange"}>
+                              {levelLabel}
+                            </Badge>
+                            <p className="text-[10.5px] text-stone-500 mt-1 max-w-xs leading-snug">
+                              {roleDesc}
+                            </p>
+                          </div>
                         </Td>
+
+                        {/* Cột 3: Tài khoản quản trị đơn vị */}
+                        <Td>
+                          {account ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                  @{account.username}
+                                </span>
+                              </div>
+                              <p className="text-xs text-stone-600 font-medium truncate max-w-xs">
+                                {account.email || "—"}
+                              </p>
+                              {account.contactPerson && account.contactPerson !== unit.name ? (
+                                <p className="text-[11px] text-stone-400 truncate">
+                                  Đầu mối: {account.contactPerson}{account.contactPosition ? ` (${account.contactPosition})` : ""}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
+                                Chưa khởi tạo tài khoản
+                              </span>
+                              <div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => openCreateForUnit(unit)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 py-0 px-2"
+                                >
+                                  <UserPlus className="h-3.5 w-3.5 mr-1" /> Cấp tài khoản
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </Td>
+
+                        {/* Cột 4: Trạng thái */}
+                        <Td>
+                          {account ? (
+                            account.status === "ACTIVE" ? <Badge tone="green">Đang hoạt động</Badge>
+                            : account.status === "LOCKED" ? <Badge tone="gray">Đã khóa</Badge>
+                            : <Badge tone="yellow">Chờ duyệt</Badge>
+                          ) : (
+                            <span className="text-xs text-stone-400 italic">Chưa cấp</span>
+                          )}
+                        </Td>
+
+                        {/* Cột 5: Thao tác */}
                         <Td className="text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <Button size="sm" variant="outline" onClick={() => openEditModal(a)}>
-                              <Edit3 className="h-3.5 w-3.5" /> Sửa
-                            </Button>
-                            {session && isSuperior(a) ? (
-                              <Button size="sm" variant="ghost" onClick={() => setDeletingAccount(a)} className="text-red-600 hover:text-red-700">
-                                <Trash2 className="h-3.5 w-3.5" />
+                            {account ? (
+                              <>
+                                <Link href={`/quan-tri/he-thong/phan-quyen/${account.id}`}>
+                                  <Button size="sm" variant="outline" className="text-blue-700 hover:text-blue-800" title="Phân quyền nhiệm vụ chi tiết">
+                                    <KeyRound className="h-3.5 w-3.5 mr-1" /> Quyền
+                                  </Button>
+                                </Link>
+                                <Button size="sm" variant="outline" onClick={() => openEditModal(account)} title="Sửa thông tin tài khoản">
+                                  <Edit3 className="h-3.5 w-3.5" /> Sửa
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setResetTargetAccount(account);
+                                    setResetPasswordInput("");
+                                    setShowResetPassword(false);
+                                    setResetPasswordOpen(true);
+                                  }}
+                                  className="text-amber-700 hover:text-amber-800"
+                                  title="Đặt lại mật khẩu"
+                                >
+                                  <KeyRound className="h-3.5 w-3.5" /> Đổi MK
+                                </Button>
+                                {session && isSuperior(account) ? (
+                                  <Button size="sm" variant="ghost" onClick={() => setDeletingAccount(account)} className="text-red-600 hover:text-red-700" title="Xóa tài khoản">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                ) : null}
+                              </>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => openCreateForUnit(unit)}
+                                className="bg-blue-700 hover:bg-blue-800 text-white text-xs"
+                              >
+                                <UserPlus className="h-3.5 w-3.5 mr-1" /> Cấp tài khoản
                               </Button>
-                            ) : null}
+                            )}
                           </div>
                         </Td>
                       </Tr>
@@ -1473,11 +1822,11 @@ export default function PhanQuyenVaTaiKhoanPage() {
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Họ và tên người đại diện *">
+            <Field label={editingAccount?.role === "DOAN_VIEN" ? "Họ và tên đoàn viên *" : "Tên hiển thị / Cán bộ đầu mối liên hệ *"}>
               <Input
                 value={editForm.contactPerson}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, contactPerson: e.target.value }))}
-                placeholder="Nguyễn Văn Toàn"
+                placeholder={editingAccount?.role === "DOAN_VIEN" ? "Nguyễn Văn A" : "Tên đơn vị hoặc tên cán bộ đầu mối"}
               />
             </Field>
 
@@ -1590,7 +1939,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
           <Field label="Đơn vị trực thuộc * (Thuộc TW Đoàn, Tỉnh/Thành hoặc Đoàn trực thuộc)">
             <select
               value={createForm.orgUnitId}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, orgUnitId: e.target.value }))}
+              onChange={(e) => {
+                const val = e.target.value;
+                const sel = store.orgById(Number(val));
+                setCreateForm((prev) => ({
+                  ...prev,
+                  orgUnitId: val,
+                  contactPerson: prev.contactPerson || sel?.name || "",
+                }));
+              }}
               className="w-full rounded-lg border border-stone-200 bg-white py-2 px-3 text-sm text-stone-800 focus:border-blue-600 focus:outline-none"
             >
               <option value="">-- Chọn đơn vị trực thuộc --</option>
@@ -1663,15 +2020,15 @@ export default function PhanQuyenVaTaiKhoanPage() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Họ và tên người đại diện *">
+            <Field label="Tên hiển thị / Cán bộ đầu mối liên hệ *">
               <Input
                 value={createForm.contactPerson}
                 onChange={(e) => setCreateForm((prev) => ({ ...prev, contactPerson: e.target.value }))}
-                placeholder="Nguyễn Văn A"
+                placeholder="Mặc định theo tên đơn vị hoặc tên cán bộ đầu mối"
               />
             </Field>
 
-            <Field label="Email *">
+            <Field label="Email liên hệ *">
               <Input
                 type="email"
                 value={createForm.email}

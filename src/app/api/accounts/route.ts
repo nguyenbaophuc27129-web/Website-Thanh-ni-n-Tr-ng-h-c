@@ -165,8 +165,8 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const units = await query<{ id: number; org_level: number; path: string }>(
-          "SELECT id, org_level, path FROM org_units WHERE id = $1 AND deleted_at IS NULL",
+        const units = await query<{ id: number; org_level: number; path: string; name: string }>(
+          "SELECT id, org_level, path, name FROM org_units WHERE id = $1 AND deleted_at IS NULL",
           [orgUnitId],
         );
         const targetUnit = units[0];
@@ -189,14 +189,19 @@ export async function POST(request: NextRequest) {
             [orgUnitId],
           );
           if (taken[0]) {
-            throw new Error("Đơn vị cơ sở chỉ có 01 tài khoản dùng chung.");
+            throw new Error(`Đơn vị "${targetUnit.name}" đã có tài khoản quản trị.`);
           }
         }
-        const dup = await query<{ id: number }>(
-          "SELECT id FROM accounts WHERE (username = $1 OR email = $2) AND deleted_at IS NULL LIMIT 1",
+        const dup = await query<{ id: number; username: string; email: string }>(
+          "SELECT id, username, email FROM accounts WHERE (lower(username) = lower($1) OR lower(email) = lower($2)) AND deleted_at IS NULL LIMIT 1",
           [username, email],
         );
-        if (dup[0]) throw new Error("Tên đăng nhập hoặc email đã tồn tại.");
+        if (dup[0]) {
+          if (dup[0].username.toLowerCase() === username.toLowerCase()) {
+            throw new Error(`Tên đăng nhập "@${username}" đã tồn tại trên hệ thống.`);
+          }
+          throw new Error(`Địa chỉ email "${email}" đã được sử dụng bởi tài khoản khác.`);
+        }
 
         const passwordHash = await hashPassword(rawPassword);
         const status = ["PENDING", "ACTIVE", "LOCKED", "DISABLED"].includes(
@@ -235,7 +240,15 @@ export async function POST(request: NextRequest) {
         }
         created.push(newId);
       } catch (e) {
-        errors.push({ username: username || "?", error: e instanceof Error ? e.message : "Lỗi" });
+        let msg = e instanceof Error ? e.message : "Lỗi";
+        if (msg.includes("accounts_username") || msg.includes("accounts_username_active_idx") || msg.includes("accounts_username_key")) {
+          msg = `Tên đăng nhập "@${username}" đã tồn tại trên hệ thống.`;
+        } else if (msg.includes("accounts_email") || msg.includes("accounts_email_active_idx") || msg.includes("accounts_email_key")) {
+          msg = `Địa chỉ email "${email}" đã được sử dụng bởi tài khoản khác.`;
+        } else if (msg.includes("accounts_unit_active_idx")) {
+          msg = "Đơn vị này đã có tài khoản quản trị rồi.";
+        }
+        errors.push({ username: username || "?", error: msg });
       }
     }
     if (created.length > 0) {
