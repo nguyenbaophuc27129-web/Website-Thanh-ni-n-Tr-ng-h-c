@@ -5,6 +5,7 @@ import { Bot, FileDown, Send, Sparkles, Trash2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { downloadDraftWordDoc } from "@/lib/word-export";
+import { useHoSoTheThuc } from "@/lib/use-ho-so-the-thuc";
 
 interface ChatMessage {
   from: "user" | "bot";
@@ -63,6 +64,7 @@ function renderInline(text: string): React.ReactNode {
 
 export default function TroLyAiPage() {
   const { session } = useAuth();
+  const hoSoDonVi = useHoSoTheThuc(session?.orgUnitId);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       from: "bot",
@@ -123,6 +125,7 @@ export default function TroLyAiPage() {
     downloadDraftWordDoc(`van-ban-tro-ly-AI-${stamp}`, {
       draft: text,
       orgUnitName: (session?.orgUnitName ?? "ĐOÀN CƠ SỞ").toUpperCase(),
+      donVi: hoSoDonVi,
     });
   };
 

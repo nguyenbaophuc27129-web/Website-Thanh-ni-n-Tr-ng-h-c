@@ -12,9 +12,10 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { reportTemplates, suggestDocCode, templateById } from "@/data/report-templates";
-import { mauQuyDinh } from "@/data/the-thuc-van-ban";
-import { buildReportWordData, downloadDraftWordDoc, downloadWordDoc, vnDateStr, type WordDocData } from "@/lib/word-export";
+import { mauQuyDinh, type VanBanStructuredOutput } from "@/data/the-thuc-van-ban";
+import { buildReportWordData, downloadDraftWordDoc, downloadStructuredWordDoc, downloadWordDoc, vnDateStr, type WordDocData } from "@/lib/word-export";
 import type { ClassifiedRecord, SelfCheckResult } from "@/lib/server/bao-cao-pipeline";
+import { useHoSoTheThuc } from "@/lib/use-ho-so-the-thuc";
 
 const STATUS_BADGE: Record<string, { tone: "green" | "yellow" | "red" | "orange" | "blue"; label: string }> = {
   DUA_VAO: { tone: "green", label: "Đưa vào báo cáo" },
@@ -32,6 +33,27 @@ const TYPE_TO_TEMPLATE: Record<string, "DINH_KY" | "CHINH_TRI_TONG_KET"> = {
   MONTHLY: "DINH_KY", QUARTERLY: "DINH_KY", ANNUAL: "DINH_KY", CUSTOM: "DINH_KY",
 };
 
+/** Kết quả /api/ai/bao-cao-tuan */
+interface KetQuaBaoCaoTuanApi {
+  vanBan: VanBanStructuredOutput;
+  vanBanThuan: string;
+  kyText: string;
+  model: string;
+  kiemTra: { hopLe: boolean; loi: string[]; canhBao: string[] };
+  thongKe: { tongHoatDong: number; duaVao: number; kyToi: number; xacMinh: number; loai: number };
+  khac: { ma: string; ten: string; ngay: string; xuLy: string }[];
+}
+
+/** Kỳ ≤ 92 ngày ở chế độ "theo kỳ" → bước 2 soạn theo thể thức 29-HD (/api/ai/bao-cao-tuan) */
+const MAX_NGAY_THE_THUC_29 = 92;
+const soNgayKy = (tu: string, den: string) => Math.round((Date.parse(den) - Date.parse(tu)) / 86400000) + 1;
+/** Kỳ trọn một tháng dương lịch (YYYY-MM-01 → ngày cuối tháng) */
+const laTronThang = (tu: string, den: string) => {
+  if (!tu.endsWith("-01") || tu.slice(0, 7) !== den.slice(0, 7)) return false;
+  const [y, m] = den.split("-").map(Number);
+  return Number(den.slice(8, 10)) === new Date(y, m, 0).getDate();
+};
+
 const periodLabelOf = (r: { reportType: string; periodNumber?: number; periodYear: number; periodStart?: string; periodEnd?: string }) => {
   if (r.reportType === "MONTHLY") return `tháng ${r.periodNumber}/${r.periodYear}`;
   if (r.reportType === "QUARTERLY") return `quý ${r.periodNumber}/${r.periodYear}`;
@@ -43,6 +65,7 @@ export default function BaoCaoPage() {
   const { session } = useAuth();
   const store = useStore();
   const { toast } = useToast();
+  const hoSoDonVi = useHoSoTheThuc(session?.orgUnitId);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
@@ -90,6 +113,10 @@ export default function BaoCaoPage() {
   const [fillDocCode, setFillDocCode] = useState("");
   const [fillStats, setFillStats] = useState({ acts: 0, participants: 0, tasks: 0, posts: 0, score: 0 });
   const [fillSections, setFillSections] = useState<string[]>([]);
+
+  // Bước 2 theo thể thức 29-HD — gồm cấp dưới + kết quả soạn (xem lỗi/ghi chú, tải Word đúng thể thức)
+  const [gomCapDuoi, setGomCapDuoi] = useState(false);
+  const [kq29, setKq29] = useState<KetQuaBaoCaoTuanApi | null>(null);
 
   const exportingReport = useMemo(
     () => store.reports.find((r) => r.id === exportFor) ?? null,
@@ -193,6 +220,7 @@ export default function BaoCaoPage() {
         body: JSON.stringify({
           mode: jsonExportMode,
           periodStart: jsonExportMode === "period" ? jsonPeriodStart : undefined,
+          gomCapDuoi: jsonExportMode === "period" ? gomCapDuoi : undefined,
           periodEnd: jsonExportMode === "period" ? jsonPeriodEnd : undefined,
           activityIds: jsonExportMode === "activity" ? jsonSelectedActIds : undefined,
           orgUnitId: session.orgUnitId,
@@ -208,6 +236,8 @@ export default function BaoCaoPage() {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setJsonRawData(data);
+      setClassifiedData(null);
+      setKq29(null);
       setResultJson(JSON.stringify(data.contextForAi, null, 2));
       toast(`Đã trích xuất ${data.metadata.activityCount} hoạt động thành dữ liệu JSON chuẩn cho AI!`, "success");
     } catch (err) {
@@ -259,10 +289,60 @@ export default function BaoCaoPage() {
     }
   };
 
+  /** Bước 2 theo thể thức 29-HD: dùng phân loại đã duyệt, code dựng khung + đánh số + phụ lục, AI chỉ biên tập lời văn */
+  const vietTheoTheThuc29 = async () => {
+    if (!session) return;
+    const res = await fetch("/api/ai/bao-cao-tuan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orgUnitId: session.orgUnitId,
+        tuNgay: jsonPeriodStart,
+        denNgay: jsonPeriodEnd,
+        gomCapDuoi,
+        classified: classifiedData?.records,
+      }),
+    });
+    const data = (await res.json().catch(() => null)) as ({ ok?: boolean; error?: string } & Partial<KetQuaBaoCaoTuanApi>) | null;
+    if (!res.ok || !data?.ok || !data.vanBan) throw new Error(data?.error ?? `HTTP ${res.status}`);
+    const kq = data as KetQuaBaoCaoTuanApi;
+    setKq29(kq);
+    const tronThang = laTronThang(jsonPeriodStart, jsonPeriodEnd);
+    const newId = store.createReport(session, {
+      orgUnitId: session.orgUnitId,
+      reportType: tronThang ? "MONTHLY" : "CUSTOM",
+      periodYear: Number(jsonPeriodEnd.slice(0, 4)),
+      periodNumber: tronThang ? Number(jsonPeriodEnd.slice(5, 7)) : undefined,
+      periodStart: jsonPeriodStart,
+      periodEnd: jsonPeriodEnd,
+      title: `Báo cáo kết quả công tác Đoàn và phong trào thanh thiếu nhi ${kq.kyText}`,
+    });
+    store.updateReport(newId, {
+      content: kq.vanBanThuan,
+      aiDraftContent: kq.vanBanThuan,
+      aiModel: kq.model,
+      aiGeneratedAt: new Date().toISOString(),
+    });
+    setReportChecks((prev) => ({
+      ...prev,
+      [newId]: { pass: kq.kiemTra.hopLe, items: [{ name: "Thể thức văn bản 29-HD", pass: kq.kiemTra.hopLe, detail: kq.kiemTra.loi.join("; ") }] },
+    }));
+    toast(
+      `Đã tạo báo cáo theo thể thức 29-HD (${kq.thongKe.duaVao}/${kq.thongKe.tongHoatDong} hoạt động vào thân báo cáo)${kq.kiemTra.hopLe ? "" : " — còn lỗi thể thức, xem bên dưới"}. Tải Word đúng thể thức ở cuối hộp này.`,
+      kq.kiemTra.hopLe ? "success" : "warning"
+    );
+  };
+
   const handleSendToAi = async () => {
     if (!jsonRawData?.contextForAi || !session) return;
     setAiSendingBusy(true);
     try {
+      // Theo kỳ ≤ 92 ngày → thể thức 29-HD; chọn hoạt động cụ thể hoặc kỳ dài (năm) → cách viết cũ
+      const n = jsonExportMode === "period" ? soNgayKy(jsonPeriodStart, jsonPeriodEnd) : 0;
+      if (n >= 1 && n <= MAX_NGAY_THE_THUC_29) {
+        await vietTheoTheThuc29();
+        return;
+      }
       const res = await fetch("/api/ai/nhap-bao-cao", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -515,8 +595,8 @@ export default function BaoCaoPage() {
             Lập báo cáo tháng/quý/năm từ dữ liệu hệ thống, có bản nháp gợi ý bằng AI và xuất Word.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => { setJsonExportOpen(true); setResultJson(null); setJsonRawData(null); setClassifiedData(null); setExtraText(""); }} className="flex items-center gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => { setJsonExportOpen(true); setResultJson(null); setJsonRawData(null); setClassifiedData(null); setExtraText(""); setKq29(null); }} className="flex items-center gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50">
             <Code className="h-4 w-4 text-blue-600" /> Tạo báo cáo bằng AI
           </Button>
           <Button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5">
@@ -563,7 +643,7 @@ export default function BaoCaoPage() {
                       {r.aiModel} · {formatDateTime(r.aiGeneratedAt)}
                     </span>
                     <button
-                      onClick={() => downloadDraftWordDoc(`nhap-bao-cao-${r.id}`, { draft: r.aiDraftContent ?? "", orgUnitName: session?.orgUnitName ?? "" })}
+                      onClick={() => downloadDraftWordDoc(`nhap-bao-cao-${r.id}`, { draft: r.aiDraftContent ?? "", orgUnitName: session?.orgUnitName ?? "", donVi: hoSoDonVi })}
                       className="ml-auto flex items-center gap-1 rounded-md border border-violet-300 bg-white px-2 py-1 text-[11px] font-medium text-violet-700 hover:bg-violet-100"
                     >
                       <FileDown className="h-3 w-3" /> Xuất Word bản nháp
@@ -1138,6 +1218,18 @@ export default function BaoCaoPage() {
                   Tuần 41 (06 - 12/10)
                 </button>
               </div>
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-stone-700">
+                <input
+                  type="checkbox"
+                  checked={gomCapDuoi}
+                  onChange={(e) => setGomCapDuoi(e.target.checked)}
+                  className="accent-blue-600"
+                />
+                Gồm hoạt động của các đơn vị cấp dưới
+              </label>
+              <p className="text-[10px] text-stone-400">
+                Kỳ từ 92 ngày trở xuống được viết theo thể thức 29-HD: khung 6 nhóm nhiệm vụ, mục không có hoạt động để trống, đoạn sai so với dữ liệu thay bằng nguyên văn dữ liệu, kèm phụ lục nguồn.
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -1280,6 +1372,38 @@ export default function BaoCaoPage() {
               <p className="text-[10px] text-stone-500">
                 Bản ghi sai ngày/mã đã được hệ thống ép lại theo quy tắc cứng (R1, R3) — trạng thái hiển thị là kết quả kiểm chứng, không phải câu trả lời thô của AI.
               </p>
+            </div>
+          ) : null}
+          {kq29 ? (
+            <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+              <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-emerald-800">
+                <CheckCircle2 className="h-4 w-4" /> Đã soạn theo thể thức 29-HD — đã lưu vào danh sách báo cáo
+                <Badge tone="green">Đưa vào: {kq29.thongKe.duaVao}</Badge>
+                {kq29.thongKe.kyToi ? <Badge tone="blue">Phương hướng kỳ tới: {kq29.thongKe.kyToi}</Badge> : null}
+                {kq29.thongKe.xacMinh ? <Badge tone="orange">Cần xác minh: {kq29.thongKe.xacMinh}</Badge> : null}
+                {kq29.thongKe.loai ? <Badge tone="red">Loại: {kq29.thongKe.loai}</Badge> : null}
+                <span className="font-normal text-emerald-600">{kq29.model}</span>
+              </p>
+              {kq29.kiemTra.loi.length ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                  <p className="font-semibold">Lỗi thể thức cần sửa trước khi ban hành:</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">{kq29.kiemTra.loi.map((l, i) => <li key={i}>{l}</li>)}</ul>
+                </div>
+              ) : null}
+              {kq29.kiemTra.canhBao.length ? (
+                <details className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <summary className="cursor-pointer font-semibold">Ghi chú rà soát ({kq29.kiemTra.canhBao.length})</summary>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">{kq29.kiemTra.canhBao.map((l, i) => <li key={i}>{l}</li>)}</ul>
+                </details>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => downloadStructuredWordDoc(`bao-cao-${jsonPeriodStart}-${jsonPeriodEnd}`, kq29.vanBan)}
+                className="flex items-center gap-1.5"
+              >
+                <FileDown className="h-3.5 w-3.5" /> Tải Word đúng thể thức (.doc)
+              </Button>
             </div>
           ) : null}
         </div>

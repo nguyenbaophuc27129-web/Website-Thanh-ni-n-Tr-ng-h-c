@@ -14,6 +14,8 @@ interface XuatDuLieuBody {
   periodLabel?: string;
   activityIds?: number[];
   orgUnitId?: number;
+  /** mode "period": gồm cả hoạt động của các đơn vị cấp dưới (theo cây org_units) */
+  gomCapDuoi?: boolean;
   clientFallbackData?: {
     orgUnits?: Array<{ id: number; name: string; orgLevel: number; path?: string }>;
     activities?: Array<{
@@ -120,6 +122,8 @@ export async function POST(request: NextRequest) {
     startDate: string;
     location?: string;
     participantCount?: number;
+    /** Tên đơn vị tổ chức (khi gồm cấp dưới) — dùng làm chủ trì */
+    unitName?: string;
   }> = [];
 
   let taskLines: string[] = [];
@@ -142,6 +146,7 @@ export async function POST(request: NextRequest) {
         const start = body.periodStart ? `${body.periodStart} 00:00:00` : "1970-01-01 00:00:00";
         const end = body.periodEnd ? `${body.periodEnd} 23:59:59` : "2099-12-31 23:59:59";
 
+        const gomCapDuoi = body.gomCapDuoi === true && !!targetPath;
         const actRows = await query<{
           id: number;
           org_unit_id: number;
@@ -150,14 +155,17 @@ export async function POST(request: NextRequest) {
           start_date: string;
           location: string | null;
           participant_count: number | null;
+          unit_name: string;
         }>(
-          `SELECT id, org_unit_id, title, summary, start_date, location, participant_count 
-           FROM activities 
-           WHERE org_unit_id = $1 
-             AND start_date >= $2 
-             AND start_date <= $3
-           ORDER BY start_date ASC`,
-          [targetOrgUnitId, start, end]
+          `SELECT a.id, a.org_unit_id, a.title, a.summary, a.start_date, a.location, a.participant_count, u.name AS unit_name
+           FROM activities a
+           JOIN org_units u ON u.id = a.org_unit_id
+           WHERE (a.org_unit_id = $1 OR ($4::boolean AND u.path LIKE $5 || '%'))
+             AND a.deleted_at IS NULL
+             AND a.start_date >= $2
+             AND a.start_date <= $3
+           ORDER BY a.start_date ASC`,
+          [targetOrgUnitId, start, end, gomCapDuoi, targetPath ?? ""]
         );
 
         rawActivities = actRows.map((r) => ({
@@ -168,6 +176,7 @@ export async function POST(request: NextRequest) {
           startDate: typeof r.start_date === "string" ? r.start_date : new Date(r.start_date).toISOString(),
           location: r.location ?? undefined,
           participantCount: r.participant_count ? Number(r.participant_count) : 0,
+          unitName: r.unit_name,
         }));
       } else {
         const ids = body.activityIds ?? [];
@@ -183,8 +192,9 @@ export async function POST(request: NextRequest) {
           }>(
             `SELECT id, org_unit_id, title, summary, start_date, location, participant_count
              FROM activities
-             WHERE id = ANY($1::int[])
+             WHERE id = ANY($1::bigint[])
                AND org_unit_id = $2
+               AND deleted_at IS NULL
              ORDER BY start_date ASC`,
             [ids, targetOrgUnitId]
           );
@@ -282,7 +292,7 @@ export async function POST(request: NextRequest) {
     ten: a.title,
     ngay: formatDateVn(a.startDate),
     dia_diem: a.location || undefined,
-    chu_tri: orgName,
+    chu_tri: a.unitName || orgName,
     mo_ta: (a.summary || a.title).slice(0, 600),
     so_lieu: a.participantCount
       ? [

@@ -1,10 +1,20 @@
-import { normalizeNoiNhanList, normalizeVanBanNgayThang, normalizeVanBanSoKyHieu, type VanBanStructuredOutput } from "@/data/the-thuc-van-ban";
+import {
+  formatDiaDiemNgayThang,
+  normalizeNoiNhanList,
+  normalizeVanBanNgayThang,
+  normalizeVanBanSoKyHieu,
+  vanBanLoaiList,
+  type DonViBanHanh,
+  type NoiDungBlock,
+  type VanBanStructuredOutput,
+} from "@/data/the-thuc-van-ban";
 /**
  * Xuất văn bản Word (.doc) đúng thể thức văn bản hành chính:
  * quốc hiệu - tiêu ngữ, tên cơ quan, số/ký hiệu, căn cứ, nội dung, nơi nhận, chữ ký.
  * Cách tiếp cận: HTML với header MS Word, tải về .doc mở trực tiếp bằng Word/LibreOffice.
  */
 import type { useStore } from "@/lib/store-context";
+import { stripHtmlTags } from "@/lib/ai-text";
 
 type StoreApi = ReturnType<typeof useStore>;
 
@@ -155,11 +165,17 @@ export interface DraftWordInput {
   signOrg?: string; // "TM. BAN THƯỜNG VỤ THÀNH ĐOÀN" — suy ra từ tên đơn vị nếu bỏ trống
   signTitle?: string; // "BÍ THƯ"
   signerName?: string; // họ tên người ký — bắt từ bản nháp nếu bỏ trống (QĐ 27-HĐ mục 7)
+  /**
+   * Hồ sơ thể thức của đơn vị (GET /api/org-units/ho-so-the-thuc). Có thì khối đầu trang/chân trang dựng đúng
+   * 29-HD: tên cơ quan 1-2 dòng, ký hiệu theo loại văn bản, địa danh, đề ký, nơi nhận mặc định.
+   */
+  donVi?: DonViBanHanh | null;
 }
 
 const isThucTheLine = (s: string): boolean =>
   /^ĐOÀN TNCS HỒ CHÍ MINH$/i.test(s.trim()) ||
-  /^BAN (CHẤP HÀNH|THƯỜNG VỤ)/i.test(s.trim()) ||
+  // Chỉ dòng tên cơ quan IN HOA — không nuốt câu văn "Ban Chấp hành Đoàn trường đề nghị…"
+  (/^BAN (CHẤP HÀNH|THƯỜNG VỤ)/.test(s.trim()) && isAllCaps(s)) ||
   /^CỘNG HÒA XÃ HỘI/i.test(s.trim()) ||
   /^ĐỘC LẬP\s*-/i.test(s.trim()) ||
   /^-+\s*o0o\s*-+$/i.test(s.trim());
@@ -176,8 +192,17 @@ const isSignPlaceholder = (s: string): boolean => /^\(chữ ký\)\.?$|^ký tên\
 /** Tên người ký: các từ viết hoa in thường, không dấu câu (VD "Nguyễn Văn A") */
 const isPersonName = (s: string): boolean =>
   /^[\p{Lu}][\p{L}\s.]{3,39}$/u.test(s.trim()) && !/[,:;!?(){}[\]"']/.test(s) && !isAllCaps(s) && !isSignBlock(s);
-const TITLE_RE = /^(báo cáo|chương trình|kế hoạch|nghị quyết|chỉ thị|hướng dẫn|tổng kết)\b/i;
-const isDateLine = (s: string): boolean => /ngày\s+\d+\s+tháng\s+\d+\s+năm/i.test(s.trim());
+const TITLE_RE = /^(báo cáo|chương trình|kế hoạch|nghị quyết|chỉ thị|hướng dẫn|tổng kết|quyết định|quy định|thông báo|thông tri|tờ trình)\b/i;
+const isDateLine = (s: string): boolean => /ngày\s+(\d+\s+)?tháng\s+(\d+\s+)?năm/i.test(s.trim());
+/** Viết tắt thể loại theo tên loại ở đầu bản nháp ("KẾ HOẠCH" → "KH"); công văn → "CV"; không rõ → "BC" */
+const vietTatTheoTenLoai = (title: string, congVan: boolean): string => {
+  if (congVan) return "CV";
+  const t = title.trim().toLocaleUpperCase("vi");
+  const l = vanBanLoaiList.find((x) => x.ten.split("/").some((p) => t.startsWith(p.trim().toLocaleUpperCase("vi"))));
+  return l?.vietTat ?? "BC";
+};
+/** Giữ khoảng trắng liền nhau (chỗ trống điền số, ngày) khi mở bằng Word */
+const escSpace = (s: string) => esc(s).replace(/ {2,}/g, (m) => "&nbsp;".repeat(m.length));
 const isAllCaps = (s: string): boolean => {
   const letters = s.replace(/[^\p{L}]/gu, "");
   return letters.length > 6 && letters === letters.toLocaleUpperCase("vi-VN");
@@ -188,7 +213,49 @@ const mdInline = (s: string): string =>
   s
     .split(/\*\*(.+?)\*\*/g)
     .map((seg, k) => (k % 2 === 1 ? `<b>${esc(seg)}</b>` : esc(seg)))
-    .join("");
+    .join("")
+    // Chỗ cần điền — tô vàng để người soạn dễ thấy
+    .replace(/\[CẦN BỔ SUNG\]/g, '<span style="background:yellow;mso-highlight:yellow;">[CẦN BỔ SUNG]</span>');
+
+/**
+ * Ước lượng bề rộng chữ (pt) theo số đo Times New Roman: chữ hoa ~0,72em (đậm) / ~0,67em (thường),
+ * chữ thường ~0,45em, chữ số 0,5em, dấu cách / dấu câu 0,25em.
+ */
+const uocRongPt = (s: string, pt: number, dam = false): number =>
+  [...s].reduce((w, c) => {
+    if (/[\s.,:;*()\-/]/.test(c)) return w + 0.25;
+    if (/\d/.test(c)) return w + 0.5;
+    return w + (c !== c.toLocaleUpperCase("vi") ? 0.45 : dam ? 0.72 : 0.67);
+  }, 0) * pt;
+
+/**
+ * Chia độ rộng 2 cột khối đầu trang (%): cột phải đủ cho tiêu đề và dòng địa danh - ngày tháng (không xuống dòng),
+ * phần dư chia đều; tên cơ quan quá dài thì được xuống dòng (29-HD cho phép).
+ */
+function chiaCotDauTrang(trai: string[], phai: { text: string; pt: number; dam?: boolean }[]): [number, number] {
+  const TONG = 453; // vùng chữ A4: 21 cm − lề trái 3 cm − lề phải 2 cm ≈ 16 cm ≈ 453 pt
+  // trai[0] = dòng tổ chức cấp trên (không đậm), các dòng sau = tên cơ quan ban hành (đậm)
+  const canTrai = Math.max(0, ...trai.map((t, k) => (t ? uocRongPt(t, 14, k > 0) : 0))) + 14;
+  const canPhai = Math.max(0, ...phai.map((x) => uocRongPt(x.text, x.pt, x.dam))) + 14;
+  const du = TONG - canTrai - canPhai;
+  const p = Math.round(((du > 0 ? canPhai + du / 2 : canPhai) / TONG) * 100);
+  const phaiPct = Math.min(60, Math.max(42, p));
+  return [100 - phaiPct, phaiPct];
+}
+
+/**
+ * Tách dòng AI trình bày 2 cột trên cùng một dòng (VD "- Lưu VP.   TM. BAN BÍ THƯ", "Nơi nhận:      TM. BAN …")
+ * thành 2 dòng: phần nơi nhận / nội dung trước, phần chữ ký sau.
+ */
+function tachDongHaiCot(line: string): string[] {
+  const m =
+    line.match(/^(.*?\S)\s*(?:\t|\s{2,})((?:TM|KT|TL|Q)\.\s+\S.*)$/) ??
+    line.match(/^(.*?[;.:])\s+((?:TM|KT|TL)\.\s+[A-ZĐ].*)$/);
+  if (m) return [m[1].trim(), m[2].trim()];
+  const cot = line.split(/\t+|\s{3,}/);
+  if (cot.length === 2 && cot[0].trim() && (isSignBlock(cot[1]) || isPersonName(cot[1]))) return [cot[0].trim(), cot[1].trim()];
+  return [line];
+}
 
 const deriveSignOrg = (org: string): string => {
   if (/TRUNG ƯƠNG ĐOÀN/.test(org)) return "TM. BAN CHẤP HÀNH TRUNG ƯƠNG ĐOÀN";
@@ -221,15 +288,48 @@ function mdTableHtml(rows: string[][], fontPt: number): string {
  *   tiêu đề 15pt, quốc hiệu 15pt căn phải, "Phần thứ" + dòng chữ hoa căn giữa đậm).
  */
 export function buildDraftWordHtml(i: DraftWordInput): string {
-  const lines = i.draft.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
+  const lines = stripHtmlTags(i.draft)
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .flatMap(tachDongHaiCot)
+    .filter((l, k, a) => !(l && /^\[CẦN BỔ SUNG\]\.?$/.test(l) && a.slice(0, k).reverse().find(Boolean) === l));
 
   // 1) Bắt khối tiêu đề (BÁO CÁO…/phụ đề/kẻ ngang) ở đầu bản nháp nếu AI tự sinh
   let title = i.docTitle ? i.docTitle.toUpperCase() : "";
   const subtitles: string[] = i.docSubtitles ? [...i.docSubtitles] : [];
   let start = 0;
+  let congVan = false;
+  let trichYeuCv: string | null = null;
+
+  // AI hay tự viết khối đầu trang (tên cơ quan, ***, Số, tiêu đề, ngày tháng) trước tên loại — nhận diện để bỏ,
+  // tránh in lặp vào thân và để bắt đúng tên loại / trích yếu "V/v" của công văn
+  const laDongDauTrang = (s: string): boolean =>
+    !s ||
+    isThucTheLine(s) ||
+    /^Số\s*:/i.test(s) ||
+    isDateLine(s) ||
+    /^\*+$/.test(s) ||
+    /^\(.*dự thảo.*\)$/i.test(s) ||
+    (isAllCaps(s) && !isRomanHeading(s) && !isNumHeading(s) && !/^Phần thứ/i.test(s) && !TITLE_RE.test(s));
   if (!title) {
-    let k = 0;
-    while (k < lines.length && k < 15) {
+    for (let k = 0; k < Math.min(lines.length, 20); k++) {
+      if (/^V\/v\b/i.test(lines[k])) {
+        congVan = true;
+        trichYeuCv = lines[k];
+        start = k + 1;
+        break;
+      }
+      if (TITLE_RE.test(lines[k])) {
+        start = k;
+        break;
+      }
+      if (!laDongDauTrang(lines[k])) break;
+    }
+  }
+  if (!title && !congVan) {
+    let k = start;
+    while (k < lines.length && k < start + 15) {
       const line = lines[k];
       if (!line) {
         k++;
@@ -259,13 +359,15 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
     }
     start = k;
   }
-  if (!title) title = "BÁO CÁO";
+  if (!title && !congVan) title = "BÁO CÁO";
+  const vietTat = vietTatTheoTenLoai(title, congVan);
 
   const rest = lines.slice(start);
   const bcct = /^Phần thứ\s/im.test(rest.join("\n"));
   const indent = bcct ? "1.25cm" : "1cm";
+  const dv = i.donVi ?? null;
   const org = i.orgUnitName.trim().toUpperCase();
-  const place = i.place ?? "TP. Hồ Chí Minh";
+  const place = i.place ?? dv?.diaDanh ?? "TP. Hồ Chí Minh";
   const paras: string[] = [];
 
   let noiNhan = i.noiNhan ? [...i.noiNhan] : null;
@@ -323,11 +425,10 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
       noiNhan = noiNhan ?? [];
       continue;
     }
-    if (collectingNn && /^[-•]\s*/.test(line)) {
-      noiNhan!.push(line.replace(/^[-•]\s*/, ""));
+    if (collectingNn && /^[-–•]\s*/.test(line)) {
+      noiNhan!.push(line.replace(/^[-–•]\s*/, ""));
       continue;
     }
-    collectingNn = false;
     if (isSignBlock(line)) {
       if (/^TM\.|KT\.|TL\./i.test(line)) signOrg = signOrg ?? line;
       else signTitle = signTitle ?? line;
@@ -337,9 +438,13 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
     if (pendingSignName) {
       // Bỏ qua dòng "(Chữ ký)"; dòng sau chức danh là họ tên người ký → giữ để in chân trang
       if (isSignPlaceholder(line)) continue;
-      if (signerName === null && isPersonName(line)) signerName = line;
       pendingSignName = false;
+      if (isPersonName(line) && (signerName === null || signerName === line)) {
+        signerName = line;
+        continue;
+      }
     }
+    collectingNn = false;
     if (/^Phần thứ\s+\S+/i.test(line)) {
       paras.push(`<p style="text-align:center;margin:3pt 0 3pt;font-weight:bold;">${mdInline(line)}</p>`);
       afterPhanThu = true;
@@ -366,7 +471,13 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
     }
     // Trích yếu công văn "V/v …" — chữ thường nghiêng căn giữa ngay dưới số - ký hiệu (QĐ 27-HĐ mục 5)
     if (/^V\/v/i.test(line)) {
+      if (trichYeuCv === line) continue;
       paras.push(`<p style="text-align:center;margin:0 0 3pt;font-style:italic;">${mdInline(line)}</p>`);
+      continue;
+    }
+    // "Kính gửi:" / "Đồng kính gửi:" — đứng, đậm (29-HD mục 3b)
+    if (/^(Đồng kính gửi|Kính gửi)\s*:/i.test(line)) {
+      paras.push(`<p style="text-align:justify;text-indent:${indent};margin:0 0 6pt;font-weight:bold;">${mdInline(line)}</p>`);
       continue;
     }
     // cụm dẫn nhập ngắn kết thúc ":" → in nghiêng (Ưu điểm:/Hạn chế:/Học tập và làm theo…:)
@@ -392,6 +503,11 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
 
   // Khối thể thức đầu trang — bảng 2 ô theo 100% chuẩn Hướng dẫn 29-HD/TWĐTN-VP và Mẫu 3
   const upper = i.upperOrgName ?? "ĐOÀN TNCS HỒ CHÍ MINH";
+  const ngayThang = formatDiaDiemNgayThang(place, null);
+  const [cotTrai, cotPhai] = chiaCotDauTrang([dv?.coQuanCapTren ?? "", dv?.coQuanBanHanh ?? org], [
+    { text: upper, pt: 15, dam: true },
+    { text: ngayThang, pt: 13 },
+  ]);
   const note = i.draftNote ?? "(Dự thảo)";
   const headerTable = bcct
     ? `<table style="width:100%;border:none;border-collapse:collapse;">
@@ -402,34 +518,45 @@ export function buildDraftWordHtml(i: DraftWordInput): string {
     <p style="margin:0;font-size:12pt;font-weight:bold;font-style:italic;">${esc(note)}</p>
   </td>
   <td style="width:49%;border:none;text-align:right;vertical-align:top;">
-    <p style="margin:0;font-size:15pt;font-weight:bold;"><span style="display:inline-block;border-bottom:1.5pt solid #000;padding-bottom:1pt;">${esc(upper)}</span></p>
+    <p style="margin:0;font-size:15pt;font-weight:bold;"><u>${esc(upper)}</u></p>
   </td>
 </tr>
 </table>`
     : `<table style="width:100%;border:none;border-collapse:collapse;">
 <tr>
-  <td style="width:41%;border:none;text-align:center;vertical-align:top;">
-    <p style="margin:0;font-size:14pt;font-weight:bold;">${esc(org)}</p>
+  <td style="width:${cotTrai}%;border:none;text-align:center;vertical-align:top;">
+    ${dv?.coQuanCapTren ? `<p style="margin:0;font-size:14pt;">${esc(dv.coQuanCapTren)}</p>` : ""}
+    <p style="margin:0;font-size:14pt;font-weight:bold;">${esc(dv?.coQuanBanHanh ?? org)}</p>
     <p style="margin:0;font-size:14pt;">***</p>
-    <p style="margin:0;font-size:14pt;">Số: ${esc(i.docSymbol ?? "-BC/TĐTN")}</p>
+    <p style="margin:0;font-size:14pt;">Số: ${escSpace(i.docSymbol ?? (dv ? `     -${vietTat}/${dv.kyHieuCoQuan}` : `-${vietTat}/TĐTN`))}</p>
+    ${trichYeuCv ? `<p style="margin:2pt 0 0;font-size:12pt;font-style:italic;">${esc(trichYeuCv)}</p>` : ""}
     ${note ? `<p style="margin:0;font-size:12pt;font-style:italic;">${esc(note)}</p>` : ""}
   </td>
-  <td style="width:59%;border:none;text-align:center;vertical-align:top;">
-    <p style="margin:0;font-size:15pt;font-weight:bold;"><span style="display:inline-block;border-bottom:1.5pt solid #000;padding-bottom:1pt;">${esc(upper)}</span></p>
-    <p style="margin:4pt 0 0;font-size:13pt;font-style:italic;">${esc(place)}, ${esc(vnDateStr(new Date()))}</p>
+  <td style="width:${cotPhai}%;border:none;text-align:center;vertical-align:top;">
+    <p style="margin:0;font-size:15pt;font-weight:bold;"><u>${esc(upper)}</u></p>
+    <p style="margin:4pt 0 0;font-size:13pt;font-style:italic;">${escSpace(ngayThang)}</p>
   </td>
 </tr>
 </table>`;
 
   // MẪU 3: Tên loại văn bản cỡ 16 đứng đậm; trích yếu cỡ 14 đứng đậm; nét rời -----------
   const titlePt = bcct ? 15 : 16;
-  const titleHtml = `<p style="text-align:center;margin:12pt 0 2pt;font-weight:bold;font-size:${titlePt}pt;">${esc(title)}</p>
+  const titleHtml = congVan
+    ? `<p style="margin:0 0 8pt;">&nbsp;</p>`
+    : `<p style="text-align:center;margin:12pt 0 2pt;font-weight:bold;font-size:${titlePt}pt;">${esc(title)}</p>
 ${subtitles.map((s) => `<p style="text-align:center;margin:0 0 2pt;font-weight:bold;font-size:14pt;">${esc(s)}</p>`).join("\n")}
 <p style="text-align:center;margin:2pt 0 8pt;">-----------</p>`;
 
   // MẪU 3: Nơi nhận 13 đứng đậm, chi tiết 11 đứng; Chữ ký 14 đứng đậm, chức vụ 14 đứng
-  const nn = noiNhan ?? ["Ban Bí thư Trung ương Đoàn (để báo cáo);", "Thường trực Thành ủy (để báo cáo);", "Lưu VP."];
-  const finalSignOrg = (signOrg ?? deriveSignOrg(org)).toUpperCase();
+  const nnMacDinh = dv
+    ? [
+        ...(congVan ? ["Như trên;"] : []),
+        ...(vietTat === "BC" ? dv.noiNhanTheoLoai?.BAO_CAO ?? [] : dv.noiNhanTheoLoai?.MAC_DINH ?? []),
+        dv.noiLuu,
+      ]
+    : ["Ban Bí thư Trung ương Đoàn (để báo cáo);", "Thường trực Thành ủy (để báo cáo);", "Lưu VP."];
+  const nn = noiNhan?.length ? noiNhan : nnMacDinh;
+  const finalSignOrg = (signOrg ?? (dv ? dv.deKyMacDinh : deriveSignOrg(org))).toUpperCase();
   const footer = `<table style="width:100%;border:none;border-collapse:collapse;margin-top:16pt;">
 <tr>
   <td style="width:41%;border:none;vertical-align:top;">
@@ -439,8 +566,8 @@ ${subtitles.map((s) => `<p style="text-align:center;margin:0 0 2pt;font-weight:b
       .join("\n")}
   </td>
   <td style="width:59%;border:none;text-align:center;vertical-align:top;">
-    <p style="margin:0;font-size:14pt;font-weight:bold;">${esc(finalSignOrg)}</p>
-    <p style="margin:4pt 0 0;font-size:14pt;">${esc((signTitle ?? i.signTitle ?? "BÍ THƯ").toUpperCase())}</p>
+    ${finalSignOrg ? `<p style="margin:0;font-size:14pt;font-weight:bold;">${esc(finalSignOrg)}</p>` : ""}
+    <p style="margin:4pt 0 0;font-size:14pt;">${esc((signTitle ?? i.signTitle ?? dv?.chucVuKyMacDinh ?? "BÍ THƯ").toUpperCase())}</p>
     <p style="margin:24pt 0;">&nbsp;</p>
     ${signerName ? `<p style="margin:0;font-size:14pt;font-weight:bold;">${esc(signerName)}</p>` : ""}
   </td>
@@ -455,7 +582,7 @@ ${subtitles.map((s) => `<p style="text-align:center;margin:0 0 2pt;font-weight:b
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
 <style>
   @page { size: A4; margin: 2cm 2cm 2cm 3cm; }
-  body { font-family: "Times New Roman", serif; font-size: 11pt; color: #000; }
+  body { font-family: "Times New Roman", serif; font-size: 14pt; color: #000; }
   p { margin: 0; }
 </style>
 </head>
@@ -619,20 +746,24 @@ export function exportStructuredWordHtml(data: VanBanStructuredOutput): string {
   const noiNhan = normalizeNoiNhanList(data.noi_nhan);
   const isCongVan = !!data.trich_yeu_cong_van || /[-/]CV\b/i.test(soKyHieu);
 
-  // Header Table 2 cột
+  // Header Table 2 cột — độ rộng theo nội dung để tên cơ quan / ngày tháng không xuống dòng vô lý
+  const [cotTrai, cotPhai] = chiaCotDauTrang([data.co_quan_cap_tren ?? "", data.co_quan_ban_hanh], [
+    { text: data.tieu_de || "ĐOÀN TNCS HỒ CHÍ MINH", pt: 15, dam: true },
+    { text: ngayThang, pt: 13 },
+  ]);
   const headerHtml = `
 <table style="width:100%;border:none;border-collapse:collapse;margin-bottom:12pt;">
   <tr>
-    <td style="width:45%;border:none;text-align:center;vertical-align:top;padding:0 6pt 0 0;">
-      ${data.co_quan_cap_tren ? `<p style="margin:0;font-size:13pt;font-family:'Times New Roman',serif;">${esc(data.co_quan_cap_tren.toUpperCase())}</p>` : ""}
+    <td style="width:${cotTrai}%;border:none;text-align:center;vertical-align:top;padding:0 6pt 0 0;">
+      ${data.co_quan_cap_tren ? `<p style="margin:0;font-size:14pt;font-family:'Times New Roman',serif;">${esc(data.co_quan_cap_tren.toUpperCase())}</p>` : ""}
       <p style="margin:0;font-size:14pt;font-weight:bold;font-family:'Times New Roman',serif;">${esc(data.co_quan_ban_hanh.toUpperCase())}</p>
       <p style="margin:0;font-size:14pt;font-family:'Times New Roman',serif;">***</p>
-      <p style="margin:0;font-size:14pt;font-family:'Times New Roman',serif;">${esc(soKyHieu)}</p>
+      <p style="margin:0;font-size:14pt;font-family:'Times New Roman',serif;">${escSpace(soKyHieu)}</p>
       ${isCongVan && data.trich_yeu_cong_van ? `<p style="margin:4pt 0 0;font-size:12pt;font-style:italic;font-family:'Times New Roman',serif;">${esc(data.trich_yeu_cong_van)}</p>` : ""}
     </td>
-    <td style="width:55%;border:none;text-align:center;vertical-align:top;padding:0 0 0 6pt;">
-      <p style="margin:0;font-size:15pt;font-weight:bold;font-family:'Times New Roman',serif;"><span style="display:inline-block;border-bottom:1.5pt solid #000;padding-bottom:1pt;">${esc(data.tieu_de || "ĐOÀN TNCS HỒ CHÍ MINH")}</span></p>
-      <p style="margin:4pt 0 0;font-size:13pt;font-style:italic;font-family:'Times New Roman',serif;">${esc(ngayThang)}</p>
+    <td style="width:${cotPhai}%;border:none;text-align:center;vertical-align:top;padding:0 0 0 6pt;">
+      <p style="margin:0;font-size:15pt;font-weight:bold;font-family:'Times New Roman',serif;"><u>${esc(data.tieu_de || "ĐOÀN TNCS HỒ CHÍ MINH")}</u></p>
+      <p style="margin:4pt 0 0;font-size:13pt;font-style:italic;font-family:'Times New Roman',serif;">${escSpace(ngayThang)}</p>
     </td>
   </tr>
 </table>`;
@@ -642,7 +773,7 @@ export function exportStructuredWordHtml(data: VanBanStructuredOutput): string {
   if (!isCongVan && data.ten_loai_vb) {
     titleHtml = `
 <p style="text-align:center;margin:14pt 0 2pt;font-weight:bold;font-size:16pt;font-family:'Times New Roman',serif;">${esc(data.ten_loai_vb.toUpperCase())}</p>
-${data.trich_yeu_vb ? `<p style="text-align:center;margin:0 0 4pt;font-weight:bold;font-size:14pt;font-family:'Times New Roman',serif;">${esc(data.trich_yeu_vb)}</p>` : ""}
+${data.trich_yeu_vb ? data.trich_yeu_vb.split("\n").map((t) => `<p style="text-align:center;margin:0;font-weight:bold;font-size:14pt;font-family:'Times New Roman',serif;">${esc(t)}</p>`).join("") : ""}
 <p style="text-align:center;margin:2pt 0 10pt;font-size:14pt;font-family:'Times New Roman',serif;">-----------------</p>`;
   }
 
@@ -651,8 +782,8 @@ ${data.trich_yeu_vb ? `<p style="text-align:center;margin:0 0 4pt;font-weight:bo
     ? `<p style="text-align:justify;margin:10pt 0 6pt;font-weight:bold;font-size:14pt;font-family:'Times New Roman',serif;">${esc(data.kinh_gui)}</p>`
     : "";
 
-  // Thân bài (nội dung)
-  const contentLines = data.noi_dung_html_hoac_markdown
+  // Thân bài (nội dung) — ưu tiên khối có cấu trúc (đúng kiểu chữ từng cấp đề mục), không có thì đọc văn bản thuần
+  const contentLines = data.noi_dung_blocks?.length ? [] : data.noi_dung_html_hoac_markdown
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
@@ -678,7 +809,7 @@ ${data.trich_yeu_vb ? `<p style="text-align:center;margin:0 0 4pt;font-weight:bo
       // Đoạn văn chuẩn thụt lùi 1.27cm
       return `<p style="text-align:justify;text-indent:1.27cm;margin:0 0 3pt;font-size:14pt;line-height:1.2;font-family:'Times New Roman',serif;">${mdInline(line)}</p>`;
     })
-    .join("\n");
+    .join("\n") + (data.noi_dung_blocks?.length ? structuredBlocksHtml(data.noi_dung_blocks) : "");
 
   // Footer Table 2 cột: Nơi nhận & Chữ ký
   const footerHtml = `
@@ -691,8 +822,8 @@ ${data.trich_yeu_vb ? `<p style="text-align:center;margin:0 0 4pt;font-weight:bo
         .join("\n")}
     </td>
     <td style="width:55%;border:none;text-align:center;vertical-align:top;padding:0 0 0 6pt;">
-      <p style="margin:0;font-size:14pt;font-weight:bold;font-family:'Times New Roman',serif;">${esc(data.the_thuc_de_ky.toUpperCase())}</p>
-      <p style="margin:3pt 0 0;font-size:14pt;font-weight:bold;font-family:'Times New Roman',serif;">${esc(data.chuc_vu_ky.toUpperCase())}</p>
+      ${data.the_thuc_de_ky ? `<p style="margin:0;font-size:14pt;font-weight:bold;font-family:'Times New Roman',serif;">${esc(data.the_thuc_de_ky.toUpperCase())}</p>` : ""}
+      <p style="margin:3pt 0 0;font-size:14pt;font-family:'Times New Roman',serif;">${esc(data.chuc_vu_ky.toUpperCase())}</p>
       <p style="margin:24pt 0;">&nbsp;</p>
       ${data.ten_nguoi_ky ? `<p style="margin:0;font-size:14pt;font-weight:bold;font-family:'Times New Roman',serif;">${esc(data.ten_nguoi_ky)}</p>` : ""}
     </td>
@@ -736,6 +867,90 @@ ${titleHtml}
 ${kinhGuiHtml}
 ${bodyHtml}
 ${footerHtml}
+${phuLucHtml(data)}
 </body>
 </html>`;
+}
+
+/* ── Khối nội dung có cấu trúc (noi_dung_blocks) & phụ lục — dùng cho báo cáo tuần ── */
+
+const TNR = "font-family:'Times New Roman',serif;";
+
+function structuredTableHtml(b: NoiDungBlock, fontPt: number): string {
+  const ws = b.colWidths ?? [];
+  const tong = ws.reduce((a, x) => a + x, 0) || 1;
+  const w = (i: number) => (ws[i] ? `width:${Math.round((ws[i] / tong) * 100)}%;` : "");
+  const cell = "border:1pt solid #000;padding:3pt 5pt;vertical-align:top;";
+  const head = b.header?.length
+    ? `<tr>${b.header.map((h, i) => `<td style="${cell}${w(i)}text-align:center;font-weight:bold;">${esc(h)}</td>`).join("")}</tr>`
+    : "";
+  const rows = (b.rows ?? [])
+    .map((r) => `<tr>${r.map((c, i) => `<td style="${cell}${w(i)}${i === 0 ? "text-align:center;" : ""}">${esc(c)}</td>`).join("")}</tr>`)
+    .join("");
+  return `<table style="width:100%;border-collapse:collapse;margin:4pt 0 6pt;font-size:${fontPt}pt;${TNR}">${head}${rows}</table>`;
+}
+
+/** Kiểu chữ theo cấp đề mục 29-HD: mục IN HOA đậm; khoản đậm; điểm 1.1. nghiêng đậm; 1.1.1. nghiêng; gạch đầu dòng thường */
+export function structuredBlocksHtml(blocks: NoiDungBlock[], fontPt = 14): string {
+  const para = (style: string, html: string) =>
+    `<p style="text-align:justify;text-indent:1.27cm;font-size:${fontPt}pt;line-height:1.2;${TNR}${style}">${html}</p>`;
+  const center = (style: string, html: string) => `<p style="text-align:center;font-size:${fontPt}pt;${TNR}${style}">${html}</p>`;
+  return blocks
+    .map((b) => {
+      // Xuống dòng trong một khối (VD "BAN THƯỜNG VỤ …\nQUYẾT ĐỊNH:") giữ nguyên trong Word
+      const t = esc(b.text).replace(/\n/g, "<br>");
+      switch (b.kieu) {
+        case "phan":
+          return center("margin:8pt 0 0;font-weight:bold;font-size:15pt;", t);
+        case "tieu_de_phan":
+        case "quyet_dinh":
+        case "tieu_de_giua":
+          return center("margin:2pt 0 4pt;font-weight:bold;", t);
+        case "ghi_chu_giua":
+          return center("margin:0 0 4pt;font-style:italic;", t);
+        case "muc":
+          return para("margin:6pt 0 3pt;font-weight:bold;", t);
+        case "khoan":
+          return para("margin:4pt 0 2pt;font-weight:bold;", t);
+        case "diem":
+          return para("margin:3pt 0 2pt;font-weight:bold;font-style:italic;", t);
+        case "diem2":
+          return para("margin:2pt 0 2pt;font-style:italic;", t);
+        case "gach":
+          return para("margin:0 0 3pt;", `- ${t}`);
+        case "bang":
+          return structuredTableHtml(b, Math.min(fontPt, 13));
+        default:
+          return para("margin:0 0 3pt;", t);
+      }
+    })
+    .join("\n");
+}
+
+/** Phụ lục: sang trang mới, tên "PHỤ LỤC", trích yếu, dòng "(Kèm theo …)", gạch ngang, rồi nội dung */
+function phuLucHtml(data: VanBanStructuredOutput): string {
+  return (data.phu_luc ?? [])
+    .map(
+      (p) => `<br clear="all" style="mso-special-character:line-break;page-break-before:always">
+<p style="text-align:center;margin:0;font-weight:bold;font-size:14pt;${TNR}">${esc(p.tieu_de)}</p>
+<p style="text-align:center;margin:0;font-weight:bold;font-size:14pt;${TNR}">${esc(p.trich_yeu)}</p>
+${p.ghi_chu ? `<p style="text-align:center;margin:0;font-style:italic;font-size:14pt;${TNR}">${esc(p.ghi_chu)}</p>` : ""}
+<p style="text-align:center;margin:2pt 0 8pt;font-size:14pt;${TNR}">-----------</p>
+${structuredBlocksHtml(p.blocks, 13)}`
+    )
+    .join("\n");
+}
+
+/** Tải file Word (.doc) dựng từ văn bản có cấu trúc (khối thể thức + nội dung + phụ lục) */
+export function downloadStructuredWordDoc(fileName: string, data: VanBanStructuredOutput): void {
+  const html = exportStructuredWordHtml(data);
+  const blob = new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName.endsWith(".doc") ? fileName : `${fileName}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
