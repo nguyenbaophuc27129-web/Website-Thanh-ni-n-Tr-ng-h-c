@@ -76,6 +76,8 @@ interface GoogleIdNs {
     id: {
       initialize: (c: { client_id: string; callback: (r: { credential: string }) => void }) => void;
       renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
+      /** Huỷ ghi nhớ tài khoản Google đã chọn lần trước → bảng chọn tài khoản luôn hiện ra (đổi Gmail được) */
+      disableAutoSelect?: () => void;
     };
   };
 }
@@ -146,6 +148,10 @@ export default function BinhChonHs3tPage() {
   }>({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: true });
   const [topPage, setTopPage] = useState(1);
   const [withdrawing, setWithdrawing] = useState(false);
+  /** Các bài đang gửi phiếu lên server — khoá nút NGAY khi bấm, chặn bấm trùng */
+  const [votingIds, setVotingIds] = useState<number[]>([]);
+  /** Nguồn định danh phiếu của tôi: "account" (TK đăng nhập — khoá 1 TK/1 phiếu) | "gmail" (khách — cho đổi Gmail bầu tiếp) */
+  const [voteKind, setVoteKind] = useState<"account" | "gmail" | null>(null);
 
   // ═══ Xác thực Gmail (Google Identity Services) ═══
   const credRef = useRef("");
@@ -192,6 +198,7 @@ export default function BinhChonHs3tPage() {
       setStories(base.stories ?? []);
       setTopByHonor(base.topByHonor ?? {});
       setMyVotedStoryIds(base.myVotedStoryIds ?? []);
+      setVoteKind(base.voteIdentityKind ?? null);
       setMyStory(base.myStory ?? null);
     }
     // 3 hạng mục tách biệt — mỗi bảng có phân trang riêng
@@ -288,22 +295,28 @@ export default function BinhChonHs3tPage() {
 
   const doVote = useCallback(
     async (s: BinhChonStory) => {
-      const res = await voteStory(s.id, session ? undefined : credRef.current || undefined);
-      if (!res.ok) {
-        if (res.needAuth && !session && GOOGLE_CLIENT_ID) {
-          pendingVoteRef.current = s;
-          setGAuthOpen(true);
+      // Khoá nút + spinner NGAY khi bấm — hết cảnh bấm nhiều lần không thấy phản hồi
+      setVotingIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]));
+      try {
+        const res = await voteStory(s.id, session ? undefined : credRef.current || undefined);
+        if (!res.ok) {
+          if (res.needAuth && !session && GOOGLE_CLIENT_ID) {
+            pendingVoteRef.current = s;
+            setGAuthOpen(true);
+            return;
+          }
+          toast(res.error ?? "Không bình chọn được — thử lại.", "warning");
           return;
         }
-        toast(res.error ?? "Không bình chọn được — thử lại.", "warning");
-        return;
-      }
-      setMyVotedStoryIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]));
-      if (typeof res.newCount === "number") patchCounts(s.id, res.newCount);
-      if (res.invalid) {
-        toast(res.message ?? "Phiếu trùng lặp đã bị lọc thành không hợp lệ.", "warning");
-      } else {
-        toast("Đã tiếp lửa vinh quang thành công!", "success");
+        setMyVotedStoryIds((prev) => (prev.includes(s.id) ? prev : [...prev, s.id]));
+        if (typeof res.newCount === "number") patchCounts(s.id, res.newCount);
+        if (res.invalid) {
+          toast(res.message ?? "Phiếu trùng lặp đã bị lọc thành không hợp lệ.", "warning");
+        } else {
+          toast("Đã tiếp lửa vinh quang thành công!", "success");
+        }
+      } finally {
+        setVotingIds((prev) => prev.filter((x) => x !== s.id));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -312,7 +325,15 @@ export default function BinhChonHs3tPage() {
 
   const handleVote = (s: BinhChonStory) => {
     if (ended) return;
-    if (isVoted(s.id)) return;
+    if (votingIds.includes(s.id)) return; // phiếu đang gửi — bỏ qua click thừa
+    if (isVoted(s.id)) {
+      // Phiếu theo TK đăng nhập: 1 TK/1 phiếu — khoá.
+      // Phiếu theo Gmail khách: cho xác thực Gmail KHÁC để bình chọn tiếp (server tự lọc phiếu trùng).
+      if (voteKind === "account" || !GOOGLE_CLIENT_ID) return;
+      pendingVoteRef.current = s;
+      setGAuthOpen(true);
+      return;
+    }
     if (!session && !credRef.current) {
       if (!GOOGLE_CLIENT_ID) {
         toast("Cần đăng nhập để bình chọn", "info");
@@ -350,6 +371,8 @@ export default function BinhChonHs3tPage() {
           if (pending) void doVote(pending);
         },
       });
+      // Không tự dùng lại Gmail đã chọn lần trước — luôn hiện bảng chọn tài khoản để đổi Gmail
+      g.accounts.id.disableAutoSelect?.();
       g.accounts.id.renderButton(gBtnRef.current, {
         type: "standard",
         theme: "outline",
@@ -644,6 +667,8 @@ export default function BinhChonHs3tPage() {
                     rank={rankOf(s.id)}
                     voted={isVoted(s.id)}
                     canVote={!ended}
+                    voting={votingIds.includes(s.id)}
+                    allowRevote={voteKind === "gmail"}
                     onVote={handleVote}
                     onOpen={openDetail}
                   />
@@ -776,6 +801,8 @@ export default function BinhChonHs3tPage() {
                             rank={sort === "hot" && bucket.page === 1 && i < 3 ? i + 1 : undefined}
                             voted={isVoted(s.id)}
                             canVote={!ended}
+                            voting={votingIds.includes(s.id)}
+                            allowRevote={voteKind === "gmail"}
                             onVote={handleVote}
                             onOpen={openDetail}
                           />
@@ -944,7 +971,13 @@ export default function BinhChonHs3tPage() {
           pendingVoteRef.current = null;
           pendingSubmitRef.current = false;
         }}
-        title={pendingSubmitRef.current ? "Xác thực Gmail để gửi bài dự thi" : "Xác thực Gmail để bình chọn"}
+        title={
+          pendingSubmitRef.current
+            ? "Xác thực Gmail để gửi bài dự thi"
+            : pendingVoteRef.current && isVoted(pendingVoteRef.current.id)
+              ? "Xác thực Gmail khác để bình chọn tiếp"
+              : "Xác thực Gmail để bình chọn"
+        }
         className="max-w-md"
       >
         <div className="space-y-4 text-center">
@@ -975,11 +1008,17 @@ export default function BinhChonHs3tPage() {
               nhưng chỉ <strong>1 lần cho mỗi gương</strong>.
             </li>
             <li className="flex items-start gap-2">
-              <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> Phiếu trùng lặp bị hệ thống tự lọc thành không hợp lệ.
+              <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> Muốn bình chọn thêm? Xác thực bằng{" "}
+              <strong>Gmail khác</strong> — chọn "Dùng tài khoản khác" trong bảng đăng nhập Google.
             </li>
               </>
             )}
           </ul>
+          {googleEmail && !pendingSubmitRef.current ? (
+            <p className="text-[11px] font-medium text-stone-500">
+              Gmail đang dùng: <strong className="text-[#C4161C]">{googleEmail}</strong>
+            </p>
+          ) : null}
           <div ref={gBtnRef} className="flex min-h-11 justify-center" />
           <p className="text-[11px] text-stone-400">
             Chưa có Google button? Đợi nút tải xong rồi thử lại.
@@ -1005,16 +1044,34 @@ export default function BinhChonHs3tPage() {
                   const s = detail;
                   void handleVote(s);
                 }}
-                disabled={ended || isVoted(detail.id)}
+                disabled={ended || votingIds.includes(detail.id) || (isVoted(detail.id) && voteKind === "account")}
+                title={
+                  votingIds.includes(detail.id)
+                    ? "Đang gửi phiếu bình chọn…"
+                    : isVoted(detail.id) && voteKind === "gmail"
+                      ? "Bạn đã bình chọn bằng Gmail này — bấm để xác thực Gmail khác"
+                      : undefined
+                }
                 className={cn(
                   "flex items-center gap-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all px-4 py-2",
                   isVoted(detail.id)
-                    ? "border border-amber-300 bg-amber-100/90 text-amber-950 cursor-default"
+                    ? cn(
+                        "border border-amber-300 bg-amber-100/90 text-amber-950",
+                        voteKind !== "account" && "cursor-pointer hover:bg-amber-200/80"
+                      )
                     : "border border-[#F26522] bg-gradient-to-r from-[#F26522] to-[#C4161C] text-white hover:brightness-110 hover:shadow-lg active:scale-[0.98]"
                 )}
               >
-                <Heart className={cn("h-4 w-4", isVoted(detail.id) ? "fill-amber-600 text-amber-600" : "fill-white text-white")} />
-                {isVoted(detail.id) ? "Đã bình chọn" : `Bình chọn cho ${detail.studentName}`}
+                {votingIds.includes(detail.id) ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Heart className={cn("h-4 w-4", isVoted(detail.id) ? "fill-amber-600 text-amber-600" : "fill-white text-white")} />
+                )}
+                {votingIds.includes(detail.id)
+                  ? "Đang bình chọn…"
+                  : isVoted(detail.id)
+                    ? "Đã bình chọn"
+                    : `Bình chọn cho ${detail.studentName}`}
               </Button>
             </div>
           ) : null

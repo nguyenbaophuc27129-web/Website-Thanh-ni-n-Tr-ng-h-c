@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Flame, Eye, Check, Sparkles } from "lucide-react";
+import { Flame, Eye, Check, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BinhChonStory } from "@/types";
 import { CARD_GRADIENT } from "./palette";
@@ -49,6 +49,8 @@ export function CdttbCard({
   rank,
   voted,
   canVote,
+  voting,
+  allowRevote,
   onVote,
   onOpen,
 }: {
@@ -58,17 +60,23 @@ export function CdttbCard({
   rank?: number;
   voted?: boolean;
   canVote?: boolean;
+  /** Phiếu đang gửi lên server — khoá nút + spinner, chặn bấm trùng */
+  voting?: boolean;
+  /** Đã bầu bằng Gmail khách → nút "Đã tiếp lửa" vẫn bấm được để đổi Gmail khác bình chọn tiếp */
+  allowRevote?: boolean;
   onVote?: (s: BinhChonStory) => void;
   onOpen?: (s: BinhChonStory) => void;
 }) {
   const initial = story.studentName.trim().charAt(0).toUpperCase() || "?";
   const votes = useCountUp(story.voteCount);
   const [burst, setBurst] = useState<ConfettiBurst | null>(null);
+  const revote = Boolean(voted && allowRevote && canVote);
 
   const handleVoteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (voted || !canVote) return;
-    setBurst({ id: Date.now(), x: e.clientX, y: e.clientY });
+    if (voting || !canVote) return;
+    if (voted && !revote) return;
+    if (!voted) setBurst({ id: Date.now(), x: e.clientX, y: e.clientY });
     onVote?.(story);
   };
 
@@ -220,7 +228,7 @@ export function CdttbCard({
         <div className="relative flex-1 overflow-hidden rounded-xl p-[1.5px]">
           <span
             aria-hidden
-            className={cn("absolute inset-[-100%]", !voted && canVote && "animate-[spin_4s_linear_infinite]")}
+            className={cn("absolute inset-[-100%]", !voted && canVote && !voting && "animate-[spin_4s_linear_infinite]")}
             style={{
               background: "conic-gradient(from 0deg, transparent 0deg 280deg, #FFDF7E 320deg, #F26522 360deg)",
             }}
@@ -228,17 +236,30 @@ export function CdttbCard({
           <button
             type="button"
             onClick={handleVoteClick}
-            disabled={voted || !canVote}
+            disabled={voting || !canVote || (voted && !allowRevote)}
+            title={
+              voting
+                ? "Đang gửi phiếu bình chọn…"
+                : revote
+                  ? "Bạn đã bình chọn bằng Gmail này — bấm để xác thực Gmail khác"
+                  : undefined
+            }
             className={cn(
               "relative flex w-full items-center justify-center gap-1.5 rounded-[10px] px-2 py-2 text-[11px] font-black transition-all",
-              voted
-                ? "bg-[#FFF1E4] text-[#C4161C]"
-                : canVote
-                  ? "bg-gradient-to-r from-[#F26522] to-[#C4161C] text-white hover:brightness-110 active:scale-[0.98]"
-                  : "bg-stone-100 text-stone-400"
+              voting
+                ? "cursor-wait bg-white/80 text-[#C4161C]"
+                : voted
+                  ? cn("bg-[#FFF1E4] text-[#C4161C]", revote && "cursor-pointer hover:bg-[#FFE9D6]")
+                  : canVote
+                    ? "bg-gradient-to-r from-[#F26522] to-[#C4161C] text-white hover:brightness-110 active:scale-[0.98]"
+                    : "bg-stone-100 text-stone-400"
             )}
           >
-            {voted ? (
+            {voting ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tiếp lửa…
+              </>
+            ) : voted ? (
               <>
                 <Check className="h-3.5 w-3.5" /> Đã tiếp lửa
               </>

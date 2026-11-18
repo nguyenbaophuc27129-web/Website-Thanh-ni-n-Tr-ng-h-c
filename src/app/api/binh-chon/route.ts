@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
     let myStory = null as ReturnType<typeof toStoryDto> | null;
     // Định danh phiếu của tôi: tài khoản hệ thống HOẶC Gmail đã xác thực (cookie sau khi bình chọn)
     const voteEmailCookie = readVoteEmail(request);
+    const voteIdentityKind: "account" | "gmail" | null = session ? "account" : voteEmailCookie ? "gmail" : null;
     const voteIdentity: { accountId?: number; email?: string } = {};
     if (session) voteIdentity.accountId = session.accountId;
     else if (voteEmailCookie) voteIdentity.email = voteEmailCookie;
@@ -161,6 +162,7 @@ export async function GET(request: NextRequest) {
       total,
       myVoteStoryId,
       myVotedStoryIds,
+      voteIdentityKind,
       myStory,
       topByHonor,
     });

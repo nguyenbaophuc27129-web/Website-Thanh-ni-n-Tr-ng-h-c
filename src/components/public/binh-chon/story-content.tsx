@@ -84,24 +84,54 @@ export function parseStoryAndAchievements(rawStory: string): {
     return { striveText: "", achievements: [] };
   }
 
-  // Tìm vị trí bắt đầu của mục Thành tích (ví dụ "2. Thành tích", "II. Thành tích", "## Thành tích", "Thành tích nổi bật")
-  const splitRegex = /\n(?=(?:2\.|II\.|##\s*Thành tích|###\s*Thành tích|Thành tích nổi bật|Thành tích đạt được|Các giải thưởng))/i;
-  const match = rawStory.match(splitRegex);
+  // Dòng tiêu đề số mục lớn: "1. ...", "I. ...", "## ..." — ranh giới giữa các phần của bài thi
+  const isMainHeading = (line: string) =>
+    /^\s*(?:\d+\.[ \t\u00A0]|[IVXLCDM]+\.[ \t\u00A0]|#{2,3}[ \t\u00A0])/i.test(line);
+
+  // Dòng tiêu đề mở đầu mục Thành tích/Giải thưởng:
+  // - Tiêu đề số mục CÓ từ khoá "thành tích" / "giải thưởng" (VD "2. Thành tích nổi bật")
+  // - Hoặc dòng mở đầu bằng cụm quen thuộc ("Thành tích nổi bật:", "Các giải thưởng…")
+  const isAchievementHeading = (line: string) => {
+    const t = line.trim();
+    if (/^(?:thành tích nổi bật|thành tích đạt được|các giải thưởng)/i.test(t)) return true;
+    return isMainHeading(t) && /thành tích|giải thưởng/i.test(t);
+  };
+
+  // Chỉ vùng dòng tiêu đề thành tích → hết vùng (gặp tiêu đề số mục kế tiếp hoặc hết bài),
+  // phần còn lại ĐỀU là Quá trình phấn đấu — không mất các mục 3., 4. (kỷ niệm, thông điệp…) phía sau.
+  const lines = rawStory.split("\n");
+  let achStart = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (isAchievementHeading(lines[i])) {
+      achStart = i;
+      break;
+    }
+  }
 
   let striveText = rawStory;
   let achieveText = "";
 
-  if (match && match.index !== undefined) {
-    striveText = rawStory.slice(0, match.index).trim();
-    achieveText = rawStory.slice(match.index).trim();
+  if (achStart >= 0) {
+    let achEnd = lines.length;
+    for (let j = achStart + 1; j < lines.length; j++) {
+      if (isMainHeading(lines[j])) {
+        achEnd = j;
+        break;
+      }
+    }
+    const before = lines.slice(0, achStart).join("\n");
+    const after = lines.slice(achEnd).join("\n");
+    striveText = [before, after]
+      .filter((part) => part.trim())
+      .join("\n")
+      .trim();
+    achieveText = lines.slice(achStart, achEnd).join("\n").trim();
   }
 
   const items: AchievementItem[] = [];
 
   if (achieveText) {
-    const lines = achieveText.split("\n");
-    // Bỏ dòng tiêu đề (ví dụ "2. Thành tích nổi bật đạt được:")
-    const contentLines = lines.slice(1);
+    const contentLines = achieveText.split("\n").slice(1);
     items.push(...parseAchievementLines(contentLines));
   }
 

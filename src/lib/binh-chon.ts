@@ -29,6 +29,8 @@ export interface StoryListResult {
   myVoteStoryId?: number | null;
   /** Danh sách gương định danh này đã bình chọn (phiếu hợp lệ) — chặn bấm lần 2 */
   myVotedStoryIds?: number[];
+  /** Nguồn định danh phiếu: "account" (TK đăng nhập — khoá cứng) | "gmail" (cookie Gmail khách — cho đổi Gmail bình chọn tiếp) */
+  voteIdentityKind?: "account" | "gmail" | null;
   /** Bài của tài khoản hiện tại (mọi trạng thái — chủ bài được xem để sửa lại lần sau) */
   myStory?: BinhChonStory | null;
   /** Top 5 mỗi nhóm danh hiệu (?withBoard=1) — HonorBoard */
