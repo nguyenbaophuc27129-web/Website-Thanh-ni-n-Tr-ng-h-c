@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ShieldAlert, Vote, Check, X, BarChart3, Settings2, FileText, Loader2, Sparkles,
-  AlertTriangle, Trophy, School, MapPin, Play, Square, Medal, Trash2,
+  AlertTriangle, Trophy, School, MapPin, Play, Square, Medal, Trash2, FileSpreadsheet, FileArchive,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useStore } from "@/lib/store-context";
@@ -246,6 +246,29 @@ export default function QuanTriBinhChonPage() {
       ) : tab === "stats" ? (
         /* ═══════════ THỐNG KÊ ═══════════ */
         <div className="space-y-5">
+          {/* Xuất dữ liệu lưu trữ — Excel toàn bộ bài + ZIP ảnh (tên tệp khớp cột STT) */}
+          <Card>
+            <CardBody className="flex flex-wrap items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-stone-800">Xuất dữ liệu lưu trữ</p>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  File Excel gồm toàn bộ bài (mọi trạng thái, kèm số phiếu) và ZIP ảnh đặt tên theo số thứ tự — cột STT trong Excel khớp tên tệp trong ZIP.
+                  {isTW
+                    ? " Bản của Trung ương gồm cả Gmail người gửi và minh chứng PDF."
+                    : " Gmail người gửi và minh chứng PDF chỉ có trong bản xuất của Trung ương."}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button variant="secondary" onClick={() => window.open(`/api/binh-chon/quan-tri/xuat?kind=${kind}&part=excel`, "_blank")}>
+                  <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Tải Excel
+                </Button>
+                <Button variant="secondary" onClick={() => window.open(`/api/binh-chon/quan-tri/xuat?kind=${kind}&part=zip`, "_blank")}>
+                  <FileArchive className="mr-1.5 h-4 w-4" /> Tải ảnh (ZIP)
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Câu chuyện chờ duyệt" value={counts.PENDING} icon={FileText} tone="amber" />
             <StatCard label="Đã công khai" value={counts.APPROVED} icon={Check} tone="green" />
