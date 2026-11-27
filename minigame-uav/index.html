@@ -215,6 +215,7 @@
       <div class="panel" id="quizPlay" hidden>
         <div class="quiz-topbar">
           <div class="quiz-player" id="quizPlayerName"></div>
+          <div class="quiz-violations" id="quizViolations" hidden>🚫 Rời màn hình: <b id="quizViolationsCount">0</b></div>
           <div class="quiz-score">Điểm: <b id="quizScore">0</b></div>
         </div>
         <div class="quiz-progress-text"><span id="quizQuestionNo">Câu 1/12</span><span id="quizTimerText">20s</span></div>
@@ -290,6 +291,7 @@
             <div class="rstat"><span id="resultTime">0s</span><small>thời gian</small></div>
             <div class="rstat"><span id="resultName">—</span><small>người chơi</small></div>
           </div>
+          <p class="result-violation" id="resultViolations" hidden>⚠️ Bạn đã rời khỏi màn hình thi <b id="resultViolationsCount">0</b> lần — Ban Tổ chức có ghi nhận.</p>
           <p class="result-note" id="resultSaveNote"></p>
           <div class="center form-actions">
             <a class="btn btn-ghost" href="#minigame" data-link id="btnReplay">↻ Chơi lại</a>
@@ -389,6 +391,9 @@
 
   <!-- Toast thông báo -->
   <div class="toast" id="toast" hidden></div>
+
+  <!-- Cảnh báo rời màn hình khi đang thi -->
+  <div id="awayWarn" hidden>⚠️ Bạn vừa rời khỏi màn hình thi — lần thứ <b id="awayWarnCount">1</b>. Ban Tổ chức có ghi nhận!</div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>

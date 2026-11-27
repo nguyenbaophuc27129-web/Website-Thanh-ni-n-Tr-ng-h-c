@@ -909,3 +909,35 @@ main { max-width: 1120px; margin: 0 auto; padding: 0 20px 60px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- Chống rời màn hình khi thi ---------- */
+.quiz-violations {
+  font-size: .85rem; font-weight: 600;
+  background: rgba(239, 68, 68, .12); border: 1px solid rgba(239, 68, 68, .45);
+  color: #fca5a5; padding: 6px 13px; border-radius: 999px;
+}
+.quiz-violations b { color: #ef4444; }
+
+#awayWarn {
+  position: fixed; top: 22px; left: 50%; transform: translate(-50%, -16px);
+  z-index: 300; max-width: min(92vw, 560px); text-align: center;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #fff; font-weight: 700; font-size: .95rem;
+  padding: 14px 22px; border-radius: 14px;
+  box-shadow: 0 14px 38px rgba(220, 38, 38, .45);
+  opacity: 0; pointer-events: none;
+}
+#awayWarn.show { animation: awayWarnIn 3.6s ease forwards; }
+@keyframes awayWarnIn {
+  0% { opacity: 0; transform: translate(-50%, -16px); }
+  8% { opacity: 1; transform: translate(-50%, 0); }
+  88% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -12px); }
+}
+
+.result-violation {
+  font-size: .88rem; font-weight: 600; color: #fca5a5;
+  background: rgba(239, 68, 68, .1); border: 1px solid rgba(239, 68, 68, .35);
+  padding: 10px 14px; border-radius: 10px; margin-bottom: 16px;
+}
+.result-violation b { color: #ef4444; }

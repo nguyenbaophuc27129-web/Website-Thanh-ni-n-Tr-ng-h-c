@@ -101,11 +101,12 @@
       <div class="admin-card-head">
         <h2>🏆 Bảng vàng — toàn bộ kết quả</h2>
         <button class="btn btn-primary" id="btnExportScores">⬇ Xuất Excel (CSV)</button>
+        <button class="btn btn-ghost" id="btnExportAnswers">⬇ Log đáp án (CSV)</button>
       </div>
       <p class="admin-note">Xếp hạng theo Kế hoạch Workshop: <b>số câu đúng</b> cao nhất, cùng số câu đúng thì <b>thời gian nhanh hơn</b>. Mỗi người tính kết quả tốt nhất.</p>
       <div class="lb-table-wrap">
         <table class="admin-table" id="scoresTable">
-          <thead><tr><th>#</th><th>Họ tên</th><th>Trường</th><th>Câu đúng</th><th>Thời gian</th><th>Điểm</th><th>Ghi nhận lúc</th></tr></thead>
+          <thead><tr><th>#</th><th>Họ tên</th><th>Trường</th><th>Câu đúng</th><th>Thời gian</th><th>Điểm</th><th>Vi phạm</th><th>Ghi nhận lúc</th></tr></thead>
           <tbody id="scoresBody"></tbody>
         </table>
         <div class="lb-empty" id="scoresEmpty" hidden>Chưa có kết quả nào.</div>

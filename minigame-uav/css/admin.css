@@ -240,3 +240,6 @@
   .admin-card { padding: 16px; }
   .admin-card-head .btn { width: 100%; justify-content: center; }
 }
+
+/* Số lần vi phạm rời màn hình */
+.t-viol { color: #ef4444; font-weight: 700; }

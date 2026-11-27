@@ -167,6 +167,15 @@ async function fetchScores() {
     try { return JSON.parse(localStorage.getItem('uav_demo_scores') || '[]'); }
     catch (_) { return []; }
   }
+  // Ưu tiên đọc bảng players (kèm số lần vi phạm + log đáp án — cần PATCH-LOG.sql)
+  const p = await db.from('players')
+    .select('name, school, correct_count, total_questions, duration_seconds, score, violations, answer_log, created_at')
+    .order('correct_count', { ascending: false })
+    .order('duration_seconds', { ascending: true })
+    .order('created_at', { ascending: true })
+    .limit(2000);
+  if (!p.error) return p.data || [];
+  // Chưa chạy PATCH-LOG.sql / chưa đủ quyền đọc -> dùng view công khai (không có cột mới)
   const { data, error } = await db.from('v_leaderboard')
     .select('name, school, correct_count, total_questions, duration_seconds, score, created_at')
     .order('correct_count', { ascending: false })
@@ -378,6 +387,7 @@ function render() {
         <td class="t-center">${row.correct_count}/${row.total_questions}</td>
         <td class="t-muted">${fmtDuration(row.duration_seconds)}</td>
         <td class="t-center t-score">${row.score}</td>
+        <td class="t-center ${row.violations ? 't-viol' : 't-muted'}">${row.violations || 0}</td>
         <td class="t-muted">${fmtTime(row.created_at)}</td>
       </tr>`).join('');
   }
@@ -437,5 +447,29 @@ $('#btnExportQuestions').addEventListener('click', () => {
     'cau-hoi-toa-dam-uav-2026.csv',
     ['STT', 'Họ tên', 'Trường', 'Câu hỏi', 'Thời điểm gửi'],
     questionsData.map((q, i) => [i + 1, q.name, q.school, q.content, fmtTime(q.created_at)])
+  );
+});
+
+// Log chi tiết từng lần chọn đáp án (cột answer_log — cần PATCH-LOG.sql)
+$('#btnExportAnswers').addEventListener('click', () => {
+  const rows = [];
+  for (const r of scoresData) {
+    const log = Array.isArray(r.answer_log) ? r.answer_log : [];
+    for (const t of log) {
+      rows.push([
+        r.name, r.school,
+        t.q, t.question || '',
+        t.answer == null ? '(hết giờ - không chọn)' : t.answer,
+        t.correct ? 'Đúng' : 'Sai',
+        t.sec_left != null ? t.sec_left : '',
+        t.at || '',
+      ]);
+    }
+  }
+  if (!rows.length) return showToast('Chưa có log đáp án — cần chạy PATCH-LOG.sql và thí sinh thi từ bản mới', 'error');
+  downloadCSV(
+    'log-dap-an-uav-2026.csv',
+    ['Họ tên', 'Trường', 'Câu số', 'Câu hỏi', 'Đáp án chọn', 'Kết quả', 'Giây còn lại', 'Thời điểm chọn'],
+    rows
   );
 });

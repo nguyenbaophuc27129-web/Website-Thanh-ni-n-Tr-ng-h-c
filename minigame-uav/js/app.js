@@ -143,6 +143,8 @@ const quiz = {
   timerId: null,
   timeLeft: 0,
   locked: false,
+  violations: 0,     // số lần rời khỏi màn hình khi đang thi
+  trail: [],         // nhật ký từng lần chọn đáp án (lưu cột answer_log)
 };
 
 function fmtDuration(sec) {
@@ -242,11 +244,65 @@ function startQuiz() {
   quiz.score = 0;
   quiz.correct = 0;
   quiz.duration = 0;
+  quiz.violations = 0;
+  quiz.trail = [];
+  updateViolationBadge();
 
   $('#quizPlayerName').textContent = '👤 ' + quiz.player.name;
   buildRunner();
   showQuizScreen('quizPlay');
   renderQuestion();
+  quizActive = true;
+}
+
+/* ----- Chống rời màn hình khi đang thi -----
+   Chuyển tab / thu nhỏ cửa sổ / bấm sang ứng dụng khác đều bị đếm 1 lần vi phạm
+   (mỗi đợt rời màn hình chỉ đếm 1 lần nhờ cờ awayCounted). Khi quay lại,
+   hiện cảnh báo đỏ. Số lần vi phạm được lưu cùng kết quả thi (cột violations). */
+let quizActive = false;
+let awayCounted = false;
+let awayWarnTimer = null;
+
+function countAway() {
+  if (!quizActive || awayCounted) return;
+  awayCounted = true;
+  quiz.violations++;
+  updateViolationBadge();
+}
+
+function resumeAfterAway() {
+  if (!awayCounted) return;
+  awayCounted = false;
+  showAwayWarning();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) countAway();
+  else resumeAfterAway();
+});
+window.addEventListener('blur', countAway);
+window.addEventListener('focus', resumeAfterAway);
+
+function showAwayWarning() {
+  const el = $('#awayWarn');
+  if (!el) return;
+  $('#awayWarnCount').textContent = quiz.violations;
+  el.hidden = false;
+  el.classList.remove('show');
+  void el.offsetWidth; // chạy lại animation
+  el.classList.add('show');
+  clearTimeout(awayWarnTimer);
+  awayWarnTimer = setTimeout(() => {
+    el.classList.remove('show');
+    el.hidden = true;
+  }, 3600);
+}
+
+function updateViolationBadge() {
+  const el = $('#quizViolations');
+  if (!el) return;
+  el.hidden = !quiz.violations;
+  $('#quizViolationsCount').textContent = quiz.violations;
 }
 
 /* ============================================================
@@ -443,6 +499,17 @@ function answer(correct, chosenBtn) {
     quiz.score += gained;
     $('#quizScore').textContent = quiz.score;
   }
+
+  // Nhật ký lựa chọn: ai chọn đáp án nào, lúc mấy giờ, đúng/sai, còn bao nhiêu giây
+  quiz.trail.push({
+    q: quiz.index + 1,
+    question: item.q,
+    answer: chosenBtn ? chosenBtn.textContent.trim() : null, // null = hết giờ không chọn
+    correct: !!correct,
+    sec_left: quiz.timeLeft,
+    at: new Date().toISOString(),
+  });
+
   runnerFly(correct, gained);
 
   setTimeout(() => {
@@ -455,6 +522,7 @@ function answer(correct, chosenBtn) {
 /* ----- Kết thúc ----- */
 async function finishQuiz() {
   stopTimer();
+  quizActive = false;
   const perfect = quiz.correct === quiz.list.length;
   $('#quizMiniFill').style.width = '100%';
 
@@ -462,6 +530,12 @@ async function finishQuiz() {
   $('#resultCorrect').textContent = `${quiz.correct}/${quiz.list.length}`;
   $('#resultTime').textContent = fmtDuration(quiz.duration);
   $('#resultName').textContent = quiz.player.name;
+
+  const rv = $('#resultViolations');
+  if (rv) {
+    rv.hidden = !quiz.violations;
+    $('#resultViolationsCount').textContent = quiz.violations;
+  }
 
   // Vòng điểm animate
   const maxScore = quiz.list.length * (CONFIG.QUIZ.POINTS_PER_CORRECT + CONFIG.QUIZ.SPEED_BONUS_MAX);
@@ -535,6 +609,8 @@ function saveResult() {
     total_questions: quiz.list.length,
     duration_seconds: quiz.duration,
     score: quiz.score,
+    violations: quiz.violations || 0,
+    answer_log: quiz.trail.length ? quiz.trail : null,
   };
 
   if (demoMode) {
@@ -556,6 +632,16 @@ function saveResult() {
   return db.from('players').insert(row)
     .then(({ error }) => {
       if (!error) return 'ok';
+      // Chưa chạy PATCH-LOG.sql (schema cache thiếu cột violations/answer_log)
+      // -> gửi lại bản gọn để không mất kết quả thí sinh
+      if (error.code === 'PGRST204') {
+        const { violations, answer_log, ...base } = row;
+        return db.from('players').insert(base).then(({ error: e2 }) => {
+          if (!e2) return 'ok';
+          console.error(e2);
+          return e2.code === '42501' ? 'duplicate' : 'error';
+        });
+      }
       console.error(error);
       return error.code === '42501' ? 'duplicate' : 'error';
     })
