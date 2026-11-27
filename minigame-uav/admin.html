@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Quản trị | Workshop UAV 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📊</text></svg>" />
+</head>
+<body class="admin-body">
+
+  <div class="sky" aria-hidden="true">
+    <div class="stars"></div>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+  </div>
+
+  <!-- Cổng đăng nhập Ban Tổ chức -->
+  <div class="admin-gate" id="adminGate">
+    <form class="card admin-gate-card" id="gateForm" novalidate>
+      <div class="gate-icon">🔐</div>
+      <h1>Trang Quản trị</h1>
+      <p>Workshop "Sinh viên kiến tạo tương lai công nghệ bay không người lái" năm 2026</p>
+      <div class="field" id="gateEmailField">
+        <label for="gateEmail">Email Ban Tổ chức</label>
+        <input type="email" id="gateEmail" placeholder="VD: chinhna@gmail.com" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="gatePass">Mật khẩu</label>
+        <input type="password" id="gatePass" placeholder="Nhập mật khẩu..." autocomplete="current-password" />
+      </div>
+      <p class="form-error" id="gateError" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">Đăng nhập</button>
+      <p class="gate-hint" id="gateHint">Đăng nhập bằng <b>tài khoản Ban Tổ chức</b> được chủ dự án cấp (xem HUONG-DAN-DEPLOY.md).</p>
+    </form>
+  </div>
+
+  <!-- Nội dung quản trị -->
+  <div class="admin-wrap" id="adminWrap" hidden>
+    <header class="admin-head">
+      <div>
+        <h1>📊 Quản trị — <span class="gradient-text">Workshop UAV 2026</span></h1>
+        <p class="admin-status" id="adminStatus">Đang tải dữ liệu...</p>
+        <p class="admin-status" id="adminWho"></p>
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-ghost" id="btnLive">🔴 Live 5s</button>
+        <button class="btn btn-primary" id="btnProject">🖥️ Chiếu bảng vàng</button>
+        <button class="btn btn-ghost" id="btnRefresh">↻ Làm mới</button>
+        <a class="btn btn-ghost" href="index.html">← Về trang chính</a>
+        <button class="btn btn-ghost" id="btnLogout">Đăng xuất</button>
+      </div>
+    </header>
+
+    <div class="demo-banner" id="demoBanner" hidden>
+      ⚠️ Chưa kết nối database — đang hiển thị <b>dữ liệu Demo trên máy này</b>.
+      Làm theo <b>HUONG-DAN-DEPLOY.md</b> để xem dữ liệu thật của sinh viên.
+    </div>
+
+    <div class="admin-stats" id="adminStats"></div>
+
+    <!-- Bộ câu hỏi minigame (Ban Tổ chức tự quản) -->
+    <section class="card admin-card" id="quizQuestionsCard">
+      <div class="admin-card-head">
+        <h2>❓ Bộ câu hỏi minigame — <b><span id="qqCount">0</span> câu</b></h2>
+        <div class="admin-actions">
+          <button class="btn btn-ghost" id="btnToggleQqForm">＋ Thêm câu hỏi</button>
+        </div>
+      </div>
+      <p class="admin-note">Web minigame <b>tự đọc bộ câu hỏi này</b> — câu nào có ở đây là câu sinh viên sẽ thi. Ghi đúng: 1 câu hỏi + các đáp án, bấm chọn tròn ở <b>đáp án đúng</b>.</p>
+
+      <form class="form qq-form" id="qqForm" hidden>
+        <div class="field">
+          <label for="qqQ">Câu hỏi <i>*</i></label>
+          <textarea id="qqQ" rows="2" maxlength="500" placeholder="VD: UAV là từ viết tắt của cụm từ nào?" required></textarea>
+        </div>
+        <div class="qq-answers">
+          <div class="qq-answer"><label><input type="radio" name="qqCorrect" value="0" checked /> A <i>*</i></label><input type="text" id="qqA1" maxlength="200" placeholder="Đáp án A" /></div>
+          <div class="qq-answer"><label><input type="radio" name="qqCorrect" value="1" /> B <i>*</i></label><input type="text" id="qqA2" maxlength="200" placeholder="Đáp án B" /></div>
+          <div class="qq-answer"><label><input type="radio" name="qqCorrect" value="2" /> C</label><input type="text" id="qqA3" maxlength="200" placeholder="Đáp án C (không bắt buộc)" /></div>
+          <div class="qq-answer"><label><input type="radio" name="qqCorrect" value="3" /> D</label><input type="text" id="qqA4" maxlength="200" placeholder="Đáp án D (không bắt buộc)" /></div>
+        </div>
+        <p class="form-error" id="qqError" hidden></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" id="btnQqCancel">Hủy</button>
+          <button type="submit" class="btn btn-primary">💾 Lưu câu hỏi</button>
+        </div>
+      </form>
+
+      <div class="qq-list" id="qqList"></div>
+      <div class="lb-empty" id="qqEmpty" hidden>Bộ câu hỏi đang trống — bấm <b>＋ Thêm câu hỏi</b> để nhập câu đầu tiên. Khi chưa có câu hỏi nào trong database, web dùng bộ câu mẫu trong file <b>js/questions.js</b>.</div>
+    </section>
+
+    <!-- Bảng vàng đầy đủ -->
+    <section class="card admin-card">
+      <div class="admin-card-head">
+        <h2>🏆 Bảng vàng — toàn bộ kết quả</h2>
+        <button class="btn btn-primary" id="btnExportScores">⬇ Xuất Excel (CSV)</button>
+      </div>
+      <p class="admin-note">Xếp hạng theo Kế hoạch Workshop: <b>số câu đúng</b> cao nhất, cùng số câu đúng thì <b>thời gian nhanh hơn</b>. Mỗi người tính kết quả tốt nhất.</p>
+      <div class="lb-table-wrap">
+        <table class="admin-table" id="scoresTable">
+          <thead><tr><th>#</th><th>Họ tên</th><th>Trường</th><th>Câu đúng</th><th>Thời gian</th><th>Điểm</th><th>Ghi nhận lúc</th></tr></thead>
+          <tbody id="scoresBody"></tbody>
+        </table>
+        <div class="lb-empty" id="scoresEmpty" hidden>Chưa có kết quả nào.</div>
+      </div>
+      <p class="admin-note small">📞 Số điện thoại của thí điểm hiển thị riêng tư — chỉ xem trong Supabase Dashboard → Table Editor → players (an toàn, người ngoài không thấy).</p>
+    </section>
+
+    <!-- Câu hỏi sinh viên -->
+    <section class="card admin-card">
+      <div class="admin-card-head">
+        <h2>💬 Câu hỏi sinh viên gửi về phần tọa đàm</h2>
+        <button class="btn btn-primary" id="btnExportQuestions">⬇ Xuất Excel (CSV)</button>
+      </div>
+      <div class="ask-list" id="questionsList"></div>
+      <div class="lb-empty" id="questionsEmpty" hidden>Chưa có câu hỏi nào.</div>
+    </section>
+
+    <footer class="footer-copy">© 2026 Trung tâm Hỗ trợ và Phát triển Sinh viên Việt Nam — trang dành riêng cho Ban Tổ chức</footer>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- Màn hình chiếu bảng vàng (fullscreen cho MC) -->
+  <div class="live-overlay" id="liveOverlay" hidden>
+    <div class="live-head">
+      <div class="live-title">
+        <span class="live-dot"></span>
+        <span>Thử thách Sáng tạo UAV — <b>Bảng vàng Live</b></span>
+      </div>
+      <div class="live-counter">
+        <b id="liveCount">0</b>
+        <small>sinh viên đã tham gia</small>
+      </div>
+      <button class="btn btn-ghost live-exit" id="btnLiveExit">✕ Thoát (ESC)</button>
+    </div>
+    <div class="live-board" id="liveBoard"></div>
+    <p class="live-foot">Cập nhật tự động mỗi 5 giây — Workshop UAV 2026</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

@@ -64,6 +64,27 @@ Người dùng ──HTTPS──► OneShield ──HTTPS, cổng 443──► p
 
 Nếu tắt "Bảo vệ" ở bản ghi DNS, trình duyệt sẽ gặp chứng chỉ tự ký và báo không an toàn. Khi đó sửa `tls internal` trong `deploy/Caddyfile` thành `tls <email>` để Caddy tự xin Let's Encrypt.
 
+## Minigame Workshop UAV — subdomain `uav.`
+
+Web tĩnh cho sự kiện 30/11/2026, nằm trong thư mục `minigame-uav/` của repo (dữ liệu lưu ở Supabase, không dùng database máy chủ). Caddy phục vụ thẳng thư mục này tại `https://uav.<DOMAIN>`, không qua Next.js.
+
+Đã cấu hình sẵn trong repo: site block `https://uav.<DOMAIN>` trong `deploy/Caddyfile` + mount `./minigame-uav:/srv/minigame:ro` vào service `proxy` trong `docker-compose.yml`.
+
+Còn lại phải làm, theo thứ tự:
+
+1. **DNS OneShield** (bên quản lý miền): tạo bản ghi A `uav` trỏ `103.216.116.242`, bật "Bảo vệ" như bản ghi `@`/`www` — OneShield cấp chứng chỉ và lọc trước khi vào máy chủ. Không có bản ghi này thì subdomain chưa truy cập được từ ngoài.
+2. **Trên máy chủ** — chỉ thay đổi Caddy và mount, không cần build lại web:
+   ```bash
+   deploy/deploy.sh --pull        # cách đầy đủ (build lại web, tạo lại mọi container)
+   # hoặc nhanh hơn:
+   git pull --ff-only && docker compose up -d proxy   # chỉ tạo lại proxy
+   ```
+3. Kiểm tra: mở `https://uav.thanhnientruonghoc.io.vn` (trang minigame) và `.../admin.html` (quản trị, đăng nhập bằng tài khoản Supabase của Ban Tổ chức).
+
+**Nếu không bật được "Bảo vệ" cho bản ghi con** (chỉ trỏ thẳng IP): sửa `tls internal` trong block `https://uav.…` thành `tls <email>` để Caddy tự xin chứng chỉ Let's Encrypt (cổng 80/443 đang mở thẳng ra ngoài), rồi `docker compose up -d proxy`.
+
+Sửa giao diện/nội dung minigame: sửa tệp trong `minigame-uav/`, commit, rồi lệnh ở bước 2 — web chính không bị ảnh hưởng.
+
 ## Google (Search Console)
 
 - `https://thanhnientruonghoc.io.vn/sitemap.xml` sinh từ `src/app/sitemap.ts`, `robots.txt` từ `src/app/robots.ts`. Địa chỉ chính thức là bản không `www`; bản `www` tự chuyển về (301).

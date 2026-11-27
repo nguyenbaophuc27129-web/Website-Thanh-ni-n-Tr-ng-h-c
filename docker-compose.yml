@@ -38,6 +38,8 @@ services:
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - /srv/tnth/uploads:/srv/uploads:ro
+      # Minigame Workshop UAV — web tĩnh, phục vụ tại subdomain uav.<DOMAIN>
+      - ./minigame-uav:/srv/minigame:ro
       - caddy_data:/data
       - caddy_config:/config
     mem_limit: 256m

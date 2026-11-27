@@ -89,3 +89,26 @@ https://www.{$DOMAIN:localhost} {
 	tls internal
 	redir https://{$DOMAIN:localhost}{uri} permanent
 }
+
+# Minigame Workshop UAV — web tĩnh trong thư mục minigame-uav/ của repo,
+# Caddy phục vụ thẳng, KHÔNG qua Next.js. DNS: bản ghi A "uav" trỏ IP máy chủ,
+# bật "Bảo vệ" OneShield như bản ghi @/www (xem DEPLOY.md mục Minigame UAV).
+https://uav.{$DOMAIN:localhost} {
+	tls internal
+	root * /srv/minigame
+
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Tệp tĩnh: cache vừa phải để sửa trong sự kiện có hiệu lực nhanh
+	header /css/* Cache-Control "public, max-age=3600"
+	header /js/* Cache-Control "public, max-age=3600"
+	header /assets/* Cache-Control "public, max-age=86400"
+
+	file_server
+}
